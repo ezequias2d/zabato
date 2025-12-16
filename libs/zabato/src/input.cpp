@@ -195,8 +195,6 @@ const char *to_string(key_code key)
         return "<f23>";
     case key_code::f24:
         return "<f24>";
-    case key_code::f25:
-        return "<f25>";
     case key_code::kp_0:
         return "<kp 0>";
     case key_code::kp_1:
