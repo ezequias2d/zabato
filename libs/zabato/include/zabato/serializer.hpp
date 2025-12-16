@@ -163,6 +163,13 @@ public:
     size_t write(const string &str);
 
     /**
+     * @brief Write a string.
+     * @param str The string to write.
+     * @return bytes written.
+     */
+    size_t write(const string_view &str);
+
+    /**
      * @brief Save an object hierarchy starting from root.
      * @param stream The output stream.
      * @param root The root object.
