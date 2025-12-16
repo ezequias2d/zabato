@@ -1,0 +1,5 @@
+target("imgui")
+    set_kind("static")
+    add_files("imgui/*.cpp")
+    add_headerfiles("imgui/*.h")
+    add_includedirs("imgui", {public = true})

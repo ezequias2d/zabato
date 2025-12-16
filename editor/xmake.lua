@@ -1,0 +1,5 @@
+target("editor")
+    set_kind("binary")
+    add_files("src/*.cpp")
+    set_languages("c++23")
+    add_deps("zabato_imgui", "zabato_sdl2", "zabato_gl", "cstd", "zabato")

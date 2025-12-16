@@ -1,0 +1,7 @@
+target("cstd")
+    set_kind("static")
+    add_cxflags("-fPIC", {force = true})
+    set_languages("c++23")
+    add_includedirs("include", {public = true})
+    add_files("src/*.cpp")
+    add_deps("berg")
