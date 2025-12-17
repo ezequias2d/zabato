@@ -1,0 +1,47 @@
+name: build
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libx11-dev \
+          libxext-dev \
+          libxcb1-dev \
+          libxcb-shm0-dev \
+          libxcb-xfixes0-dev \
+          libffi-dev \
+          libxml2-dev \
+          libexpat1-dev \
+          libsdl2-dev \
+          libtinyxml2-dev \
+          xorg-dev \
+          xcb-proto \
+          xutils-dev \
+          ca-certificates
+          
+    - uses: xmake-io/github-action-setup-xmake@v1
+      with:
+        xmake-version: latest
+        actions-cache-folder: '.xmake-cache'
+        actions-cache-key: 'ubuntu-ci'
+        
+    - name: Build
+      run: |
+        ls
+        pwd
+        xmake -y -vD
