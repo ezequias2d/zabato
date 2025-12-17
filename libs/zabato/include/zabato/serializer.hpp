@@ -4,6 +4,7 @@
 #include <zabato/hash_set.hpp>
 #include <zabato/ice.hpp>
 #include <zabato/object.hpp>
+#include <zabato/resource.hpp>
 #include <zabato/stream.hpp>
 
 namespace zabato
@@ -72,7 +73,7 @@ private:
 class serializer
 {
 public:
-    serializer();
+    serializer(resource_manager &manager);
     ~serializer();
 
     /**
@@ -170,6 +171,20 @@ public:
     size_t write(const string_view &str);
 
     /**
+     * @brief Read a resource reference.
+     * @param ref Reference to update.
+     * @return bytes read.
+     */
+    size_t read(resource_ref &ref);
+
+    /**
+     * @brief Write a resource reference.
+     * @param ref The reference to write.
+     * @return bytes written.
+     */
+    size_t write(const resource_ref &ref);
+
+    /**
      * @brief Save an object hierarchy starting from root.
      * @param stream The output stream.
      * @param root The root object.
@@ -184,7 +199,10 @@ public:
      */
     bool load(stream &stream);
 
+    resource_manager *get_manager() const { return m_manager; }
+
 private:
+    resource_manager *m_manager = nullptr;
     hash_map<const void *, void *> m_unique_map;
     vector<const object *> m_ordered_objects;
     vector<serializer_link *> m_links;

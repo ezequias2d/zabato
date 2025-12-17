@@ -60,19 +60,20 @@ class resource_ref
 {
 public:
     resource_ref() = default;
-    resource_ref(const char *path, resource_manager *mgr = nullptr)
+    resource_ref(string_view path, resource_manager *mgr = nullptr)
         : m_path(path), m_manager(mgr)
     {
     }
 
-    const char *get_path() const { return m_path; }
-    void set_path(const char *path) { m_path = path; }
+    string_view path() const { return m_path; }
+    void set_path(string_view path) { m_path = path; }
+    const char *c_path() const { return m_path.c_str(); }
     void set_manager(resource_manager *mgr) { m_manager = mgr; }
-    resource_manager *get_manager() const { return m_manager; }
+    resource_manager *manager() const { return m_manager; }
 
     template <typename T> shared_ptr<T> &&get() const
     {
-        if (!m_manager || !m_path)
+        if (!m_manager || m_path.empty())
             return nullptr;
         result<shared_ptr<T>> resource = m_manager->load<T>(m_path);
         assert(!resource.has_error());
@@ -82,7 +83,7 @@ public:
     }
 
 private:
-    const char *m_path          = nullptr;
+    string m_path;
     resource_manager *m_manager = nullptr;
 };
 

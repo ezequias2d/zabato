@@ -12,7 +12,10 @@ const rtti serializer_link::TYPE("zabato.serializer_link", &object::TYPE);
  * @brief Construct a new serializer object.
  * Initializes readers and writers to nullptr.
  */
-serializer::serializer() : m_reader(nullptr), m_writer(nullptr) {}
+serializer::serializer(resource_manager &manager)
+    : m_manager(&manager), m_reader(nullptr), m_writer(nullptr)
+{
+}
 
 /**
  * @brief Destroy the serializer object.
@@ -124,6 +127,24 @@ size_t serializer::write(const string_view &str)
         bytes_written += *res2;
     }
     return bytes_written;
+}
+
+size_t serializer::read(resource_ref &ref)
+{
+    string path;
+    size_t bytes = read(path);
+    if (bytes > 0)
+    {
+        ref.set_path(path.c_str());
+        ref.set_manager(m_manager);
+    }
+    return bytes;
+}
+
+size_t serializer::write(const resource_ref &ref)
+{
+    string path = ref.path();
+    return write(path);
 }
 
 bool serializer::save(stream &stream, const object *root)
