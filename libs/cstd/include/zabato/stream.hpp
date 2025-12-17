@@ -32,10 +32,9 @@ public:
     /**
      * @brief Writes a block of data to the stream.
      * @param buffer The source buffer for the data.
-     * @param size The number of bytes to write.
      * @return The number of bytes actually written.
      */
-    virtual size_t write(buffer &buffer) = 0;
+    virtual size_t write(const buffer &buffer) = 0;
 
     /**
      * @brief Skips a number of bytes in the stream.
@@ -72,7 +71,7 @@ public:
         return fread(buffer.data(), 1, buffer.size(), m_file);
     }
 
-    size_t write(buffer &buffer) override final
+    size_t write(const buffer &buffer) override final
     {
         return fwrite(buffer.data(), 1, buffer.size(), m_file);
     }
@@ -122,7 +121,7 @@ public:
         return bytes_to_read;
     }
 
-    size_t write(buffer &buffer) override final
+    size_t write(const buffer &buffer) override final
     {
         const uint8_t *byte_buffer = buffer.data();
         for (size_t i = 0; i < buffer.size(); ++i)

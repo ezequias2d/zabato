@@ -133,20 +133,20 @@ int object::get_memory_used() const { return sizeof(*this); }
 
 int object::get_disk_used() const { return 0; }
 
-object *object::clone() const
+object *object::clone(resource_manager &manager) const
 {
     vector<uint8_t> buffer;
     memory_stream stream(buffer);
 
     {
-        serializer serializer;
+        serializer serializer(manager);
         serializer.save(stream, this);
     }
 
     stream.rewind();
 
     {
-        serializer serializer;
+        serializer serializer(manager);
         serializer.load(stream);
         return serializer.get_from_map((void *)this);
     }

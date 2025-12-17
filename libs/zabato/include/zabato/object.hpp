@@ -1,6 +1,7 @@
 #pragma once
 
 #include <zabato/hash_map.hpp>
+#include <zabato/resource.hpp>
 #include <zabato/rtti.hpp>
 #include <zabato/vector.hpp>
 
@@ -253,7 +254,7 @@ public:
 #pragma endregion Reference Count
 
 #pragma region Cloning
-    object *clone() const;
+    object *clone(resource_manager &manager) const;
 #pragma endregion Cloning
 
 private:

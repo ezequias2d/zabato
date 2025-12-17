@@ -392,6 +392,19 @@ public:
     }
 
     /**
+     * @brief Writes a block of data to the stream.
+     * @param buf The source buffer.
+     * @return Result indicating success or failure
+     */
+    result<void> write(const buffer &buf)
+    {
+        size_t written = m_stream.write(buf);
+        if (written != buf.size())
+            return report_error(error_code::unable_to_write);
+        return {};
+    }
+
+    /**
      * @brief Writes a Berg-compressed chunk to the stream.
      * @param original_chunk_id The ID of the original uncompressed chunk type
      * @param buffer The source buffer to compress and write

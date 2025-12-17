@@ -300,7 +300,19 @@ private:
     template <typename U> friend class weak_ptr;
     template <typename U, typename... Args>
     friend shared_ptr<U> make_shared(Args &&...args);
+
+    template <typename T2, typename U>
+    friend shared_ptr<T2> static_pointer_cast(const shared_ptr<U> &r);
 };
+
+template <typename T, typename U>
+shared_ptr<T> static_pointer_cast(const shared_ptr<U> &r)
+{
+    auto p = static_cast<typename shared_ptr<T>::element_type *>(r.get());
+    if (r.m_cb)
+        r.m_cb->add_ref();
+    return shared_ptr<T>(r.m_cb, p);
+}
 
 /**
  * @brief Smart pointer class that holds a non-owning ("weak") reference to an

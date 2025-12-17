@@ -23,26 +23,29 @@ public:
     {
         resource_ptr resource;
         if (m_resources.try_get_value(path, resource))
-            return move(resource);
+        {
+            shared_ptr<T> ptr = static_pointer_cast<T>(resource);
+            return ptr;
+        }
 
         auto obj = make_shared<T>();
 
         FILE *file = fopen(path.c_str(), "rb");
         assert(file);
         if (!file)
-            return nullptr;
+            return report_error(error_code::file_not_found, path.c_str());
 
         file_stream stream(file);
         ice_reader reader(stream);
-        auto res = deserialize(reader, obj.get());
+        auto res = deserialize(reader, *obj.get());
         if (res.has_error())
         {
             fclose(file);
-            return res;
+            return res.error;
         }
 
         fclose(file);
-        m_resources.set(path, static_pointer_cast<resource>(res));
+        m_resources.set(path, obj);
         return obj;
     }
 
