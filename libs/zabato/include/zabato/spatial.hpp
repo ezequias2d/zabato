@@ -5,25 +5,44 @@
 
 namespace zabato
 {
+class world;
+class xml_serializer;
+
 class spatial : public object
 {
 public:
-    virtual ~spatial();
-    spatial *parent();
+    static const rtti TYPE;
+
+    const rtti &type() const override { return TYPE; }
+
+    virtual ~spatial() {}
+    spatial *parent() const { return m_parent; }
+
+    virtual void save_xml(xml_serializer &serializer,
+                          tinyxml2::XMLElement &element) const override;
+    virtual void load_xml(xml_serializer &serializer,
+                          tinyxml2::XMLElement &element) override;
+    virtual void link(xml_serializer &serializer,
+                      tinyxml2::XMLElement &element) override;
+
+    virtual world *get_world() const override final
+    {
+        return parent()->get_world();
+    }
 
     transformation &get_local() { return local; }
-    transformation &get_world()
+    transformation &get_world_transform()
     {
         if (is_world_dirty)
         {
             spatial *p = parent();
             if (p)
-                world.product(p->get_world(), local);
+                world_transform.product(p->get_world_transform(), local);
             else
-                world = local;
+                world_transform = local;
             is_world_dirty = false;
         }
-        return world;
+        return world_transform;
     }
 
     void set_local(const transformation &local)
@@ -34,14 +53,14 @@ public:
 
     void set_world(const transformation &world)
     {
-        this->world    = world;
-        is_world_dirty = false;
+        this->world_transform = world;
+        is_world_dirty        = false;
 
         spatial *p = parent();
         if (p)
         {
             transformation inv_parent;
-            p->get_world().inverse(inv_parent);
+            p->get_world_transform().inverse(inv_parent);
             local.product(inv_parent, world);
         }
         else
@@ -52,13 +71,17 @@ public:
 
 protected:
     transformation local;
-    transformation world;
+    transformation world_transform;
     bool is_world_dirty;
 
-    spatial();
+    spatial() : m_parent(nullptr), is_world_dirty(false) {}
     spatial *m_parent;
 
 public:
-    void set_parent(spatial *parent);
+    void set_parent(spatial *parent)
+    {
+        m_parent       = parent;
+        is_world_dirty = true;
+    }
 };
 } // namespace zabato

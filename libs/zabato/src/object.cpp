@@ -1,20 +1,24 @@
 #include <stdio.h>
+#include <tinyxml2.h>
+#include <zabato/controller.hpp>
 #include <zabato/hash_map.hpp>
 #include <zabato/object.hpp>
 #include <zabato/serializer.hpp>
 #include <zabato/stream.hpp>
 #include <zabato/string_tree.hpp>
 #include <zabato/symbol.hpp>
+#include <zabato/world.hpp>
+#include <zabato/xml_serializer.hpp>
 
 namespace zabato
 {
 
 const rtti object::TYPE("zabato.object", nullptr);
-unsigned int object::ms_uiNextID = 0;
-hash_map<unsigned int, object *> object::s_in_use;
-hash_map<string, object::factory_function> *object::s_factory = nullptr;
+hash_map<uuid, object *> object::s_in_use;
+hash_map<string, object::factory_function> *object::s_factory         = nullptr;
+hash_map<string, object::factory_function_xml> *object::s_factory_xml = nullptr;
 
-object::object() : m_name(nullptr), m_uiID(next_id()), m_uiRefCount(0) {}
+object::object() : m_name(nullptr), m_uiID(uuid::generate()), m_uiRefCount(0) {}
 
 object::~object()
 {
@@ -33,6 +37,10 @@ void object::initialize_factory()
 {
     if (!s_factory)
         s_factory = new hash_map<string, factory_function>(FACTORY_MAP_SIZE);
+
+    if (!s_factory_xml)
+        s_factory_xml =
+            new hash_map<string, factory_function_xml>(FACTORY_MAP_SIZE);
 }
 
 void object::terminate_factory()
@@ -41,6 +49,12 @@ void object::terminate_factory()
     {
         delete s_factory;
         s_factory = nullptr;
+    }
+
+    if (s_factory_xml)
+    {
+        delete s_factory_xml;
+        s_factory_xml = nullptr;
     }
 }
 
@@ -67,6 +81,18 @@ object *object::factory(serializer &stream)
     // If the class is not registered in the factory map, return nullptr.
     // This indicates that the class type serialized in the stream is unknown to
     // the runtime.
+    return nullptr;
+}
+
+object *object::factory(xml_serializer &serializer, tinyxml2::XMLElement &el)
+{
+    if (!s_factory)
+        return nullptr;
+
+    string name                = el.Name();
+    factory_function_xml pFunc = nullptr;
+    if (s_factory_xml->try_get_value(name, pFunc))
+        return (*pFunc)(serializer, el);
     return nullptr;
 }
 
@@ -129,6 +155,80 @@ void object::link(serializer &stream, serializer_link *link)
     // stream.get_from_map().
 }
 
+void object::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &el)
+{
+    const char *id = el.Attribute("id");
+    assert(id);
+    uuid uuid;
+    uuid.parse(id);
+
+    const char *name = el.Attribute("name");
+    if (name)
+        set_name(name);
+    else
+        set_name("");
+
+    auto controllers = el.FirstChildElement("controllers");
+    for (; controllers != nullptr;
+         controllers = controllers->NextSiblingElement("controllers"))
+    {
+        tinyxml2::XMLElement *controller = controllers->FirstChildElement();
+        for (; controller != nullptr;
+             controller = controller->NextSiblingElement())
+        {
+            object *cObj = object::factory(serializer, *controller);
+            if (!cObj)
+                continue;
+
+            pointer<zabato::controller> ctrl =
+                c_dynamic_cast<zabato::controller>(cObj);
+            assert(ctrl);
+            add_controller(ctrl);
+        }
+    }
+}
+
+void object::save_xml(xml_serializer &serializer,
+                      tinyxml2::XMLElement &el) const
+{
+    el.SetAttribute("id", uuid().to_string().c_str());
+    el.SetAttribute("name", name());
+
+    if (!m_controllers.empty())
+    {
+        tinyxml2::XMLElement *controllers =
+            el.InsertNewChildElement("controllers");
+        for (auto &ctrl : m_controllers)
+        {
+            rtti type = ctrl->type();
+            tinyxml2::XMLElement *controller =
+                controllers->InsertNewChildElement(type.name());
+            ctrl->save_xml(serializer, *controller);
+        }
+    }
+}
+
+void object::link(xml_serializer &serializer, tinyxml2::XMLElement &el)
+{
+
+    auto controllers = el.FirstChildElement("controllers");
+    size_t index     = 0;
+    for (; controllers != nullptr;
+         controllers = controllers->NextSiblingElement("controllers"))
+    {
+        tinyxml2::XMLElement *controller = controllers->FirstChildElement();
+        for (; controller != nullptr;
+             controller = controller->NextSiblingElement())
+        {
+            pointer<zabato::controller> ctrl = m_controllers[index++];
+            if (!ctrl)
+                continue;
+
+            ctrl->link(serializer, *controller);
+        }
+    }
+}
+
 int object::get_memory_used() const { return sizeof(*this); }
 
 int object::get_disk_used() const { return 0; }
@@ -164,6 +264,62 @@ void object::set_name(const char *name)
     if (m_name)
         release_symbol(m_name);
     m_name = get_symbol(name);
+}
+
+void object::add_controller(pointer<controller> ctrl)
+{
+    if (!ctrl)
+        return;
+
+    // Check if already added
+    for (auto &c : m_controllers)
+    {
+        if (c == ctrl)
+            return;
+    }
+
+    m_controllers.push_back(ctrl);
+    ctrl->set_object(this);
+
+    // If we are in a world, register the controller
+    world *w = get_world();
+    if (w)
+    {
+        w->add_controller(ctrl);
+    }
+}
+
+void object::remove_controller(pointer<controller> ctrl)
+{
+    if (!ctrl)
+        return;
+
+    bool found = m_controllers.remove(ctrl);
+    if (found)
+    {
+        ctrl->set_object(nullptr);
+        world *w = get_world();
+        if (w)
+        {
+            w->remove_controller(ctrl);
+        }
+    }
+}
+
+pointer<controller> object::get_controller(const rtti &type) const
+{
+    for (const auto &c : m_controllers)
+        if (c->is_derived(type))
+            return c;
+    return nullptr;
+}
+
+void object::get_controllers(const rtti &type,
+                             vector<pointer<controller>> &out_controllers) const
+{
+    for (const auto &c : m_controllers)
+        if (c->is_derived(type))
+            out_controllers.push_back(c);
 }
 
 void object::set_name(symbol *name)

@@ -1,16 +1,25 @@
 #pragma once
 
+#include <tinyxml2.h>
+
 #include <zabato/hash_map.hpp>
 #include <zabato/resource.hpp>
 #include <zabato/rtti.hpp>
+#include <zabato/uuid.hpp>
 #include <zabato/vector.hpp>
+#include <zabato/xml_serializer.hpp>
 
 namespace zabato
 {
+class xml_serializer;
 class serializer;
 class serializer_link;
 class string_tree;
+class world;
+class controller;
 struct symbol;
+
+template <class T> class pointer;
 
 class object
 {
@@ -115,26 +124,18 @@ public:
 #pragma endregion Name
 
 #pragma region ID
-    static unsigned int ms_uiNextID;
-
     /**
      * @brief Get the unique ID of this object.
      * @return The object ID.
      */
-    unsigned int id() const { return m_uiID; }
-
-    /**
-     * @brief Generate the next available unique ID.
-     * @return The next ID.
-     */
-    static unsigned int next_id() { return ms_uiNextID++; }
+    uuid id() const { return m_uiID; }
 
     /**
      * @brief Search for an object by its unique ID.
      * @param uiID The ID to search for.
      * @return Pointer to the object if found, nullptr otherwise.
      */
-    virtual object *get_object_by_id(unsigned int uiID)
+    virtual object *get_object_by_id(uuid uiID)
     {
         if (m_uiID == uiID)
             return this;
@@ -144,6 +145,8 @@ public:
 
 #pragma region Streaming
     typedef object *(*factory_function)(serializer &);
+    typedef object *(*factory_function_xml)(xml_serializer &serializer,
+                                            tinyxml2::XMLElement &element);
 
     enum
     {
@@ -151,6 +154,7 @@ public:
     };
 
     static hash_map<string, factory_function> *s_factory;
+    static hash_map<string, factory_function_xml> *s_factory_xml;
 
     /**
      * @brief Register the factory for this class.
@@ -180,6 +184,8 @@ public:
      * initialized or the type is unknown.
      */
     static object *factory(serializer &stream);
+    static object *factory(xml_serializer &serializer,
+                           tinyxml2::XMLElement &element);
 
     /**
      * @brief Load object data from a stream.
@@ -196,6 +202,13 @@ public:
     virtual void link(serializer &stream, serializer_link *link);
 
     /**
+     * @brief Resolve links to other objects after loading.
+     * @param serializer The serializer context.
+     * @param el The XML element containing object IDs.
+     */
+    virtual void link(xml_serializer &serializer, tinyxml2::XMLElement &el);
+
+    /**
      * @brief Register this object for streaming.
      * @param stream The stream to register with.
      * @return true if registered successfully.
@@ -207,6 +220,20 @@ public:
      * @param stream The stream to write to.
      */
     virtual void save(serializer &stream) const;
+
+    /**
+     * @brief Save this object to an XML element.
+     * @param element The XML element to write to.
+     */
+    virtual void save_xml(xml_serializer &serializer,
+                          tinyxml2::XMLElement &element) const;
+
+    /**
+     * @brief Load this object from an XML element.
+     * @param element The XML element to read from.
+     */
+    virtual void load_xml(xml_serializer &serializer,
+                          tinyxml2::XMLElement &element);
 
     /**
      * @brief Get the memory usage of this object.
@@ -228,7 +255,7 @@ public:
 #pragma endregion Streaming
 
 #pragma region Reference Count
-    static hash_map<unsigned int, object *> s_in_use;
+    static hash_map<uuid, object *> s_in_use;
     static void print_in_use(const char *file, const char *acMessage) {}
 
     /**
@@ -257,10 +284,64 @@ public:
     object *clone(resource_manager &manager) const;
 #pragma endregion Cloning
 
+#pragma region World
+    virtual world *get_world() const { return nullptr; }
+#pragma endregion World
+
+#pragma region Controllers
+    /**
+     * @brief Add a controller to this object.
+     * @param ctrl The controller to add.
+     */
+    void add_controller(pointer<controller> ctrl);
+
+    /**
+     * @brief Remove a controller from this object.
+     * @param ctrl The controller to remove.
+     */
+    void remove_controller(pointer<controller> ctrl);
+
+    /**
+     * @brief Get the first controller of a specific type.
+     * @param type The RTTI type to search for.
+     * @return Pointer to the controller, or nullptr.
+     */
+    pointer<controller> get_controller(const rtti &type) const;
+
+    /**
+     * @brief Get the first controller of a specific type (template version).
+     * @tparam T The type of controller.
+     * @return Pointer to the controller, or nullptr.
+     */
+    template <typename T> pointer<T> get_controller() const
+    {
+        return get_controller(T::TYPE);
+    }
+
+    /**
+     * @brief Get all controllers of a specific type.
+     * @param type The RTTI type to search for.
+     * @param out_controllers Vector to populate.
+     */
+    void get_controllers(const rtti &type,
+                         vector<pointer<controller>> &out_controllers) const;
+
+    /**
+     * @brief Get all controllers attached to this object.
+     * @return The list of controllers.
+     */
+    const vector<pointer<controller>> &get_controllers() const
+    {
+        return m_controllers;
+    }
+#pragma endregion Controllers
+
 private:
     symbol *m_name;
-    unsigned int m_uiID;
+    uuid m_uiID;
     unsigned int m_uiRefCount;
+
+    vector<pointer<controller>> m_controllers;
 };
 
 /**
