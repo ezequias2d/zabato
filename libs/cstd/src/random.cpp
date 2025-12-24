@@ -32,13 +32,12 @@ void random::buf(void *buf, size_t size)
             p[i] = (uint8_t)(rand() & 0xFF);
     }
 #else
-    bool seeded = false;
-    FILE *f     = fopen("/dev/urandom", "rb");
+    static FILE *f = fopen("/dev/urandom", "rb");
+    bool seeded    = false;
     if (f)
     {
-        if (fread(p, 1, size, f) != size)
+        if (fread(p, 1, size, f) == size)
             seeded = true;
-        fclose(f);
     }
 
     if (!seeded)
