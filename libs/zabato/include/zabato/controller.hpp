@@ -4,6 +4,7 @@
 
 namespace zabato
 {
+struct game_message;
 
 /**
  * @class controller
@@ -35,12 +36,7 @@ public:
     virtual void set_property(const char *name, bool val) {}
     virtual void set_property(const char *name, const char *val) {}
 
-    /**
-     * @brief Dispatches a generic event to this controller.
-     * @param name The name of the event.
-     * @param args Arguments for the event (format depends on controller).
-     */
-    virtual void on_event(const char *name, const char *args) {}
+    virtual void on_message(const game_message &msg) {}
 
     /**
      * @brief Set the object this controller "possesses".
