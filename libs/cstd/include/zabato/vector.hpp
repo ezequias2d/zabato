@@ -422,7 +422,7 @@ public:
 
             if (!is_pod<T>::value)
                 for (size_t i = m_size; i < new_size; ++i)
-                    m_data[i] = val;
+                    new (&m_data[i]) T(val);
         }
         else if (new_size < m_size)
         {
@@ -461,7 +461,7 @@ public:
         if (m_size >= m_capacity)
             reserve(m_capacity == 0 ? 8 : (m_capacity * 3) / 2);
 
-        m_data[m_size] = value;
+        new (&m_data[m_size]) T(value);
         ++m_size;
     }
 
@@ -471,7 +471,7 @@ public:
         if (m_size >= m_capacity)
             reserve(m_capacity == 0 ? 8 : m_capacity * 2);
 
-        m_data[m_size] = zabato::move(value);
+        new (&m_data[m_size]) T(zabato::move(value));
         ++m_size;
     }
 
@@ -609,6 +609,7 @@ public:
     const T *data() const { return m_data; }
 
     T &back() { return m_data[m_size - 1]; }
+    const T &back() const { return m_data[m_size - 1]; }
 
 private:
     T *m_data;             ///< Pointer to the dynamically allocated array.

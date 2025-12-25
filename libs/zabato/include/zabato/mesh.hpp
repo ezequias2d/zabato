@@ -1,7 +1,8 @@
 #pragma once
 
 #include <zabato/allocator.hpp>
-#include <zabato/animator.hpp>
+#include <zabato/spatial.hpp>
+
 #include <zabato/color.hpp>
 #include <zabato/error.hpp>
 #include <zabato/gpu.hpp>
@@ -15,8 +16,6 @@
 
 namespace zabato
 {
-class animation;
-class animator;
 class mesh;
 
 /**
@@ -125,7 +124,19 @@ public:
 
     constexpr size_t get_index_count_per_primitive() const
     {
-        return static_cast<size_t>(m_type) + 1;
+        switch (m_type)
+        {
+        case primitive_type::quads:
+            return 4;
+        case primitive_type::triangles:
+            return 3;
+        case primitive_type::lines:
+            return 2;
+        case primitive_type::points:
+            return 1;
+        default:
+            return 0;
+        }
     }
 
     constexpr primitive_type get_primitive_type() const { return m_type; }
@@ -206,7 +217,9 @@ public:
 
         const uint16_t *index_ptr =
             m_indices.data() + index * get_index_count_per_primitive();
-        memcpy(&prim, index_ptr, sizeof(triangle_primitive));
+        prim.v0 = index_ptr[0];
+        prim.v1 = index_ptr[1];
+        prim.v2 = index_ptr[2];
     }
 
     void set_primitive(uint16_t index, const triangle_primitive &prim)
@@ -218,7 +231,9 @@ public:
 
         uint16_t *index_ptr =
             m_indices.data() + index * get_index_count_per_primitive();
-        memcpy(index_ptr, &prim, sizeof(triangle_primitive));
+        index_ptr[0] = prim.v0;
+        index_ptr[1] = prim.v1;
+        index_ptr[2] = prim.v2;
     }
 
     void get_primitive(uint16_t index, quad_primitive &prim) const
@@ -230,7 +245,10 @@ public:
 
         const uint16_t *index_ptr =
             m_indices.data() + index * get_index_count_per_primitive();
-        memcpy(&prim, index_ptr, sizeof(quad_primitive));
+        prim.v0 = index_ptr[0];
+        prim.v1 = index_ptr[1];
+        prim.v2 = index_ptr[2];
+        prim.v3 = index_ptr[3];
     }
 
     void set_primitive(uint16_t index, const quad_primitive &prim)
@@ -242,7 +260,10 @@ public:
 
         uint16_t *index_ptr =
             m_indices.data() + index * get_index_count_per_primitive();
-        memcpy(index_ptr, &prim, sizeof(quad_primitive));
+        index_ptr[0] = prim.v0;
+        index_ptr[1] = prim.v1;
+        index_ptr[2] = prim.v2;
+        index_ptr[3] = prim.v3;
     }
 
     uint16_t get_bone_count() const { return m_bone_infos.size(); }
@@ -383,11 +404,10 @@ public:
     /**
      * @brief Renders the model using a given GPU context.
      * @param gpu The GPU interface to use for drawing commands.
-     * @param anim An optional animator instance. If provided, the model will be
-     * rendered with skeletal animation. If null, it is rendered in its bind
-     * pose.
+     * @param bones Optional list of bone nodes for skeletal animation.
+     *              If provided, it must match the mesh's bone count and order.
      */
-    void render(gpu &gpu, const animator *anim = nullptr) const;
+    void render(gpu &gpu, const vector<spatial *> &bones = {}) const;
 
 private:
     vector<uint8_t> m_data;

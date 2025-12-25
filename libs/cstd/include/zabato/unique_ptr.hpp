@@ -21,6 +21,20 @@ public:
         other.m_ptr = nullptr;
     }
 
+    template <typename U>
+    unique_ptr(unique_ptr<U> &&other) noexcept : m_ptr(other.release())
+    {
+    }
+
+    T *release() noexcept
+    {
+        T *ptr = m_ptr;
+        m_ptr  = nullptr;
+        return ptr;
+    }
+
+    operator bool() const { return m_ptr != nullptr; }
+
     unique_ptr &operator=(unique_ptr &&other) noexcept
     {
         if (this != &other)

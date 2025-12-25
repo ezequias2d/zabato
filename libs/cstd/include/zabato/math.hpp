@@ -168,6 +168,20 @@ template <typename T> struct vec2
     {
         return !is_equal(*this, v);
     }
+
+    /**
+     * @brief Access component by index.
+     * @param i The index.
+     * @return Reference to the component.
+     */
+    constexpr T &operator[](int i) { return (&x)[i]; }
+
+    /**
+     * @brief Access component by index (const).
+     * @param i The index.
+     * @return Const reference to the component.
+     */
+    constexpr const T &operator[](int i) const { return (&x)[i]; }
 };
 
 /**
@@ -340,6 +354,20 @@ template <typename T> struct vec3
     {
         return !is_equal(*this, v);
     }
+
+    /**
+     * @brief Access component by index.
+     * @param i The index.
+     * @return Reference to the component.
+     */
+    constexpr T &operator[](int i) { return (&x)[i]; }
+
+    /**
+     * @brief Access component by index (const).
+     * @param i The index.
+     * @return Const reference to the component.
+     */
+    constexpr const T &operator[](int i) const { return (&x)[i]; }
 
     /** @brief Returns {x, x} */
     constexpr vec2<T> xx() const { return vec2<T>(x, x); }
@@ -618,6 +646,20 @@ template <typename T> struct vec4
         return !is_equal(*this, v);
     }
 
+    /**
+     * @brief Access component by index.
+     * @param i The index.
+     * @return Reference to the component.
+     */
+    constexpr T &operator[](int i) { return (&x)[i]; }
+
+    /**
+     * @brief Access component by index (const).
+     * @param i The index.
+     * @return Const reference to the component.
+     */
+    constexpr const T &operator[](int i) const { return (&x)[i]; }
+
     /** @brief Returns {x, x} */
     constexpr vec2<T> xx() const { return vec2<T>(x, x); }
     /** @brief Returns {x, y} */
@@ -825,6 +867,21 @@ template <typename T> struct quat
     }
 
     /**
+     * @brief Integrates the quaternion by an angular velocity over a time step
+     * (Euler method).
+     * @param dv The angular velocity vector.
+     * @param dt The time step.
+     */
+    constexpr void integrate(const vec3<T> &dv, T dt);
+
+    /**
+     * @brief Converts the quaternion to axis and angle representation.
+     * @param axis Output axis.
+     * @param angle Output angle (radians).
+     */
+    constexpr void to_axis_angle(vec3<T> &axis, T &angle) const;
+
+    /**
      * @brief Equality operator.
      * @param q The quaternion to compare with.
      * @return True if quaternions are equal, false otherwise.
@@ -863,8 +920,7 @@ template <typename T> struct mat3
             T m01, m11, m21;
             T m02, m12, m22;
         };
-        /** @brief Matrix elements accessed as a 2D array [col][row]. */
-        T m[3][3];
+        vec3<T> columns[3];
     };
 
     /**
@@ -872,8 +928,24 @@ template <typename T> struct mat3
      */
     constexpr mat3()
     {
-        for (int i = 0; i < 9; ++i)
-            (&m00)[i] = {};
+        m00 = m10 = m20 = {};
+        m01 = m11 = m21 = {};
+        m02 = m12 = m22 = {};
+    }
+
+    /**
+     * @brief Constructs a matrix from three column vectors.
+     * @tparam U The numeric type of the vectors.
+     * @param a The first column vector.
+     * @param b The second column vector.
+     * @param c The third column vector.
+     */
+    template <typename U>
+    constexpr mat3(const vec3<U> &a, const vec3<U> &b, const vec3<U> &c)
+    {
+        columns[0] = a;
+        columns[1] = b;
+        columns[2] = c;
     }
 
     /**
@@ -883,8 +955,9 @@ template <typename T> struct mat3
      */
     template <typename U> constexpr mat3(const mat3<U> &other)
     {
-        for (int i = 0; i < 9; ++i)
-            (&m00)[i] = T((&other.m00)[i]);
+        columns[0] = other.columns[0];
+        columns[1] = other.columns[1];
+        columns[2] = other.columns[2];
     }
 
     /**
@@ -896,6 +969,104 @@ template <typename T> struct mat3
         mat3<T> m;
         m.m00 = m.m11 = m.m22 = T(1);
         return m;
+    }
+
+    /**
+     * @brief Constructs a rotation matrix from a quaternion.
+     * @param q The quaternion.
+     */
+    constexpr mat3(const quat<T> &q)
+    {
+        T xx = q.x * q.x, yy = q.y * q.y, zz = q.z * q.z;
+        T xy = q.x * q.y, xz = q.x * q.z, yz = q.y * q.z;
+        T wx = q.w * q.x, wy = q.w * q.y, wz = q.w * q.z;
+
+        columns[0].x = T(1) - T(2) * (yy + zz);
+        columns[0].y = T(2) * (xy + wz);
+        columns[0].z = T(2) * (xz - wy);
+
+        columns[1].x = T(2) * (xy - wz);
+        columns[1].y = T(1) - T(2) * (xx + zz);
+        columns[1].z = T(2) * (yz + wx);
+
+        columns[2].x = T(2) * (xz + wy);
+        columns[2].y = T(2) * (yz - wx);
+        columns[2].z = T(1) - T(2) * (xx + yy);
+    }
+
+    /**
+     * @brief Adds another matrix to this matrix.
+     * @param rhs The matrix to add.
+     * @return A reference to this matrix after modification.
+     */
+    constexpr mat3<T> &operator+=(const mat3<T> &rhs)
+    {
+        columns[0] += rhs.columns[0];
+        columns[1] += rhs.columns[1];
+        columns[2] += rhs.columns[2];
+        return *this;
+    }
+
+    /**
+     * @brief Subtracts another matrix from this matrix.
+     * @param rhs The matrix to subtract.
+     * @return A reference to this matrix after modification.
+     */
+    constexpr mat3<T> &operator-=(const mat3<T> &rhs)
+    {
+        columns[0] -= rhs.columns[0];
+        columns[1] -= rhs.columns[1];
+        columns[2] -= rhs.columns[2];
+        return *this;
+    }
+
+    /**
+     * @brief Divides this matrix by a scalar.
+     * @param s The scalar to divide by.
+     * @return A reference to this matrix after modification.
+     */
+    constexpr mat3<T> &operator/=(T s)
+    {
+        columns[0] /= s;
+        columns[1] /= s;
+        columns[2] /= s;
+        return *this;
+    }
+
+    /**
+     * @brief Access column by index.
+     * @param i The column index.
+     * @return Reference to the column.
+     */
+    vec3<T> &operator[](int i) { return columns[i]; }
+
+    /**
+     * @brief Access column by index (const).
+     * @param i The column index.
+     * @return Const reference to the column.
+     */
+    const vec3<T> &operator[](int i) const { return columns[i]; }
+
+    /**
+     * @brief Get a row as a vector.
+     * @param i The row index.
+     * @return The row vector.
+     */
+    constexpr vec3<T> row(int i) const
+    {
+        return vec3<T>(columns[0][i], columns[1][i], columns[2][i]);
+    }
+
+    /**
+     * @brief Set a row from a vector.
+     * @param i The row index.
+     * @param v The vector to set.
+     */
+    constexpr void set_row(int i, const vec3<T> &v)
+    {
+        m20 = v.x;
+        m21 = v.y;
+        m22 = v.z;
     }
 };
 
@@ -952,6 +1123,124 @@ template <typename T> struct mat4
         mat4<T> m;
         m.m00 = m.m11 = m.m22 = m.m33 = T(1);
         return m;
+    }
+
+    /**
+     * @brief Adds another matrix to this matrix.
+     * @param rhs The matrix to add.
+     * @return A reference to this matrix after modification.
+     */
+    constexpr mat4<T> &operator+=(const mat4<T> &rhs)
+    {
+        m00 += rhs.m00;
+        m01 += rhs.m01;
+        m02 += rhs.m02;
+        m03 += rhs.m03;
+        m10 += rhs.m10;
+        m11 += rhs.m11;
+        m12 += rhs.m12;
+        m13 += rhs.m13;
+        m20 += rhs.m20;
+        m21 += rhs.m21;
+        m22 += rhs.m22;
+        m23 += rhs.m23;
+        m30 += rhs.m30;
+        m31 += rhs.m31;
+        m32 += rhs.m32;
+        m33 += rhs.m33;
+        return *this;
+    }
+
+    /**
+     * @brief Subtracts another matrix from this matrix.
+     * @param rhs The matrix to subtract.
+     * @return A reference to this matrix after modification.
+     */
+    constexpr mat4<T> &operator-=(const mat4<T> &rhs)
+    {
+        m00 -= rhs.m00;
+        m01 -= rhs.m01;
+        m02 -= rhs.m02;
+        m03 -= rhs.m03;
+        m10 -= rhs.m10;
+        m11 -= rhs.m11;
+        m12 -= rhs.m12;
+        m13 -= rhs.m13;
+        m20 -= rhs.m20;
+        m21 -= rhs.m21;
+        m22 -= rhs.m22;
+        m23 -= rhs.m23;
+        m30 -= rhs.m30;
+        m31 -= rhs.m31;
+        m32 -= rhs.m32;
+        m33 -= rhs.m33;
+        return *this;
+    }
+
+    /**
+     * @brief Divides this matrix by a scalar.
+     * @param s The scalar to divide by.
+     * @return A reference to this matrix after modification.
+     */
+    constexpr mat4<T> &operator/=(T s)
+    {
+        m00 /= s;
+        m01 /= s;
+        m02 /= s;
+        m03 /= s;
+        m10 /= s;
+        m11 /= s;
+        m12 /= s;
+        m13 /= s;
+        m20 /= s;
+        m21 /= s;
+        m22 /= s;
+        m23 /= s;
+        m30 /= s;
+        m31 /= s;
+        m32 /= s;
+        m33 /= s;
+        return *this;
+    }
+
+    /**
+     * @brief Access column by index.
+     * @param i The column index.
+     * @return Reference to the column.
+     */
+    vec4<T> &operator[](int i) { return reinterpret_cast<vec4<T> &>(m[i]); }
+
+    /**
+     * @brief Access column by index (const).
+     * @param i The column index.
+     * @return Const reference to the column.
+     */
+    const vec4<T> &operator[](int i) const
+    {
+        return reinterpret_cast<const vec4<T> &>(m[i]);
+    }
+
+    /**
+     * @brief Get a row as a vector.
+     * @param i The row index.
+     * @return The row vector.
+     */
+    constexpr vec4<T> row(int i) const
+    {
+        return vec4<T>(m[0][i], m[1][i], m[2][i], m[3][i]);
+    }
+
+    /**
+     * @brief Set a row from a vector.
+     * @param i The row index.
+     * @param v The vector to set.
+     */
+    constexpr void set_row(int i, const vec4<T> &v)
+    {
+        m[0][i] = v.x;
+        m[1][i] = v.y;
+        m[2][i] = v.z;
+        m[3][i] = v.w;
     }
 };
 
@@ -1116,6 +1405,26 @@ template <typename T> constexpr vec2<T> abs(const vec2<T> &a)
 }
 
 /**
+ * @brief Component-wise minimum value.
+ * @param a The vector.
+ * @return A new vector with minimum values of components.
+ */
+template <typename T> constexpr vec2<T> min(const vec2<T> &a)
+{
+    return {min(a.x), min(a.y)};
+}
+
+/**
+ * @brief Component-wise maximum value.
+ * @param a The vector.
+ * @return A new vector with maximum values of components.
+ */
+template <typename T> constexpr vec2<T> max(const vec2<T> &a)
+{
+    return {max(a.x), max(a.y)};
+}
+
+/**
  * @brief Clamps a vector component-wise between a min and max vector.
  * @param v The vector to clamp.
  * @param min_v The minimum values.
@@ -1266,6 +1575,28 @@ template <typename T> constexpr vec3<T> abs(const vec3<T> &a)
 }
 
 /**
+ * @brief Component-wise minimum value.
+ * @param a The first vector.
+ * @param b The second vector.
+ * @return A new vector with minimum values of components.
+ */
+template <typename T> constexpr vec3<T> min(const vec3<T> &a, const vec3<T> &b)
+{
+    return {min(a.x, b.x), min(a.y, b.y), min(a.z, b.z)};
+}
+
+/**
+ * @brief Component-wise maximum value.
+ * @param a The first vector.
+ * @param b The second vector.
+ * @return A new vector with maximum values of components.
+ */
+template <typename T> constexpr vec3<T> max(const vec3<T> &a, const vec3<T> &b)
+{
+    return {max(a.x, b.x), max(a.y, b.y), max(a.z, b.z)};
+}
+
+/**
  * @brief Clamps a vector component-wise between a min and max vector.
  * @param v The vector to clamp.
  * @param min_v The minimum values.
@@ -1403,6 +1734,28 @@ constexpr vec4<T> lerp(const vec4<T> &a, const vec4<T> &b, T t)
 template <typename T> constexpr vec4<T> abs(const vec4<T> &a)
 {
     return {abs(a.x), abs(a.y), abs(a.z), abs(a.w)};
+}
+
+/**
+ * @brief Component-wise minimum value.
+ * @param a The first vector.
+ * @param b The second vector.
+ * @return A new vector with minimum values of components.
+ */
+template <typename T> constexpr vec4<T> min(const vec4<T> &a, const vec4<T> &b)
+{
+    return {min(a.x, b.x), min(a.y, b.y), min(a.z, b.z), min(a.w, b.w)};
+}
+
+/**
+ * @brief Component-wise maximum value.
+ * @param a The first vector.
+ * @param b The second vector.
+ * @return A new vector with maximum values of components.
+ */
+template <typename T> constexpr vec4<T> max(const vec4<T> &a, const vec4<T> &b)
+{
+    return {max(a.x, b.x), max(a.y, b.y), max(a.z, b.z), max(a.w, b.w)};
 }
 
 /**
@@ -1555,6 +1908,53 @@ constexpr vec3<T> operator*(const vec3<T> &v, const quat<T> &q)
 }
 
 /**
+ * @brief Integrates the quaternion by an angular velocity over a time step.
+ * @param dv The angular velocity vector.
+ * @param dt The time step.
+ */
+template <typename T> constexpr void quat<T>::integrate(const vec3<T> &dv, T dt)
+{
+    quat<T> q(dv.x * dt, dv.y * dt, dv.z * dt, T(0));
+    q = q * (*this);
+
+    x += q.x * T(0.5);
+    y += q.y * T(0.5);
+    z += q.z * T(0.5);
+    w += q.w * T(0.5);
+
+    *this = normalize(*this);
+}
+
+/**
+ * @brief Converts the quaternion to axis and angle representation.
+ * @param axis Output axis.
+ * @param angle Output angle (radians).
+ */
+template <typename T>
+constexpr void quat<T>::to_axis_angle(vec3<T> &axis, T &angle) const
+{
+    quat<T> q = *this;
+    if (q.w > T(1))
+        q = normalize(q);
+
+    angle = T(2) * acos(q.w);
+    T s   = sqrt(T(1) - q.w * q.w);
+
+    if (s < T::epsilon())
+    {
+        axis.x = T(1);
+        axis.y = T(0);
+        axis.z = T(0);
+    }
+    else
+    {
+        axis.x = q.x / s;
+        axis.y = q.y / s;
+        axis.z = q.z / s;
+    }
+}
+
+/**
  * @brief Creates a quaternion from an axis and an angle.
  * @param axis The rotation axis.
  * @param angle The rotation angle (in radians).
@@ -1674,6 +2074,71 @@ constexpr quat<T> slerp(const quat<T> &q1, const quat<T> &q2, T t)
 }
 
 /**
+ * @brief Adds two 3x3 matrices.
+ * @param a The first matrix.
+ * @param b The second matrix.
+ * @return The sum matrix.
+ */
+template <typename T>
+constexpr mat3<T> operator+(const mat3<T> &a, const mat3<T> &b)
+{
+    mat3<T> r;
+    r.m00 = a.m00 + b.m00;
+    r.m01 = a.m01 + b.m01;
+    r.m02 = a.m02 + b.m02;
+    r.m10 = a.m10 + b.m10;
+    r.m11 = a.m11 + b.m11;
+    r.m12 = a.m12 + b.m12;
+    r.m20 = a.m20 + b.m20;
+    r.m21 = a.m21 + b.m21;
+    r.m22 = a.m22 + b.m22;
+    return r;
+}
+
+/**
+ * @brief Subtracts two 3x3 matrices.
+ * @param a The first matrix.
+ * @param b The second matrix.
+ * @return The difference matrix.
+ */
+template <typename T>
+constexpr mat3<T> operator-(const mat3<T> &a, const mat3<T> &b)
+{
+    mat3<T> r;
+    r.m00 = a.m00 - b.m00;
+    r.m01 = a.m01 - b.m01;
+    r.m02 = a.m02 - b.m02;
+    r.m10 = a.m10 - b.m10;
+    r.m11 = a.m11 - b.m11;
+    r.m12 = a.m12 - b.m12;
+    r.m20 = a.m20 - b.m20;
+    r.m21 = a.m21 - b.m21;
+    r.m22 = a.m22 - b.m22;
+    return r;
+}
+
+/**
+ * @brief Divides a 3x3 matrix by a scalar.
+ * @param m The matrix.
+ * @param s The scalar.
+ * @return The quotient matrix.
+ */
+template <typename T> constexpr mat3<T> operator/(const mat3<T> &m, T s)
+{
+    mat3<T> r;
+    r.m00 = m.m00 / s;
+    r.m01 = m.m01 / s;
+    r.m02 = m.m02 / s;
+    r.m10 = m.m10 / s;
+    r.m11 = m.m11 / s;
+    r.m12 = m.m12 / s;
+    r.m20 = m.m20 / s;
+    r.m21 = m.m21 / s;
+    r.m22 = m.m22 / s;
+    return r;
+}
+
+/**
  * @brief Multiplies two 3x3 matrices.
  * @param a The first matrix.
  * @param b The second matrix.
@@ -1712,6 +2177,48 @@ constexpr vec3<T> operator*(const mat3<T> &m, const vec3<T> &v)
 }
 
 /**
+ * @brief Component-wise minimum value for 3x3 matrices.
+ * @param a The first matrix.
+ * @param b The second matrix.
+ * @return A new matrix with minimum values of components.
+ */
+template <typename T> constexpr mat3<T> min(const mat3<T> &a, const mat3<T> &b)
+{
+    mat3<T> r;
+    r.m00 = min(a.m00, b.m00);
+    r.m01 = min(a.m01, b.m01);
+    r.m02 = min(a.m02, b.m02);
+    r.m10 = min(a.m10, b.m10);
+    r.m11 = min(a.m11, b.m11);
+    r.m12 = min(a.m12, b.m12);
+    r.m20 = min(a.m20, b.m20);
+    r.m21 = min(a.m21, b.m21);
+    r.m22 = min(a.m22, b.m22);
+    return r;
+}
+
+/**
+ * @brief Component-wise maximum value for 3x3 matrices.
+ * @param a The first matrix.
+ * @param b The second matrix.
+ * @return A new matrix with maximum values of components.
+ */
+template <typename T> constexpr mat3<T> max(const mat3<T> &a, const mat3<T> &b)
+{
+    mat3<T> r;
+    r.m00 = max(a.m00, b.m00);
+    r.m01 = max(a.m01, b.m01);
+    r.m02 = max(a.m02, b.m02);
+    r.m10 = max(a.m10, b.m10);
+    r.m11 = max(a.m11, b.m11);
+    r.m12 = max(a.m12, b.m12);
+    r.m20 = max(a.m20, b.m20);
+    r.m21 = max(a.m21, b.m21);
+    r.m22 = max(a.m22, b.m22);
+    return r;
+}
+
+/**
  * @brief Transposes a 3x3 matrix.
  * @param m The matrix to transpose.
  * @return The transposed matrix.
@@ -1730,6 +2237,92 @@ template <typename T> constexpr mat3<T> transpose(const mat3<T> &m)
     r.m22 = m.m22;
     return r;
 }
+/**
+ * @brief Adds two 4x4 matrices.
+ * @param a The first matrix.
+ * @param b The second matrix.
+ * @return The sum matrix.
+ */
+template <typename T>
+constexpr mat4<T> operator+(const mat4<T> &a, const mat4<T> &b)
+{
+    mat4<T> r;
+    r.m00 = a.m00 + b.m00;
+    r.m01 = a.m01 + b.m01;
+    r.m02 = a.m02 + b.m02;
+    r.m03 = a.m03 + b.m03;
+    r.m10 = a.m10 + b.m10;
+    r.m11 = a.m11 + b.m11;
+    r.m12 = a.m12 + b.m12;
+    r.m13 = a.m13 + b.m13;
+    r.m20 = a.m20 + b.m20;
+    r.m21 = a.m21 + b.m21;
+    r.m22 = a.m22 + b.m22;
+    r.m23 = a.m23 + b.m23;
+    r.m30 = a.m30 + b.m30;
+    r.m31 = a.m31 + b.m31;
+    r.m32 = a.m32 + b.m32;
+    r.m33 = a.m33 + b.m33;
+    return r;
+}
+
+/**
+ * @brief Subtracts two 4x4 matrices.
+ * @param a The first matrix.
+ * @param b The second matrix.
+ * @return The difference matrix.
+ */
+template <typename T>
+constexpr mat4<T> operator-(const mat4<T> &a, const mat4<T> &b)
+{
+    mat4<T> r;
+    r.m00 = a.m00 - b.m00;
+    r.m01 = a.m01 - b.m01;
+    r.m02 = a.m02 - b.m02;
+    r.m03 = a.m03 - b.m03;
+    r.m10 = a.m10 - b.m10;
+    r.m11 = a.m11 - b.m11;
+    r.m12 = a.m12 - b.m12;
+    r.m13 = a.m13 - b.m13;
+    r.m20 = a.m20 - b.m20;
+    r.m21 = a.m21 - b.m21;
+    r.m22 = a.m22 - b.m22;
+    r.m23 = a.m23 - b.m23;
+    r.m30 = a.m30 - b.m30;
+    r.m31 = a.m31 - b.m31;
+    r.m32 = a.m32 - b.m32;
+    r.m33 = a.m33 - b.m33;
+    return r;
+}
+
+/**
+ * @brief Divides a 4x4 matrix by a scalar.
+ * @param m The matrix.
+ * @param s The scalar.
+ * @return The quotient matrix.
+ */
+template <typename T> constexpr mat4<T> operator/(const mat4<T> &m, T s)
+{
+    mat4<T> r;
+    r.m00 = m.m00 / s;
+    r.m01 = m.m01 / s;
+    r.m02 = m.m02 / s;
+    r.m03 = m.m03 / s;
+    r.m10 = m.m10 / s;
+    r.m11 = m.m11 / s;
+    r.m12 = m.m12 / s;
+    r.m13 = m.m13 / s;
+    r.m20 = m.m20 / s;
+    r.m21 = m.m21 / s;
+    r.m22 = m.m22 / s;
+    r.m23 = m.m23 / s;
+    r.m30 = m.m30 / s;
+    r.m31 = m.m31 / s;
+    r.m32 = m.m32 / s;
+    r.m33 = m.m33 / s;
+    return r;
+}
+
 /**
  * @brief Multiplies two 4x4 matrices.
  * @param a The first matrix.
@@ -1778,6 +2371,62 @@ constexpr vec4<T> operator*(const mat4<T> &m, const vec4<T> &v)
 }
 
 /**
+ * @brief Component-wise minimum value for 4x4 matrices.
+ * @param a The first matrix.
+ * @param b The second matrix.
+ * @return A new matrix with minimum values of components.
+ */
+template <typename T> constexpr mat4<T> min(const mat4<T> &a, const mat4<T> &b)
+{
+    mat4<T> r;
+    r.m00 = min(a.m00, b.m00);
+    r.m01 = min(a.m01, b.m01);
+    r.m02 = min(a.m02, b.m02);
+    r.m03 = min(a.m03, b.m03);
+    r.m10 = min(a.m10, b.m10);
+    r.m11 = min(a.m11, b.m11);
+    r.m12 = min(a.m12, b.m12);
+    r.m13 = min(a.m13, b.m13);
+    r.m20 = min(a.m20, b.m20);
+    r.m21 = min(a.m21, b.m21);
+    r.m22 = min(a.m22, b.m22);
+    r.m23 = min(a.m23, b.m23);
+    r.m30 = min(a.m30, b.m30);
+    r.m31 = min(a.m31, b.m31);
+    r.m32 = min(a.m32, b.m32);
+    r.m33 = min(a.m33, b.m33);
+    return r;
+}
+
+/**
+ * @brief Component-wise maximum value for 4x4 matrices.
+ * @param a The first matrix.
+ * @param b The second matrix.
+ * @return A new matrix with maximum values of components.
+ */
+template <typename T> constexpr mat4<T> max(const mat4<T> &a, const mat4<T> &b)
+{
+    mat4<T> r;
+    r.m00 = max(a.m00, b.m00);
+    r.m01 = max(a.m01, b.m01);
+    r.m02 = max(a.m02, b.m02);
+    r.m03 = max(a.m03, b.m03);
+    r.m10 = max(a.m10, b.m10);
+    r.m11 = max(a.m11, b.m11);
+    r.m12 = max(a.m12, b.m12);
+    r.m13 = max(a.m13, b.m13);
+    r.m20 = max(a.m20, b.m20);
+    r.m21 = max(a.m21, b.m21);
+    r.m22 = max(a.m22, b.m22);
+    r.m23 = max(a.m23, b.m23);
+    r.m30 = max(a.m30, b.m30);
+    r.m31 = max(a.m31, b.m31);
+    r.m32 = max(a.m32, b.m32);
+    r.m33 = max(a.m33, b.m33);
+    return r;
+}
+
+/**
  * @brief Transposes a 4x4 matrix.
  * @param m The matrix to transpose.
  * @return The transposed matrix.
@@ -1802,6 +2451,36 @@ template <typename T> constexpr mat4<T> transpose(const mat4<T> &m)
     r.m32 = m.m23;
     r.m33 = m.m33;
     return r;
+}
+
+/**
+ * @brief Creates a scaling matrix.
+ * @param v The scaling vector.
+ * @return A 3x3 scaling matrix.
+ */
+template <typename T> constexpr mat3<T> mat3_scaling(const vec3<T> &v)
+{
+    mat3<T> m = mat3<T>::identity();
+    m.m00     = v.x;
+    m.m11     = v.y;
+    m.m22     = v.z;
+    return m;
+}
+
+/**
+ * @brief Creates a scaling matrix from scalars.
+ * @param x X scale.
+ * @param y Y scale.
+ * @param z Z scale.
+ * @return A 3x3 scaling matrix.
+ */
+template <typename T> constexpr mat3<T> mat3_scaling(T x, T y, T z)
+{
+    mat3<T> m = mat3<T>::identity();
+    m.m00     = x;
+    m.m11     = y;
+    m.m22     = z;
+    return m;
 }
 
 /**
@@ -2053,6 +2732,45 @@ void mat4_decompose(const mat4<T> &m,
     T rm20 = m.m20 / sx, rm21 = m.m21 / sy, rm22 = m.m22 / sz;
     out_rot =
         quat_from_mat3(rm00, rm01, rm02, rm10, rm11, rm12, rm20, rm21, rm22);
+}
+
+/**
+ * @brief Calculates the inverse of a 3x3 matrix.
+ * @param mat The input matrix.
+ * @param result Output parameter for the inverted matrix.
+ * @return True if the matrix is invertible, false otherwise.
+ */
+template <typename T>
+constexpr bool inverse(const mat3<T> &mat, mat3<T> &result)
+{
+    const T m00 = mat.m00, m01 = mat.m01, m02 = mat.m02;
+    const T m10 = mat.m10, m11 = mat.m11, m12 = mat.m12;
+    const T m20 = mat.m20, m21 = mat.m21, m22 = mat.m22;
+
+    const T det = m00 * (m11 * m22 - m12 * m21) -
+                  m01 * (m10 * m22 - m12 * m20) + m02 * (m10 * m21 - m11 * m20);
+
+    if (abs(det) < T::epsilon())
+    {
+        result = {};
+        return false;
+    }
+
+    const T invDet = T(1) / det;
+
+    result.m00 = (m11 * m22 - m12 * m21) * invDet;
+    result.m01 = (m02 * m21 - m01 * m22) * invDet;
+    result.m02 = (m01 * m12 - m02 * m11) * invDet;
+
+    result.m10 = (m12 * m20 - m10 * m22) * invDet;
+    result.m11 = (m00 * m22 - m02 * m20) * invDet;
+    result.m12 = (m02 * m10 - m00 * m12) * invDet;
+
+    result.m20 = (m10 * m21 - m11 * m20) * invDet;
+    result.m21 = (m01 * m20 - m00 * m21) * invDet;
+    result.m22 = (m00 * m11 - m01 * m10) * invDet;
+
+    return true;
 }
 
 /**

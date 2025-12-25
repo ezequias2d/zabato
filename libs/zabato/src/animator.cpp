@@ -1,88 +1,224 @@
+
 #include <zabato/animator.hpp>
 
 namespace zabato
 {
-void animator::play_animation(animation *anim, const mesh &mesh_ref, bool loop)
+
+static void recursive_bind(animator *animator, spatial *root)
+{
+    if (!root)
+        return;
+
+    animator->bind_node(root->name(), root);
+
+    node *n = c_dynamic_cast<node>(root);
+    if (n)
+    {
+        for (int i = 0; i < n->quantity(); ++i)
+            recursive_bind(animator, n->child_at(i));
+    }
+}
+
+void animator::play_animation(animation *anim, spatial *root, bool loop)
 {
     m_current_animation = anim;
     m_loop              = loop;
     m_current_time      = real(0);
-    m_bone_id_to_anim_bone_index.clear();
+    m_bound_nodes.clear();
 
-    for (auto &mat : m_final_bone_matrices)
-        mat = mat4<real>::identity();
-
-    if (!anim)
+    if (!anim || !root)
         return;
 
-    const auto model_bone_count = mesh_ref.get_bone_count();
-    if (model_bone_count == 0)
+    recursive_bind(this, root);
+}
+
+void animator::bind_node(const char *bone_name, spatial *node)
+{
+    if (!m_current_animation || !node)
         return;
 
-    int32_t max_bone_id = -1;
-    for (uint16_t i = 0; i < model_bone_count; ++i)
+    auto index = m_current_animation->find_bone_index(bone_name);
+    if (index >= 0)
     {
-        bone_info bone = {};
-        mesh_ref.get_bone(i, bone);
-        if (bone.bone_id > max_bone_id)
-            max_bone_id = bone.bone_id;
+        m_bound_nodes.push_back({(uint16_t)index, node});
+    }
+}
+const rtti animator::TYPE = rtti("animator", &controller::TYPE);
+
+void animator::bind_property(const char *track_name,
+                             controller *target,
+                             const char *prop_name)
+{
+    if (!m_current_animation || !target)
+        return;
+
+    // Real tracks
+    auto &reals = m_current_animation->get_real_tracks();
+    for (size_t i = 0; i < reals.size(); ++i)
+    {
+        if (reals[i].property_name == track_name)
+        {
+            m_bound_reals.push_back({(uint16_t)i, target, prop_name});
+            return;
+        }
     }
 
-    if (max_bone_id > -1)
+    // Int tracks
+    auto &ints = m_current_animation->get_int_tracks();
+    for (size_t i = 0; i < ints.size(); ++i)
     {
-        m_bone_id_to_anim_bone_index.resize(max_bone_id + 1, -1);
-        for (uint16_t i = 0; i < model_bone_count; ++i)
+        if (ints[i].property_name == track_name)
         {
-            bone_info bone = {};
-            mesh_ref.get_bone(i, bone);
+            m_bound_ints.push_back({(uint16_t)i, target, prop_name});
+            return;
+        }
+    }
 
-            auto anim_bone = anim->find_bone_index(bone.name.c_str());
-            m_bone_id_to_anim_bone_index[bone.bone_id] = anim_bone;
+    // Bool tracks
+    auto &bools = m_current_animation->get_bool_tracks();
+    for (size_t i = 0; i < bools.size(); ++i)
+    {
+        if (bools[i].property_name == track_name)
+        {
+            m_bound_bools.push_back({(uint16_t)i, target, prop_name});
+            return;
+        }
+    }
+
+    // String tracks
+    auto &strings = m_current_animation->get_string_tracks();
+    for (size_t i = 0; i < strings.size(); ++i)
+    {
+        if (strings[i].property_name == track_name)
+        {
+            m_bound_strings.push_back({(uint16_t)i, target, prop_name});
+            return;
+        }
+    }
+
+    // Event tracks
+    auto &events = m_current_animation->get_event_tracks();
+    for (size_t i = 0; i < events.size(); ++i)
+    {
+        if (events[i].property_name == track_name)
+        {
+            m_bound_events.push_back({(uint16_t)i, target, prop_name});
+            return;
         }
     }
 }
 
-void animator::calculate_bone_transform(const animation_node *node,
-                                        const mat4<real> &parent_transform)
+void animator::update(real delta_time)
 {
-    assert(node);
+    if (!m_current_animation)
+        return;
 
-    auto animation            = m_current_animation;
-    auto &animation_bones     = animation->get_bones();
-    mat4<real> node_transform = node->transform;
-    auto bone_info            = node->bone;
-    int16_t anim_bone_index   = -1;
-    anim_bone *anim_bone      = nullptr;
+    real last_time = m_current_time;
+    m_current_time += m_current_animation->get_ticks_per_second() * delta_time;
 
-    if (bone_info)
+    if (m_loop)
     {
-        int16_t mesh_bone_id = bone_info->bone_id;
-        if (mesh_bone_id < m_bone_id_to_anim_bone_index.size())
+        m_current_time =
+            mod(m_current_time, m_current_animation->get_duration());
+    }
+    else
+    {
+        if (m_current_time > m_current_animation->get_duration())
+            m_current_time = m_current_animation->get_duration();
+    }
+
+    // Update bound scene graph nodes
+    if (!m_bound_nodes.empty())
+    {
+        auto &bones = m_current_animation->get_bones();
+        for (const auto &bound : m_bound_nodes)
         {
-            anim_bone_index = m_bone_id_to_anim_bone_index[mesh_bone_id];
-            if (anim_bone_index >= 0)
-                anim_bone = &animation_bones[anim_bone_index];
+            if (bound.channel_index < bones.size() && bound.node)
+            {
+                auto &track = bones[bound.channel_index].track;
+                transformation t;
+                t.set_translate(track.get_position(m_current_time));
+                t.set_rotate(track.get_rotation(m_current_time));
+                t.set_scale(track.get_scale(m_current_time));
+                bound.node->set_local(t);
+            }
         }
     }
 
-    if (anim_bone)
+    // Real
+    auto &reals = m_current_animation->get_real_tracks();
+    for (const auto &b : m_bound_reals)
     {
-        anim_bone->update(m_current_time);
-        node_transform = anim_bone->local_transform;
-    }
-
-    mat4<real> global_transform = parent_transform * node_transform;
-    if (bone_info && anim_bone_index >= 0)
-    {
-        if (anim_bone_index < m_final_bone_matrices.size())
+        if (b.target && b.track_index < reals.size())
         {
-            m_final_bone_matrices[anim_bone_index] =
-                animation->get_global_inverse_transform() * global_transform *
-                (mat4<real>)bone_info->offset_transform;
+            real val = reals[b.track_index].get_value(m_current_time);
+            b.target->set_property(b.property_name.c_str(), val);
         }
     }
 
-    for (const auto &child : node->children)
-        calculate_bone_transform(&child, global_transform);
+    // Int
+    auto &ints = m_current_animation->get_int_tracks();
+    for (const auto &b : m_bound_ints)
+    {
+        if (b.target && b.track_index < ints.size())
+        {
+            int64_t val = ints[b.track_index].get_value(m_current_time);
+            b.target->set_property(b.property_name.c_str(), val);
+        }
+    }
+
+    // Bool
+    auto &bools = m_current_animation->get_bool_tracks();
+    for (const auto &b : m_bound_bools)
+    {
+        if (b.target && b.track_index < bools.size())
+        {
+            bool val = bools[b.track_index].get_value(m_current_time);
+            b.target->set_property(b.property_name.c_str(), val);
+        }
+    }
+
+    // String
+    auto &strings = m_current_animation->get_string_tracks();
+    for (const auto &b : m_bound_strings)
+    {
+        if (b.target && b.track_index < strings.size())
+        {
+            const char *val = strings[b.track_index].get_value(m_current_time);
+            b.target->set_property(b.property_name.c_str(), val);
+        }
+    }
+
+    // Events
+    auto &events = m_current_animation->get_event_tracks();
+    for (const auto &b : m_bound_events)
+    {
+        if (b.target && b.track_index < events.size())
+        {
+            const auto &keys = events[b.track_index].keys;
+            for (const auto &key : keys)
+            {
+                bool fired = false;
+                if (m_loop && m_current_time < last_time)
+                {
+                    // wrapped around
+                    if (key.timestamp > last_time ||
+                        key.timestamp <= m_current_time)
+                        fired = true;
+                }
+                else
+                {
+                    if (key.timestamp > last_time &&
+                        key.timestamp <= m_current_time)
+                        fired = true;
+                }
+
+                if (fired)
+                {
+                    b.target->on_event(key.name.c_str(), key.args.c_str());
+                }
+            }
+        }
+    }
 }
 } // namespace zabato

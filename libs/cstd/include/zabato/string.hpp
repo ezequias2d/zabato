@@ -841,12 +841,12 @@ private:
         if constexpr (is_little_endian)
         {
             // Set high bit to mark as small. Store size in lower bits.
-            small[LAST_BYTE_IDX] = static_cast<char>(LE_SMALL_FLAG | s);
+            small[LAST_BYTE_IDX] = static_cast<char>(LE_SMALL_FLAG | (s << 1));
         }
         else
         {
             // Set low bit to mark as small. Store size in higher bits.
-            small[LAST_BYTE_IDX] = static_cast<char>((s << 1) | BE_SMALL_FLAG);
+            small[LAST_BYTE_IDX] = static_cast<char>(s | BE_SMALL_FLAG);
         }
         small[0] = '\0'; // Safety null for empty strings
     }
@@ -969,7 +969,7 @@ constexpr bool operator!=(const basic_string<AllocatorL> &lhs,
 template <class Allocator>
 constexpr bool operator==(const basic_string<Allocator> &lhs, const char *rstr)
 {
-    return strcmp(lhs.c_str(), rstr);
+    return strcmp(lhs.c_str(), rstr) == 0;
 }
 template <class Allocator>
 constexpr bool operator!=(const basic_string<Allocator> &lhs, const char *rstr)
@@ -980,7 +980,7 @@ constexpr bool operator!=(const basic_string<Allocator> &lhs, const char *rstr)
 template <class Allocator>
 constexpr bool operator==(const char *lstr, const basic_string<Allocator> &rhs)
 {
-    return strcmp(lstr, rhs.c_str());
+    return strcmp(lstr, rhs.c_str()) == 0;
 }
 
 template <class Allocator>
@@ -1047,6 +1047,36 @@ constexpr auto begin(string_view sv) -> string_view::iterator
 }
 
 constexpr auto end(string_view sv) -> string_view::iterator { return sv.end(); }
+
+template <typename Allocator> struct hash<basic_string<Allocator>>
+{
+    size_t operator()(const basic_string<Allocator> &str) const
+    {
+        size_t length = str.length();
+        uint32_t hash = 2166136261u;
+        for (size_t i = 0; i < length; i++)
+        {
+            hash ^= str[i];
+            hash *= 16777619;
+        }
+        return hash;
+    }
+};
+
+template <> struct hash<string_view>
+{
+    size_t operator()(const string_view &str) const
+    {
+        size_t length = str.length();
+        uint32_t hash = 2166136261u;
+        for (size_t i = 0; i < length; i++)
+        {
+            hash ^= str[i];
+            hash *= 16777619;
+        }
+        return hash;
+    }
+};
 
 using string = basic_string<allocator<char>>;
 

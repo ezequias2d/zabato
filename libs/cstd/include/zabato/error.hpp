@@ -183,7 +183,7 @@ template <typename T> struct result
 
     result() : error(error_code::ok), value{} {}
     result(const T &val) : error(error_code::ok), value(val) {}
-    result(T &&val) : error(error_code::ok), value(static_cast<T &&>(val)) {}
+    result(T &&val) : error(error_code::ok), value(val) {}
     result(error_code err) : error(err), value{} {}
 
     /** @brief Checks if the result contains an error. */

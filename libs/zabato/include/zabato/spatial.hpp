@@ -27,7 +27,10 @@ public:
 
     virtual world *get_world() const override final
     {
-        return parent()->get_world();
+        auto p = parent();
+        if (p != nullptr)
+            return p->get_world();
+        return nullptr;
     }
 
     transformation &get_local() { return local; }

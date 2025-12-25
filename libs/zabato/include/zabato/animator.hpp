@@ -1,15 +1,21 @@
 #pragma once
 
 #include <stddef.h>
+#include <zabato/controller.hpp>
 #include <zabato/error.hpp>
 #include <zabato/ice.hpp>
 #include <zabato/math.hpp>
 #include <zabato/mesh.hpp>
+#include <zabato/node.hpp>
+#include <zabato/spatial.hpp>
+#include <zabato/transformation.hpp>
 
 namespace zabato
 {
 class animation;
 class mesh;
+class spatial;
+class transformation;
 struct bone_info;
 
 struct key_position
@@ -54,12 +60,11 @@ struct animation_track
         return frames_diff == real(0) ? real(0) : midway_length / frames_diff;
     }
 
-    mat4<real> interpolate_position(real animation_time)
+    vec3<real> get_position(real animation_time)
     {
         if (positions.size() <= 1)
-            return mat4_translation(positions.empty()
-                                        ? vec3<real>(0)
-                                        : (vec3<real>)positions[0].position);
+            return positions.empty() ? vec3<real>(0)
+                                     : (vec3<real>)positions[0].position;
 
         size_t p0_index = 0;
         for (size_t i = 0; i < positions.size() - 1; ++i)
@@ -71,21 +76,25 @@ struct animation_track
             }
         }
 
-        size_t p1_index      = p0_index + 1;
-        real factor          = get_scale_factor(positions[p0_index].timestamp,
+        size_t p1_index = p0_index + 1;
+        real factor     = get_scale_factor(positions[p0_index].timestamp,
                                        positions[p1_index].timestamp,
                                        animation_time);
-        vec3<real> final_pos = lerp<vec3<real>>(
+        return lerp<vec3<real>>(
             positions[p0_index].position, positions[p1_index].position, factor);
-        return mat4_translation(final_pos);
     }
 
-    mat4<real> interpolate_rotation(real animation_time)
+    mat4<real> interpolate_position(real animation_time)
+    {
+        return mat4_translation(get_position(animation_time));
+    }
+
+    quat<real> get_rotation(real animation_time)
     {
         if (rotations.size() <= 1)
-            return mat4_from_quat(normalize(
-                rotations.empty() ? quat<real>()
-                                  : (quat<real>)rotations[0].rotation));
+            return normalize(rotations.empty()
+                                 ? quat<real>()
+                                 : (quat<real>)rotations[0].rotation);
 
         size_t r0_index = 0;
         for (size_t i = 0; i < rotations.size() - 1; ++i)
@@ -97,20 +106,23 @@ struct animation_track
             }
         }
 
-        size_t r1_index      = r0_index + 1;
-        real factor          = get_scale_factor(rotations[r0_index].timestamp,
+        size_t r1_index = r0_index + 1;
+        real factor     = get_scale_factor(rotations[r0_index].timestamp,
                                        rotations[r1_index].timestamp,
                                        animation_time);
-        quat<real> final_rot = slerp<real>(
+        return slerp<real>(
             rotations[r0_index].rotation, rotations[r1_index].rotation, factor);
-        return mat4_from_quat(final_rot);
     }
 
-    mat4<real> interpolate_scaling(real animation_time)
+    mat4<real> interpolate_rotation(real animation_time)
+    {
+        return mat4_from_quat(get_rotation(animation_time));
+    }
+
+    vec3<real> get_scale(real animation_time)
     {
         if (scales.size() <= 1)
-            return mat4_scaling(scales.empty() ? vec3<real>(1)
-                                               : (vec3<real>)scales[0].scale);
+            return scales.empty() ? vec3<real>(1) : (vec3<real>)scales[0].scale;
 
         size_t s0_index = 0;
         for (size_t i = 0; i < scales.size() - 1; ++i)
@@ -121,14 +133,141 @@ struct animation_track
                 break;
             }
         }
-        size_t s1_index        = s0_index + 1;
-        real factor            = get_scale_factor(scales[s0_index].timestamp,
+        size_t s1_index = s0_index + 1;
+        real factor     = get_scale_factor(scales[s0_index].timestamp,
                                        scales[s1_index].timestamp,
                                        animation_time);
-        vec3<real> final_scale = lerp<vec3<real>>(
+        return lerp<vec3<real>>(
             scales[s0_index].scale, scales[s1_index].scale, factor);
-        return mat4_scaling(final_scale);
     }
+
+    mat4<real> interpolate_scaling(real animation_time)
+    {
+        return mat4_scaling(get_scale(animation_time));
+    }
+};
+
+struct key_real
+{
+    ICE_R16 value;
+    ICE_R16 timestamp;
+};
+
+struct key_int
+{
+    ice_int64_t value;
+    ICE_R16 timestamp;
+};
+
+struct key_bool
+{
+    ice_int8_t value;
+    ICE_R16 timestamp;
+};
+
+struct key_string
+{
+    fixed_string<32> value;
+    ICE_R16 timestamp;
+};
+
+struct key_event
+{
+    fixed_string<32> name;
+    fixed_string<32> args;
+    ICE_R16 timestamp;
+};
+
+struct real_track
+{
+    vector<key_real> keys;
+    fixed_string<32> property_name;
+
+    real get_value(real animation_time)
+    {
+        if (keys.empty())
+            return real(0);
+        if (keys.size() == 1)
+            return (real)keys[0].value;
+
+        size_t p0_index = 0;
+        for (size_t i = 0; i < keys.size() - 1; ++i)
+        {
+            if (animation_time < keys[i + 1].timestamp)
+            {
+                p0_index = i;
+                break;
+            }
+        }
+
+        size_t p1_index = p0_index + 1;
+        real factor     = animation_track::get_scale_factor(
+            keys[p0_index].timestamp, keys[p1_index].timestamp, animation_time);
+        return lerp<real>(keys[p0_index].value, keys[p1_index].value, factor);
+    }
+};
+
+struct int_track
+{
+    vector<key_int> keys;
+    fixed_string<32> property_name;
+
+    int64_t get_value(real animation_time)
+    {
+        if (keys.empty())
+            return 0;
+
+        for (size_t i = 0; i < keys.size() - 1; ++i)
+        {
+            if (animation_time < keys[i + 1].timestamp)
+                return keys[i].value;
+        }
+        return keys.back().value;
+    }
+};
+
+struct bool_track
+{
+    vector<key_bool> keys;
+    fixed_string<32> property_name;
+
+    bool get_value(real animation_time)
+    {
+        if (keys.empty())
+            return false;
+
+        for (size_t i = 0; i < keys.size() - 1; ++i)
+        {
+            if (animation_time < keys[i + 1].timestamp)
+                return keys[i].value != 0;
+        }
+        return keys.back().value != 0;
+    }
+};
+
+struct string_track
+{
+    vector<key_string> keys;
+    fixed_string<32> property_name;
+
+    const char *get_value(real animation_time)
+    {
+        if (keys.empty())
+            return "";
+
+        for (size_t i = 0; i < keys.size() - 1; ++i)
+        {
+            if (animation_time < keys[i + 1].timestamp)
+                return keys[i].value.c_str();
+        }
+        return keys.back().value.c_str();
+    }
+};
+
+struct event_track
+{
+    vector<key_event> keys;
+    fixed_string<32> property_name;
 };
 
 struct anim_bone
@@ -188,6 +327,12 @@ public:
     vector<anim_bone> &get_bones() { return m_channels; }
     const vector<anim_bone> &get_bones() const { return m_channels; }
 
+    vector<real_track> &get_real_tracks() { return m_real_tracks; }
+    vector<int_track> &get_int_tracks() { return m_int_tracks; }
+    vector<bool_track> &get_bool_tracks() { return m_bool_tracks; }
+    vector<string_track> &get_string_tracks() { return m_string_tracks; }
+    vector<event_track> &get_event_tracks() { return m_event_tracks; }
+
     const mat4<real> &get_global_inverse_transform() const
     {
         return m_global_inverse_transform;
@@ -234,6 +379,13 @@ private:
     real m_ticks_per_second = real(25);
     animation_node m_root_node;
     vector<anim_bone> m_channels;
+
+    vector<real_track> m_real_tracks;
+    vector<int_track> m_int_tracks;
+    vector<bool_track> m_bool_tracks;
+    vector<string_track> m_string_tracks;
+    vector<event_track> m_event_tracks;
+
     mat4<real> m_global_inverse_transform = mat4<real>::identity();
 };
 
@@ -242,66 +394,70 @@ private:
  * @brief A state machine that applies an animation to a model's skeleton over
  * time.
  */
-class animator
+class animator : public controller
 {
 public:
+    static const rtti TYPE;
+    const rtti &type() const override { return TYPE; }
+
     /** @brief Constructs a new animator instance. */
-    animator() {}
+    animator() : controller() {}
     /** @brief Destroys the animator. */
-    ~animator() {}
+    virtual ~animator() {}
 
     /**
-     * @brief Starts playing an animation clip.
+     * @brief Starts playing an animation clip on a scene graph hierarchy.
      * @param anim The animation clip to play.
-     * @param mesh_ref A reference to the model whose skeleton will be
-     * animated. This is needed to map animation bones to model bones.
+     * @param root The root node of the scene graph to animate.
      * @param loop If true, the animation will loop when it reaches the end.
      */
-    void play_animation(animation *anim, const mesh &mesh_ref, bool loop);
+    void play_animation(animation *anim, spatial *root, bool loop);
 
     /**
-     * @brief Advances the animation time and recalculates the bone matrices.
-     * @param delta_time The time elapsed, in seconds, since the last update.
+     * @brief Manually binds a specific bone name to a scene graph node.
+     * @param bone_name The name of the bone in the animation.
+     * @param node The scene graph node to control.
      */
-    void update(real delta_time)
-    {
-        if (!m_current_animation)
-            return;
-
-        m_current_time +=
-            m_current_animation->get_ticks_per_second() * delta_time;
-
-        if (m_loop)
-        {
-            m_current_time =
-                mod(m_current_time, m_current_animation->get_duration());
-        }
-
-        calculate_bone_transform(&m_root_node, mat4<real>::identity());
-    }
+    void bind_node(const char *bone_name, spatial *node);
 
     /**
-     * @brief Gets the final bone transformation matrices for the current
-     * animation pose. These matrices are ready to be sent to a shader for
-     * skinning.
-     * @return A const pointer to the first `mat4` in the array of bone
-     * matrices.
+     * @brief Binds an animation track to a property on a target controller.
+     * @param track_name The name of the track in the animation.
+     * @param target The target controller to modify.
+     * @param prop_name The property name on the target controller.
      */
-    const vector<mat4<real>> &get_final_bone_matrices() const
-    {
-        return m_final_bone_matrices;
-    }
+    void bind_property(const char *track_name,
+                       controller *target,
+                       const char *prop_name);
+
+    void update(real delta_time) override;
 
 private:
-    vector<mat4<real>> m_final_bone_matrices     = {};
-    animation *m_current_animation               = nullptr;
-    real m_current_time                          = real(0);
-    bool m_loop                                  = false;
-    vector<int32_t> m_bone_id_to_anim_bone_index = {};
-    animation_node m_root_node;
+    struct bound_node
+    {
+        uint16_t channel_index;
+        pointer<spatial> node;
+    };
 
-    void calculate_bone_transform(const animation_node *node,
-                                  const mat4<real> &parent_transform);
+    struct bound_property
+    {
+        uint16_t track_index;
+        pointer<controller> target;
+        fixed_string<32> property_name;
+    };
+
+    vector<bound_node> m_bound_nodes = {};
+
+    vector<bound_property> m_bound_reals   = {};
+    vector<bound_property> m_bound_ints    = {};
+    vector<bound_property> m_bound_bools   = {};
+    vector<bound_property> m_bound_strings = {};
+    vector<bound_property> m_bound_events  = {};
+
+    animation *m_current_animation = nullptr;
+    real m_current_time            = real(0);
+    bool m_loop                    = false;
+    animation_node m_root_node;
 };
 
 #pragma pack(push, 1)
