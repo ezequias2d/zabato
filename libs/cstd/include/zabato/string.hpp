@@ -1048,6 +1048,36 @@ constexpr auto begin(string_view sv) -> string_view::iterator
 
 constexpr auto end(string_view sv) -> string_view::iterator { return sv.end(); }
 
+template <typename Allocator> struct hash<basic_string<Allocator>>
+{
+    size_t operator()(const basic_string<Allocator> &str) const
+    {
+        size_t length = str.length();
+        uint32_t hash = 2166136261u;
+        for (size_t i = 0; i < length; i++)
+        {
+            hash ^= str[i];
+            hash *= 16777619;
+        }
+        return hash;
+    }
+};
+
+template <> struct hash<string_view>
+{
+    size_t operator()(const string_view &str) const
+    {
+        size_t length = str.length();
+        uint32_t hash = 2166136261u;
+        for (size_t i = 0; i < length; i++)
+        {
+            hash ^= str[i];
+            hash *= 16777619;
+        }
+        return hash;
+    }
+};
+
 using string = basic_string<allocator<char>>;
 
 } // namespace zabato

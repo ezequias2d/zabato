@@ -9,7 +9,7 @@ namespace zabato
 class transformation
 {
 public:
-    transformation() {}
+    transformation() { make_identity(); }
     ~transformation() {}
 
     static const transformation IDENTITY;

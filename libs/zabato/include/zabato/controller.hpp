@@ -26,6 +26,23 @@ public:
     virtual void update(real dt) = 0;
 
     /**
+     * @brief Sets a generic property on this controller.
+     * @param name The identification/name of the property.
+     * @param val The value to set.
+     */
+    virtual void set_property(const char *name, real val) {}
+    virtual void set_property(const char *name, int64_t val) {}
+    virtual void set_property(const char *name, bool val) {}
+    virtual void set_property(const char *name, const char *val) {}
+
+    /**
+     * @brief Dispatches a generic event to this controller.
+     * @param name The name of the event.
+     * @param args Arguments for the event (format depends on controller).
+     */
+    virtual void on_event(const char *name, const char *args) {}
+
+    /**
      * @brief Set the object this controller "possesses".
      * @param obj The target object.
      */
