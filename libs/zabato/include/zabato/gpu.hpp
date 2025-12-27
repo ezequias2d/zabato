@@ -1,10 +1,10 @@
 #pragma once
 
+#include <stdint.h>
 #include <zabato/color.hpp>
 #include <zabato/math.hpp>
 #include <zabato/real.hpp>
 #include <zabato/resource.hpp>
-#include <stdint.h>
 
 namespace zabato
 {
@@ -47,6 +47,7 @@ enum class light_type : uint16_t
 enum class color_format : uint8_t
 {
     undefined,
+    rgba8888,
     rgba5551,
     rgba4444,
     palette16,
@@ -216,6 +217,39 @@ public:
 
 #pragma endregion
 
+#pragma region Framebuffers
+
+/**
+ * @class framebuffer
+ * @brief An abstract handle to a GPU framebuffer object (FBO).
+ *
+ * Framebuffers allow rendering to a texture instead of the default window
+ * surface.
+ */
+class framebuffer : public resource
+{
+public:
+    static constexpr chunk_id CHUNK_ID = chunk_id("FRAM");
+
+    virtual ~framebuffer() = default;
+
+    /** @brief Deletes the framebuffer and releases its resources. */
+    virtual void destroy() = 0;
+
+    /** @brief Gets the texture attached to this framebuffer. */
+    virtual texture *get_texture() const = 0;
+
+    /** @brief Resizes the framebuffer and its attachments. */
+    virtual void resize(uint16_t width, uint16_t height) = 0;
+
+    /** @brief Gets the current size. */
+    virtual vec2<uint16_t> get_size() const = 0;
+};
+
+#pragma endregion
+
+#pragma endregion
+
 #pragma region GPU Interface
 
 /**
@@ -245,6 +279,9 @@ public:
     virtual void tex_coord(real u, real v)                       = 0;
     virtual void clear(const struct color &c, real depth)        = 0;
     virtual void viewport(int width, int height)                 = 0;
+
+    virtual void push_state() = 0;
+    virtual void pop_state()  = 0;
 
 #pragma endregion
 
@@ -290,6 +327,15 @@ public:
 
 #pragma endregion
 
+#pragma region Framebuffers
+
+    virtual framebuffer *create_framebuffer(uint16_t width,
+                                            uint16_t height) = 0;
+    virtual void bind_framebuffer(framebuffer *fb)           = 0;
+    virtual void unbind_framebuffer()                        = 0;
+
+#pragma endregion
+
 #pragma region Display Lists
 
     virtual display_list *create_display_list()              = 0;
@@ -309,11 +355,11 @@ public:
 #pragma endregion
 
     // New methods for ImGui support
-    virtual void enable_depth_test(bool enabled) = 0;
-    virtual void enable_blend(bool enabled) = 0;
-    virtual void set_blend_func(blend_factor src, blend_factor dst) = 0;
-    virtual void enable_scissor_test(bool enabled) = 0;
-    virtual void set_scissor(int x, int y, int width, int height) = 0;
+    virtual void enable_depth_test(bool enabled)                        = 0;
+    virtual void enable_blend(bool enabled)                             = 0;
+    virtual void set_blend_func(blend_factor src, blend_factor dst)     = 0;
+    virtual void enable_scissor_test(bool enabled)                      = 0;
+    virtual void set_scissor(int x, int y, int width, int height)       = 0;
     virtual void set_viewport_rect(int x, int y, int width, int height) = 0;
 };
 
