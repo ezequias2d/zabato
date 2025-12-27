@@ -278,6 +278,7 @@ public:
         void (*)(window *, key_code, int, button_state, modifier_keys);
     using text_input_callback   = void (*)(window *, const char *);
     using cursor_pos_callback   = void (*)(window *, real, real);
+    using cursor_move_callback  = void (*)(window *, real, real, real, real);
     using cursor_enter_callback = void (*)(window *, bool);
     using mouse_button_callback = void (*)(window *,
                                            mouse_button,
@@ -290,8 +291,8 @@ public:
     virtual void remove_key_callback(key_callback cb)                   = 0;
     virtual void add_text_input_callback(text_input_callback cb)        = 0;
     virtual void remove_text_input_callback(text_input_callback cb)     = 0;
-    virtual void add_cursor_pos_callback(cursor_pos_callback cb)        = 0;
-    virtual void remove_cursor_pos_callback(cursor_pos_callback cb)     = 0;
+    virtual void add_cursor_move_callback(cursor_move_callback cb)      = 0;
+    virtual void remove_cursor_move_callback(cursor_move_callback cb)   = 0;
     virtual void add_cursor_enter_callback(cursor_enter_callback cb)    = 0;
     virtual void remove_cursor_enter_callback(cursor_enter_callback cb) = 0;
     virtual void add_mouse_button_callback(mouse_button_callback cb)    = 0;

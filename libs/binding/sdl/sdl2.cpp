@@ -251,10 +251,12 @@ void Sdl2Window::handle_event(SDL_Event *event)
 
     // Mouse Events
     case SDL_MOUSEMOTION:
-        for (auto cb : m_cursor_pos_cbs)
+        for (auto cb : m_cursor_move_cbs)
             cb(this,
                static_cast<real>(event->motion.x),
-               static_cast<real>(event->motion.y));
+               static_cast<real>(event->motion.y),
+               static_cast<real>(event->motion.xrel),
+               static_cast<real>(event->motion.yrel));
         break;
     case SDL_MOUSEBUTTONDOWN:
     case SDL_MOUSEBUTTONUP:
@@ -553,13 +555,13 @@ void Sdl2Window::remove_text_input_callback(text_input_callback cb)
     remove_callback_helper(m_text_input_cbs, cb);
 }
 
-void Sdl2Window::add_cursor_pos_callback(cursor_pos_callback cb)
+void Sdl2Window::add_cursor_move_callback(cursor_move_callback cb)
 {
-    m_cursor_pos_cbs.push_back(cb);
+    m_cursor_move_cbs.push_back(cb);
 }
-void Sdl2Window::remove_cursor_pos_callback(cursor_pos_callback cb)
+void Sdl2Window::remove_cursor_move_callback(cursor_move_callback cb)
 {
-    remove_callback_helper(m_cursor_pos_cbs, cb);
+    remove_callback_helper(m_cursor_move_cbs, cb);
 }
 
 void Sdl2Window::add_cursor_enter_callback(cursor_enter_callback cb)

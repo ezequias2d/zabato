@@ -126,12 +126,9 @@ void world::update(real dt)
     }
 }
 
-void world::render(renderer &rnd, camera *cam)
+void world::render(renderer &rnd, camera &cam)
 {
-    if (!cam)
-        return;
-
-    const frustum &f = cam->get_frustum();
+    const frustum &f = cam.get_frustum();
 
     for (auto &mod : m_models)
     {
