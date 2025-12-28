@@ -8,7 +8,10 @@ namespace zabato
 
 const rtti model::TYPE("zabato.model", &spatial::TYPE);
 
-model::model() : m_model_bound(nullptr), m_world_bound(nullptr) {}
+model::model()
+    : m_model_bound(nullptr), m_world_bound(nullptr), m_bound_dirty(true)
+{
+}
 
 model::~model()
 {
@@ -57,6 +60,12 @@ animator *model::get_animator() const
     return c_dynamic_cast<animator>(ctrl);
 }
 
+void model::on_transform_changed()
+{
+    spatial::on_transform_changed();
+    m_bound_dirty = true;
+}
+
 void model::update_model_bound()
 {
     shared_ptr<mesh> m = get_mesh();
@@ -93,9 +102,14 @@ bounding_volume *model::get_world_bound()
     if (!m_world_bound)
     {
         m_world_bound = bounding_volume::create(vec3<real>(0), 0);
+        m_bound_dirty = true;
     }
 
-    m_model_bound->transform_by(get_world_transform(), m_world_bound);
+    if (m_bound_dirty)
+    {
+        m_model_bound->transform_by(get_world_transform(), m_world_bound);
+        m_bound_dirty = false;
+    }
 
     return m_world_bound;
 }

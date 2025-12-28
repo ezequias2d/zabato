@@ -159,4 +159,14 @@ void node::link(xml_serializer &serializer, tinyxml2::XMLElement &el)
     }
 }
 
+void node::on_transform_changed()
+{
+    spatial::on_transform_changed();
+    for (auto &child : m_children)
+    {
+        if (child)
+            child->force_dirty();
+    }
+}
+
 } // namespace zabato
