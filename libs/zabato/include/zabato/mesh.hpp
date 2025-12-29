@@ -455,15 +455,41 @@ private:
         const bool has_tex   = (flags & mesh_flags::tex) != mesh_flags::none;
         const bool has_bone  = (flags & mesh_flags::bone) != mesh_flags::none;
 
-        m_vertex_size = sizeof(position_t) + (has_normal * sizeof(normal_t)) +
-                        (has_color * sizeof(color_t)) +
-                        (has_tex * sizeof(texcoord_t)) +
-                        (has_bone * sizeof(boneweight_t));
-        m_normal_offset   = 0 + has_normal * sizeof(normal_t);
-        m_color_offset    = m_normal_offset + has_color * sizeof(color_t);
-        m_texcoord_offset = m_color_offset + has_color * sizeof(texcoord_t);
-        m_boneweight_offset =
-            m_texcoord_offset + has_bone * sizeof(boneweight_t);
+        size_t current_offset = sizeof(position_t);
+
+        if (has_normal)
+        {
+            m_normal_offset = current_offset;
+            current_offset += sizeof(normal_t);
+        }
+        else
+            m_normal_offset = 0;
+
+        if (has_color)
+        {
+            m_color_offset = current_offset;
+            current_offset += sizeof(color_t);
+        }
+        else
+            m_color_offset = 0;
+
+        if (has_tex)
+        {
+            m_texcoord_offset = current_offset;
+            current_offset += sizeof(texcoord_t);
+        }
+        else
+            m_texcoord_offset = 0;
+
+        if (has_bone)
+        {
+            m_boneweight_offset = current_offset;
+            current_offset += sizeof(boneweight_t);
+        }
+        else
+            m_boneweight_offset = 0;
+
+        m_vertex_size = current_offset;
     }
 
     inline void resize()
