@@ -409,10 +409,11 @@ private:
                 entry *dest = find_entry_internal(old_entries[i].key);
 
                 // Move construct the key and value
-                new (&dest->key) Key(move(old_entries[i].key));
+                new (&dest->key) Key(zabato::move(old_entries[i].key));
                 try
                 {
-                    new (&dest->value) Value(move(old_entries[i].value));
+                    new (&dest->value)
+                        Value(zabato::move(old_entries[i].value));
                 }
                 catch (...)
                 {
