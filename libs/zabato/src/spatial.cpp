@@ -50,4 +50,42 @@ void spatial::link(xml_serializer &serializer, tinyxml2::XMLElement &element)
     }
 }
 
+transformation &spatial::get_world_transform()
+{
+    if (is_world_dirty)
+    {
+        spatial *p = parent();
+        if (p)
+            world_transform.product(p->get_world_transform(), local);
+        else
+            world_transform = local;
+        is_world_dirty = false;
+    }
+    return world_transform;
+}
+
+void spatial::set_local(const transformation &local)
+{
+    this->local = local;
+    force_dirty();
+}
+
+void spatial::set_world(const transformation &world)
+{
+    this->world_transform = world;
+    force_dirty();
+
+    spatial *p = parent();
+    if (p)
+    {
+        transformation inv_parent;
+        p->get_world_transform().inverse(inv_parent);
+        local.product(inv_parent, world);
+    }
+    else
+    {
+        local = world;
+    }
+}
+
 } // namespace zabato

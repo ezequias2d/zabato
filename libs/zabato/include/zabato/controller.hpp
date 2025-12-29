@@ -4,6 +4,8 @@
 
 namespace zabato
 {
+struct game_message;
+class gpu;
 
 /**
  * @class controller
@@ -24,6 +26,20 @@ public:
      * @param dt Delta time.
      */
     virtual void update(real dt) = 0;
+
+    /**
+     * @brief Sets a generic property on this controller.
+     * @param name The identification/name of the property.
+     * @param val The value to set.
+     */
+    virtual void set_property(const char *name, real val) {}
+    virtual void set_property(const char *name, int64_t val) {}
+    virtual void set_property(const char *name, bool val) {}
+    virtual void set_property(const char *name, const char *val) {}
+
+    virtual void on_message(const game_message &msg) {}
+
+    virtual void on_draw_gizmos(class gpu &g, bool selected) {}
 
     /**
      * @brief Set the object this controller "possesses".

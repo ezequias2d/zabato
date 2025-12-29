@@ -49,6 +49,28 @@ private:
     vector<uint8_t> m_pixel_data;
 };
 
+class GlFramebuffer : public framebuffer
+{
+public:
+    GlFramebuffer(uint16_t width, uint16_t height);
+    ~GlFramebuffer() override;
+
+    void destroy() override;
+    texture *get_texture() const override { return m_texture; }
+    void resize(uint16_t width, uint16_t height) override;
+    vec2<uint16_t> get_size() const override { return m_texture->get_size(); }
+
+    GLuint get_handle() const { return m_handle; }
+
+    // Helper to ensure texture is valid
+    void update();
+
+private:
+    GLuint m_handle             = 0;
+    GLuint m_depth_renderbuffer = 0;
+    GlTexture *m_texture        = nullptr;
+};
+
 class GlGpu : public gpu
 {
 public:
@@ -68,6 +90,8 @@ public:
     void tex_coord(real u, real v) override;
     void clear(const struct color &c, real depth) override;
     void viewport(int width, int height) override;
+    void push_state() override;
+    void pop_state() override;
 
     void set_matrix_mode(matrix_mode mode) override;
     void perspective_fov(real fov, real aspect, real near, real far) override;
@@ -98,6 +122,10 @@ public:
                             color_format format) override;
     void bind_texture(texture *tex) override;
     void unbind_texture() override;
+
+    framebuffer *create_framebuffer(uint16_t width, uint16_t height) override;
+    void bind_framebuffer(framebuffer *fb) override;
+    void unbind_framebuffer() override;
 
     display_list *create_display_list() override;
     void begin_display_list(display_list *list) override;

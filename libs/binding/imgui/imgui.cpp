@@ -483,8 +483,7 @@ void render_draw_data(ImDrawData *draw_data)
     if (fb_width <= 0 || fb_height <= 0)
         return;
 
-    g_gpu->push_matrix();
-    g_gpu->load_identity();
+    g_gpu->viewport(fb_width, fb_height);
     g_gpu->set_matrix_mode(zabato::matrix_mode::projection);
     g_gpu->push_matrix();
     g_gpu->load_identity();
@@ -494,7 +493,10 @@ void render_draw_data(ImDrawData *draw_data)
                  draw_data->DisplayPos.y,
                  -1.0f,
                  +1.0f);
+
     g_gpu->set_matrix_mode(zabato::matrix_mode::modelview);
+    g_gpu->push_matrix();
+    g_gpu->load_identity();
 
     g_gpu->enable_lighting(false);
     g_gpu->enable_fog(false);

@@ -111,6 +111,8 @@ struct float_policy
     static constexpr storage_type sin(storage_type a) { return sinf(a); }
     static constexpr storage_type cos(storage_type a) { return cosf(a); }
     static constexpr storage_type acos(storage_type a) { return acosf(a); }
+    static constexpr storage_type asin(storage_type a) { return asinf(a); }
+    static constexpr storage_type atan(storage_type a) { return atanf(a); }
     static constexpr storage_type atan2(storage_type y, storage_type x)
     {
         return atan2f(y, x);
@@ -393,6 +395,16 @@ template <int FractionalBits> struct fixed_point_policy
     static constexpr storage_type acos(storage_type x)
     {
         return atan2(sqrt(from_int(1) - mul(x, x)), x);
+    }
+
+    static constexpr storage_type asin(storage_type x)
+    {
+        return atan2(x, sqrt(from_int(1) - mul(x, x)));
+    }
+
+    static constexpr storage_type atan(storage_type x)
+    {
+        return atan2(x, from_int(1));
     }
 
     static constexpr storage_type atan2(storage_type y, storage_type x)
@@ -736,6 +748,10 @@ private:
     template <typename P>
     friend constexpr custom_real<P> acos(const custom_real<P> &);
     template <typename P>
+    friend constexpr custom_real<P> asin(const custom_real<P> &);
+    template <typename P>
+    friend constexpr custom_real<P> atan(const custom_real<P> &);
+    template <typename P>
     friend constexpr custom_real<P> atan2(const custom_real<P> &,
                                           const custom_real<P> &);
     template <typename P>
@@ -758,6 +774,28 @@ template <typename Policy>
 constexpr custom_real<Policy> acos(const custom_real<Policy> &val)
 {
     return custom_real<Policy>::from_raw(Policy::acos(val.m_value));
+}
+
+/**
+ * @brief Calculates the arcsine of a value.
+ * @param val The input value.
+ * @return The arcsine of val.
+ */
+template <typename Policy>
+constexpr custom_real<Policy> asin(const custom_real<Policy> &val)
+{
+    return custom_real<Policy>::from_raw(Policy::asin(val.m_value));
+}
+
+/**
+ * @brief Calculates the arc tangent of a value.
+ * @param val The input value.
+ * @return The arc tangent of val.
+ */
+template <typename Policy>
+constexpr custom_real<Policy> atan(const custom_real<Policy> &val)
+{
+    return custom_real<Policy>::from_raw(Policy::atan(val.m_value));
 }
 
 /**

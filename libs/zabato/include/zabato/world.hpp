@@ -2,6 +2,7 @@
 
 #include <zabato/camera.hpp>
 #include <zabato/controller.hpp>
+#include <zabato/game_message.hpp>
 #include <zabato/model.hpp>
 #include <zabato/renderer.hpp> // forward decl?
 #include <zabato/spatial.hpp>
@@ -44,6 +45,12 @@ public:
     void register_model(model *mod);
 
     /**
+     * @brief Get all registered models.
+     * @return Const reference to the vector of models.
+     */
+    const vector<pointer<model>> &get_models() const { return m_models; }
+
+    /**
      * @brief Unregister a model from the world.
      * @param mod The model to unregister.
      */
@@ -72,15 +79,25 @@ public:
      */
     void update(real dt);
 
-    void render(renderer &rnd, camera *cam);
+    void render(renderer &rnd, camera &cam);
+
+    /**
+     * @brief Send a game message to be processed in the next update.
+     * @param msg The message to send.
+     */
+    void send_message(const game_message &msg);
 
 private:
     void update_node(spatial *node, real dt);
+    void process_messages();
 
     pointer<spatial> m_root;
     vector<pointer<model>> m_models;
 
     controller *m_controller_head;
+
+    // Message Queue
+    game_message_queue m_message_queue;
 };
 
 } // namespace zabato

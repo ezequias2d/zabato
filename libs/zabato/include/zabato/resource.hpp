@@ -24,8 +24,7 @@ public:
         resource_ptr resource;
         if (m_resources.try_get_value(path, resource))
         {
-            shared_ptr<T> ptr = static_pointer_cast<T>(resource);
-            return ptr;
+            return static_pointer_cast<T>(resource);
         }
 
         auto obj = make_shared<T>();
@@ -47,6 +46,12 @@ public:
         fclose(file);
         m_resources.set(path, obj);
         return obj;
+    }
+
+    template <typename T>
+    void add_resource(const string &path, shared_ptr<T> res)
+    {
+        m_resources.add(path, static_pointer_cast<resource>(res));
     }
 
     // Unloads a resource by path
@@ -74,7 +79,7 @@ public:
     void set_manager(resource_manager *mgr) { m_manager = mgr; }
     resource_manager *manager() const { return m_manager; }
 
-    template <typename T> shared_ptr<T> &&get() const
+    template <typename T> shared_ptr<T> get() const
     {
         if (!m_manager || m_path.empty())
             return nullptr;
@@ -82,7 +87,7 @@ public:
         assert(!resource.has_error());
         if (resource.has_error())
             return nullptr;
-        return move(resource.value);
+        return resource.value;
     }
 
 private:

@@ -149,75 +149,97 @@ void GlTexture::load(uint16_t width,
 
     const size_t expected_size =
         calculate_texture_data_size(width, height, format);
-    if (data_size < expected_size)
-    {
-        std::cerr << "Error loading texture: provided data size (" << data_size
-                  << ") is less than expected size (" << expected_size << ")."
-                  << std::endl;
-        return;
-    }
 
-    const uint8_t *byte_data = static_cast<const uint8_t *>(data);
-    m_pixel_data.assign(byte_data, byte_data + expected_size);
+    if (data != nullptr)
+    {
+        if (data_size < expected_size)
+        {
+            std::cerr << "Error loading texture: provided data size ("
+                      << data_size << ") is less than expected size ("
+                      << expected_size << ")." << std::endl;
+            return;
+        }
+
+        const uint8_t *byte_data = static_cast<const uint8_t *>(data);
+        m_pixel_data.assign(byte_data, byte_data + expected_size);
+    }
+    else
+        m_pixel_data.clear();
 
     vector<uint32_t> buffer;
-    buffer.resize(m_width * m_height);
     GLint internal_format = GL_RGBA8;
 
-    switch (m_format)
-    {
-    case color_format::rgba5551:
-    {
-        internal_format        = GL_RGB5_A1;
-        const uint16_t *pixels = static_cast<const uint16_t *>(data);
-        for (size_t i = 0; i < buffer.size(); ++i)
-        {
-            color color(color5551{pixels[i]});
-            buffer[i] = color8888(color).value;
-        }
-        break;
-    }
-    case color_format::rgba4444:
-    {
-        internal_format        = GL_RGBA4;
-        const uint16_t *pixels = static_cast<const uint16_t *>(data);
-        for (size_t i = 0; i < buffer.size(); ++i)
-        {
-            buffer[i] = color8888(color(color4444{pixels[i]})).value;
-        }
-        break;
-    }
-    case color_format::palette16:
-    case color_format::palette64:
-    case color_format::palette128:
-    case color_format::palette256:
-    {
-        internal_format         = GL_RGBA8;
-        const bool is_nibble    = m_format == color_format::palette16;
-        const size_t pcount     = palette_count(m_format);
-        const uint32_t *palette = static_cast<const uint32_t *>(data);
-        const uint8_t *indices =
-            reinterpret_cast<const uint8_t *>(palette + pcount);
+    if (m_format == color_format::rgba5551)
+        internal_format = GL_RGB5_A1;
+    else if (m_format == color_format::rgba4444)
+        internal_format = GL_RGBA4;
 
-        for (size_t i = 0; i < buffer.size(); i++)
+    // Only process conversion if data is provided
+    if (data != nullptr)
+    {
+        buffer.resize(m_width * m_height);
+
+        switch (m_format)
         {
-            uint8_t index = is_nibble
-                                ? (indices[i / 2] >> (i % 2 ? 0 : 4)) & 0xF
-                                : indices[i];
-            if (index < pcount)
+        case color_format::rgba5551:
+        {
+            const uint16_t *pixels = static_cast<const uint16_t *>(data);
+            for (size_t i = 0; i < buffer.size(); ++i)
             {
-                buffer[i] = palette[index];
+                color color(color5551{pixels[i]});
+                buffer[i] = color8888(color).value;
             }
+            break;
         }
-        break;
-    }
-    default:
-        return; // Invalid format
+        case color_format::rgba4444:
+        {
+            const uint16_t *pixels = static_cast<const uint16_t *>(data);
+            for (size_t i = 0; i < buffer.size(); ++i)
+            {
+                buffer[i] = color8888(color(color4444{pixels[i]})).value;
+            }
+            break;
+        }
+        case color_format::palette16:
+        case color_format::palette64:
+        case color_format::palette128:
+        case color_format::palette256:
+        {
+            const bool is_nibble    = m_format == color_format::palette16;
+            const size_t pcount     = palette_count(m_format);
+            const uint32_t *palette = static_cast<const uint32_t *>(data);
+            const uint8_t *indices =
+                reinterpret_cast<const uint8_t *>(palette + pcount);
+
+            for (size_t i = 0; i < buffer.size(); i++)
+            {
+                uint8_t index = is_nibble
+                                    ? (indices[i / 2] >> (i % 2 ? 0 : 4)) & 0xF
+                                    : indices[i];
+                if (index < pcount)
+                {
+                    buffer[i] = palette[index];
+                }
+            }
+            break;
+        }
+        case color_format::rgba8888:
+        {
+            const uint32_t *pixels = static_cast<const uint32_t *>(data);
+            std::copy(pixels, pixels + (m_width * m_height), buffer.begin());
+            break;
+        }
+        default:
+            std::cerr << "Unknown texture format: " << (int)m_format
+                      << std::endl;
+            return;
+        }
     }
 
     glBindTexture(GL_TEXTURE_2D, m_handle);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
     glTexImage2D(GL_TEXTURE_2D,
                  0,
                  internal_format,
@@ -226,7 +248,7 @@ void GlTexture::load(uint16_t width,
                  0,
                  GL_RGBA,
                  GL_UNSIGNED_BYTE,
-                 buffer.data());
+                 (data != nullptr) ? buffer.data() : nullptr);
 }
 
 void GlTexture::copy(uint16_t *width,
@@ -258,6 +280,78 @@ color8888 GlTexture::sample8888(uint8_t u, uint8_t v) const
 color_format GlTexture::get_format() const { return m_format; }
 
 vec2<uint16_t> GlTexture::get_size() const { return {m_width, m_height}; }
+
+GlFramebuffer::GlFramebuffer(uint16_t width, uint16_t height)
+{
+    m_texture = new GlTexture(
+        width, height, color_format::rgba8888); // Assuming 8888 for FBO
+    glGenFramebuffers(1, &m_handle);
+    glGenRenderbuffers(1, &m_depth_renderbuffer);
+    update();
+}
+
+GlFramebuffer::~GlFramebuffer()
+{
+    destroy();
+    if (m_texture)
+    {
+        delete m_texture;
+        m_texture = nullptr;
+    }
+}
+
+void GlFramebuffer::destroy()
+{
+    if (m_handle)
+    {
+        glDeleteFramebuffers(1, &m_handle);
+        m_handle = 0;
+    }
+    if (m_depth_renderbuffer)
+    {
+        glDeleteRenderbuffers(1, &m_depth_renderbuffer);
+        m_depth_renderbuffer = 0;
+    }
+}
+
+void GlFramebuffer::resize(uint16_t width, uint16_t height)
+{
+    if (m_texture->get_size().x == width && m_texture->get_size().y == height)
+        return;
+
+    // Resize texture by reloading with null data
+    m_texture->load(width, height, color_format::rgba8888, 0, nullptr);
+    update();
+}
+
+void GlFramebuffer::update()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, m_handle);
+
+    // Attach texture
+    glFramebufferTexture2D(GL_FRAMEBUFFER,
+                           GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D,
+                           m_texture->get_handle(),
+                           0);
+
+    // Attach depth buffer
+    glBindRenderbuffer(GL_RENDERBUFFER, m_depth_renderbuffer);
+    vec2<uint16_t> size = m_texture->get_size();
+    glRenderbufferStorage(
+        GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, size.x, size.y);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                              GL_DEPTH_ATTACHMENT,
+                              GL_RENDERBUFFER,
+                              m_depth_renderbuffer);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        std::cerr << "Error: Framebuffer is not complete!" << std::endl;
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
 
 GlDisplayList::GlDisplayList()
 {
@@ -336,6 +430,9 @@ void GlGpu::clear(const struct color &c, real depth)
 }
 
 void GlGpu::viewport(int width, int height) { glViewport(0, 0, width, height); }
+
+void GlGpu::push_state() { glPushAttrib(GL_ALL_ATTRIB_BITS); }
+void GlGpu::pop_state() { glPopAttrib(); }
 void GlGpu::set_matrix_mode(matrix_mode mode)
 {
     glMatrixMode(to_gl_matrix_mode(mode));
@@ -469,6 +566,22 @@ void GlGpu::bind_texture(texture *tex)
     }
 }
 void GlGpu::unbind_texture() { glBindTexture(GL_TEXTURE_2D, 0); }
+
+framebuffer *GlGpu::create_framebuffer(uint16_t width, uint16_t height)
+{
+    return new GlFramebuffer(width, height);
+}
+
+void GlGpu::bind_framebuffer(framebuffer *fb)
+{
+    if (fb)
+        glBindFramebuffer(GL_FRAMEBUFFER,
+                          static_cast<GlFramebuffer *>(fb)->get_handle());
+    else
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void GlGpu::unbind_framebuffer() { glBindFramebuffer(GL_FRAMEBUFFER, 0); }
 
 display_list *GlGpu::create_display_list() { return new GlDisplayList(); }
 

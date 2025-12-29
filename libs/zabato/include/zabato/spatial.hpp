@@ -27,45 +27,27 @@ public:
 
     virtual world *get_world() const override final
     {
-        return parent()->get_world();
+        auto p = parent();
+        if (p != nullptr)
+            return p->get_world();
+        return nullptr;
     }
 
     transformation &get_local() { return local; }
-    transformation &get_world_transform()
-    {
-        if (is_world_dirty)
-        {
-            spatial *p = parent();
-            if (p)
-                world_transform.product(p->get_world_transform(), local);
-            else
-                world_transform = local;
-            is_world_dirty = false;
-        }
-        return world_transform;
-    }
+    transformation &get_world_transform();
 
-    void set_local(const transformation &local)
-    {
-        this->local    = local;
-        is_world_dirty = true;
-    }
+    void set_local(const transformation &local);
 
-    void set_world(const transformation &world)
-    {
-        this->world_transform = world;
-        is_world_dirty        = false;
+    void set_world(const transformation &world);
 
-        spatial *p = parent();
-        if (p)
+    virtual void on_transform_changed() {}
+
+    void force_dirty()
+    {
+        if (!is_world_dirty)
         {
-            transformation inv_parent;
-            p->get_world_transform().inverse(inv_parent);
-            local.product(inv_parent, world);
-        }
-        else
-        {
-            local = world;
+            is_world_dirty = true;
+            on_transform_changed();
         }
     }
 
