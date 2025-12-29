@@ -5,6 +5,7 @@
 namespace zabato
 {
 struct game_message;
+class gpu;
 
 /**
  * @class controller
@@ -37,6 +38,8 @@ public:
     virtual void set_property(const char *name, const char *val) {}
 
     virtual void on_message(const game_message &msg) {}
+
+    virtual void on_draw_gizmos(class gpu &g, bool selected) {}
 
     /**
      * @brief Set the object this controller "possesses".

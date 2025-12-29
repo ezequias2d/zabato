@@ -3,8 +3,10 @@
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <zabato/script.hpp>
 #include <zabato/symbol.hpp>
+#include <zabato/value.hpp>
+
+#include <zabato/uuid.hpp>
 
 namespace zabato
 {
@@ -13,9 +15,9 @@ const size_t QUEUE_SIZE = 256;
 struct game_message
 {
     symbol *msg_id;
-    unsigned int sender_id;
-    unsigned int receiver_id;
-    script_value data;
+    uuid sender_id;
+    uuid receiver_id;
+    value data;
 };
 
 class game_message_queue

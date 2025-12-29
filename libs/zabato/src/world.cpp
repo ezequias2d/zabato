@@ -124,6 +124,28 @@ void world::update(real dt)
             animator->update(dt);
         }
     }
+
+    process_messages();
+}
+
+void world::send_message(const game_message &msg) { m_message_queue.push(msg); }
+
+void world::process_messages()
+{
+    game_message msg;
+    while (m_message_queue.pop(msg))
+    {
+        // Find receiver
+        object *receiver = nullptr;
+        object::s_in_use.try_get_value(msg.receiver_id, receiver);
+
+        if (receiver)
+        {
+            const auto &ctrls = receiver->get_controllers();
+            for (auto &c : ctrls)
+                c->on_message(msg);
+        }
+    }
 }
 
 void world::render(renderer &rnd, camera &cam)

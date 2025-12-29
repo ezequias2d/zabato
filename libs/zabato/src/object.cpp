@@ -18,10 +18,15 @@ hash_map<uuid, object *> object::s_in_use;
 hash_map<string, object::factory_function> *object::s_factory         = nullptr;
 hash_map<string, object::factory_function_xml> *object::s_factory_xml = nullptr;
 
-object::object() : m_name(nullptr), m_uiID(uuid::generate()), m_uiRefCount(0) {}
+object::object() : m_name(nullptr), m_uiID(uuid::generate()), m_uiRefCount(0)
+{
+    s_in_use.add(m_uiID, this);
+}
 
 object::~object()
 {
+    s_in_use.erase(m_uiID);
+
     if (m_name)
         release_symbol(m_name);
 }

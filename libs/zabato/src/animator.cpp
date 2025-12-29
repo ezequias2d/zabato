@@ -1,5 +1,6 @@
-
 #include <zabato/animator.hpp>
+#include <zabato/game_message.hpp>
+#include <zabato/symbol.hpp>
 
 namespace zabato
 {
@@ -215,7 +216,16 @@ void animator::update(real delta_time)
 
                 if (fired)
                 {
-                    b.target->on_event(key.name.c_str(), key.args.c_str());
+                    game_message msg;
+                    msg.msg_id      = get_symbol(key.name.c_str());
+                    msg.sender_id   = 0;
+                    msg.receiver_id = 0;
+
+                    string_view arg_view(key.args.c_str(), key.args.size());
+                    value arg_view_val(arg_view);
+                    msg.data = arg_view_val;
+
+                    b.target->on_message(msg);
                 }
             }
         }

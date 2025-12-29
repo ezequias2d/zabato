@@ -24,6 +24,8 @@ public:
     virtual void load_xml(xml_serializer &serializer,
                           tinyxml2::XMLElement &element) override;
 
+    virtual void on_transform_changed() override;
+
     /**
      * @brief Set the mesh resource for this model.
      * @param path The path to the mesh resource.
@@ -78,6 +80,7 @@ private:
     resource_ref m_mesh;
     bounding_volume *m_model_bound;
     bounding_volume *m_world_bound;
+    bool m_bound_dirty;
     vector<spatial *> m_bones;
 
     void update_model_bound();
