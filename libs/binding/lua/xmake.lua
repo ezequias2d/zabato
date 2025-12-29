@@ -1,0 +1,11 @@
+add_requires("lua")
+add_requires("tinyxml2")
+
+target("zabato_lua")
+    set_kind("static")
+    add_files("src/*.cpp")
+    add_includedirs("include", {public = true})
+    add_deps("zabato")
+    add_cxxflags("-fno-rtti")
+    set_languages("c++23")
+    add_packages("lua", "tinyxml2")
