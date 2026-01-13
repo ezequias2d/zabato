@@ -100,7 +100,7 @@ public:
 
         if (importer)
         {
-            auto res = importer->import(*m_fs, path, settings);
+            auto res = importer->import(*m_fs, m_gpu, path, settings);
             if (!res.has_error())
             {
                 m_resources.set(path, res.value);
@@ -153,8 +153,9 @@ public:
             return import_res.error;
         }
 
-        // 2. If no importer found, try native load (only if T is not resource)
-        if constexpr (!std::is_same_v<T, resource>)
+        // 2. If no importer found, try native load (only if T is not resource
+        // and not abstract)
+        if constexpr (!std::is_same_v<T, resource> && !std::is_abstract_v<T>)
         {
             resource_ptr resource;
             if (m_resources.try_get_value(path, resource))
@@ -208,9 +209,13 @@ public:
     // Unloads all resources
     void unload_all() { m_resources.clear(); }
 
+    void set_gpu(class gpu *gpu) { m_gpu = gpu; }
+    class gpu *get_gpu() const { return m_gpu; }
+
 private:
     hash_map<string, resource_ptr> m_resources;
     fs::file_system *m_fs = nullptr;
+    class gpu *m_gpu      = nullptr;
 };
 
 class resource_ref

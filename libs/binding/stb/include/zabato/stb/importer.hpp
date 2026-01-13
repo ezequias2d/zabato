@@ -1,14 +1,18 @@
 #pragma once
 
+#include "zabato/string.hpp"
 #include <zabato/importer.hpp>
+#include <zabato/rtti.hpp>
 
-namespace zabato::assimp
+namespace zabato::stb
 {
 
-class assimp_importer : public importer
+class stb_importer : public importer
 {
 public:
-    string_view name() const override { return "assimp"; }
+    virtual ~stb_importer() = default;
+
+    string_view name() const override { return "stb"; }
     bool supports(const string &extension) const override;
     result<shared_ptr<resource>>
     import(fs::file_system &fs,
@@ -19,7 +23,6 @@ public:
     bool is_resource_type(const zabato::rtti &type) const override;
 };
 
-// Function into initialize the module and register the importer
 void register_importer();
 
-} // namespace zabato::assimp
+} // namespace zabato::stb

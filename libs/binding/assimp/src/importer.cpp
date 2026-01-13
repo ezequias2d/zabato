@@ -58,6 +58,7 @@ static mat4<real> to_mat4(const aiMatrix4x4 &m)
 
 result<shared_ptr<resource>>
 assimp_importer::import(fs::file_system &fs,
+                        class gpu *gpu_ctx,
                         const string &path,
                         const tinyxml2::XMLElement *settings)
 {
