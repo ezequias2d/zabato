@@ -1,7 +1,10 @@
 #pragma once
 
+#include <zabato/fs.hpp>
 #include <zabato/hash_map.hpp>
 #include <zabato/ice.hpp>
+#include <zabato/importer.hpp>
+#include <zabato/rtti.hpp>
 #include <zabato/shared_ptr.hpp>
 #include <zabato/stream.hpp>
 #include <zabato/string.hpp>
@@ -11,6 +14,9 @@ namespace zabato
 class resource
 {
 public:
+    static const rtti TYPE;
+    virtual const rtti &type() const { return TYPE; }
+
     virtual ~resource() = default;
 };
 
@@ -19,33 +25,175 @@ class resource_manager
 public:
     using resource_ptr = shared_ptr<resource>;
 
-    template <typename T> result<shared_ptr<T>> load(const string &path)
+    void set_file_system(fs::file_system *fs) { m_fs = fs; }
+    fs::file_system *get_file_system() const { return m_fs; }
+
+    result<shared_ptr<resource>> import_resource(const string &path)
     {
         resource_ptr resource;
         if (m_resources.try_get_value(path, resource))
+            return resource;
+
+        if (!m_fs)
         {
-            return static_pointer_cast<T>(resource);
+            return report_error(error_code::value,
+                                "File system not set in resource_manager");
         }
 
-        auto obj = make_shared<T>();
+        // Check for sidecar XML configuration
+        tinyxml2::XMLDocument doc;
+        const tinyxml2::XMLElement *settings   = nullptr;
+        shared_ptr<importer> specific_importer = nullptr;
 
-        FILE *file = fopen(path.c_str(), "rb");
-        assert(file);
-        if (!file)
-            return report_error(error_code::file_not_found, path.c_str());
-
-        file_stream stream(file);
-        ice_reader reader(stream);
-        auto res = deserialize(reader, *obj.get());
-        if (res.has_error())
+        string xml_path = path;
+        size_t last_dot = xml_path.rfind('.');
+        if (last_dot != string::npos)
         {
-            fclose(file);
+            xml_path = xml_path.substr(0, last_dot) + ".xml";
+
+            if (m_fs->exists(xml_path))
+            {
+                auto file_xml = m_fs->open(xml_path, fs::open_mode::read);
+                if (file_xml)
+                {
+                    // Read entire XML into string
+                    file_xml->seek(0, fs::origin::end);
+                    size_t len = file_xml->tell();
+                    file_xml->seek(0, fs::origin::begin);
+
+                    vector<char> buf(len + 1);
+                    buffer b(reinterpret_cast<uint8_t *>(buf.data()), len);
+                    file_xml->read(b);
+                    buf[len] = 0;
+                    file_xml->close();
+                    delete file_xml;
+
+                    if (doc.Parse(buf.data()) == tinyxml2::XML_SUCCESS)
+                    {
+                        auto root = doc.FirstChildElement("import");
+                        if (root)
+                        {
+                            auto importer_elem =
+                                root->FirstChildElement("importer");
+                            if (importer_elem && importer_elem->GetText())
+                            {
+                                specific_importer =
+                                    importer_registry::find_importer_by_name(
+                                        importer_elem->GetText());
+                            }
+                            settings = root->FirstChildElement("settings");
+                        }
+                    }
+                }
+            }
+        }
+
+        auto importer = specific_importer;
+        if (!importer)
+        {
+            if (last_dot != string::npos)
+            {
+                string ext = path.substr(last_dot);
+                importer   = importer_registry::find_importer(ext);
+            }
+        }
+
+        if (importer)
+        {
+            auto res = importer->import(*m_fs, path, settings);
+            if (!res.has_error())
+            {
+                m_resources.set(path, res.value);
+                return res.value;
+            }
             return res.error;
         }
 
-        fclose(file);
-        m_resources.set(path, obj);
-        return obj;
+        return report_error(error_code::unable_to_match,
+                            "No importer found for file");
+    }
+
+    template <typename T> bool is_resource_type(const string &path)
+    {
+        // Find importer
+        string xml_path                        = path;
+        size_t last_dot                        = xml_path.rfind('.');
+        shared_ptr<importer> specific_importer = nullptr;
+
+        // Simplified check: usually we just look up extension or specific
+        // importer from XML Replicating logic partially for importer lookup
+
+        // ... (Skipping full XML sidecar check for performance in drag loop, or
+        // duplicating it?) The user dragging a file likely relies on extension
+        // unless registered.
+
+        if (last_dot != string::npos)
+        {
+            string ext    = path.substr(last_dot);
+            auto importer = importer_registry::find_importer(ext);
+            if (importer)
+            {
+                return importer->is_resource_type(T::TYPE);
+            }
+        }
+        return false;
+    }
+
+    template <typename T> result<shared_ptr<T>> load(const string &path)
+    {
+        // 1. Try to import using registered importers
+        auto import_res = import_resource(path);
+        if (!import_res.has_error())
+        {
+            return static_pointer_cast<T>(import_res.value);
+        }
+        else if (import_res.error != error_code::unable_to_match)
+        {
+            // If importer matched but failed, propagate error
+            return import_res.error;
+        }
+
+        // 2. If no importer found, try native load (only if T is not resource)
+        if constexpr (!std::is_same_v<T, resource>)
+        {
+            resource_ptr resource;
+            if (m_resources.try_get_value(path, resource))
+            {
+                return static_pointer_cast<T>(resource);
+            }
+
+            if (!m_fs)
+            {
+                return report_error(error_code::value,
+                                    "File system not set in resource_manager");
+            }
+
+            auto obj = make_shared<T>();
+
+            fs::file *file = m_fs->open(path, fs::open_mode::read);
+            if (!file)
+                return report_error(error_code::file_not_found, path.c_str());
+
+            ice_reader reader(*file);
+            auto res = deserialize(reader, *obj.get());
+
+            file->close();
+            delete file;
+
+            if (res.has_error())
+            {
+                return res.error;
+            }
+
+            m_resources.set(path, obj);
+            return obj;
+        }
+        else
+        {
+            return report_error(error_code::unable_to_match,
+                                "No importer found and cannot natively load "
+                                "generic resource");
+        }
     }
 
     template <typename T>
@@ -62,6 +210,7 @@ public:
 
 private:
     hash_map<string, resource_ptr> m_resources;
+    fs::file_system *m_fs = nullptr;
 };
 
 class resource_ref

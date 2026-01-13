@@ -2,6 +2,9 @@
 
 namespace zabato
 {
+
+const rtti mesh::TYPE("zabato::mesh", &resource::TYPE);
+
 /**
  * @brief Renders the model using a given GPU context.
  * @param gpu The GPU interface to use for drawing commands.

@@ -109,6 +109,9 @@ using boneweight_t = bone_weight[4];
 class mesh : public resource
 {
 public:
+    static const rtti TYPE;
+    virtual const rtti &type() const override { return TYPE; }
+
     static constexpr chunk_id CHUNK_ID = chunk_id("MESH");
 
     inline mesh() : m_vertex_count(0) {};
