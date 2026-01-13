@@ -2,6 +2,7 @@
 
 #include <zabato/path.hpp>
 #include <zabato/span.hpp>
+#include <zabato/stream.hpp>
 #include <zabato/string.hpp>
 #include <zabato/tuple.hpp>
 #include <zabato/vector.hpp>
@@ -10,18 +11,10 @@ namespace zabato::fs
 {
 
 /**
- * @enum origin
+ * @typedef origin
  * @brief Specifies the reference point for file seeking.
  */
-enum class origin
-{
-    /** @brief Beginning of the file. */
-    begin,
-    /** @brief Current position of the file pointer. */
-    current,
-    /** @brief End of the file. */
-    end,
-};
+using origin = zabato::origin;
 
 /**
  * @class mount
@@ -37,49 +30,15 @@ class mount
  * Provides methods for reading, writing, and seeking within a file.
  * Concrete implementations handle the specifics of the storage medium.
  */
-class file
+class file : public zabato::stream
 {
 public:
     virtual ~file() = default;
 
     /**
-     * @brief Reads data from the file into the provided buffer.
-     * @param buffer The buffer to store read data.
-     * @return The number of bytes actually read.
-     */
-    virtual size_t read(buffer buffer) = 0;
-
-    /**
-     * @brief Writes data from the provided buffer to the file.
-     * @param buffer The buffer containing data to write.
-     * @return The number of bytes actually written.
-     */
-    virtual size_t write(const_buffer buffer) = 0;
-
-    /**
      * @brief Closes the file, releasing any resources.
      */
     virtual void close() = 0;
-
-    /**
-     * @brief Moves the file pointer to a specific location.
-     * @param offset The offset in bytes relative to the origin.
-     * @param origin The reference point for the offset.
-     * @return True if the seek was successful, false otherwise.
-     */
-    virtual bool seek(int64_t offset, origin origin) = 0;
-
-    /**
-     * @brief Checks if the file pointer is at the end of the file.
-     * @return True if at EOF, false otherwise.
-     */
-    virtual bool eof() const = 0;
-
-    /**
-     * @brief Returns the current position of the file pointer.
-     * @return The current byte offset from the beginning of the file.
-     */
-    virtual uint64_t tell() const = 0;
 };
 
 /**

@@ -64,7 +64,7 @@ public:
         return feof(m_file) != 0;
     }
 
-    uint64_t tell() const override
+    size_t tell() const override
     {
         if (!m_file)
             return 0;
