@@ -2,6 +2,8 @@
 #include <zabato/error.hpp>
 #include <zabato/game_message.hpp>
 #include <zabato/lua.hpp>
+#include <zabato/object.hpp>
+#include <zabato/reflection.hpp>
 #include <zabato/serializer.hpp>
 #include <zabato/string.hpp>
 #include <zabato/symbol.hpp>
@@ -11,7 +13,16 @@ namespace zabato
 {
 
 static void push_value_to_lua(lua_State *L, const value &val);
+static const char *META_OBJECT = "zabato.object";
+static const char *SYS_REG_KEY = "zabato.sys";
 
+static lua_script_system *get_sys(lua_State *L)
+{
+    lua_getfield(L, LUA_REGISTRYINDEX, SYS_REG_KEY);
+    auto *sys = (lua_script_system *)lua_touserdata(L, -1);
+    lua_pop(L, 1);
+    return sys;
+}
 class lua_script_args : public script_args
 {
 public:
@@ -424,6 +435,10 @@ bool lua_script_system::initialize()
     if (!m_L)
         return false;
     luaL_openlibs(m_L);
+
+    lua_pushlightuserdata(m_L, this);
+    lua_setfield(m_L, LUA_REGISTRYINDEX, SYS_REG_KEY);
+
     return true;
 }
 
@@ -770,27 +785,49 @@ public:
             return value_type::NIL;
         lua_rawgeti(L, LUA_REGISTRYINDEX, ref_id);
         int t = lua_type(L, -1);
-        lua_pop(L, 1);
 
+        value_type res = value_type::NIL;
         switch (t)
         {
         case LUA_TNIL:
-            return value_type::NIL;
+            res = value_type::NIL;
+            break;
         case LUA_TBOOLEAN:
-            return value_type::BOOLEAN;
+            res = value_type::BOOLEAN;
+            break;
         case LUA_TNUMBER:
-            return value_type::NUMBER;
+            res = value_type::NUMBER;
+            break;
         case LUA_TSTRING:
-            return value_type::STRING;
+            res = value_type::STRING;
+            break;
         case LUA_TTABLE:
-            return value_type::MAP;
+            res = value_type::MAP;
+            break;
         case LUA_TFUNCTION:
-            return value_type::FUNCTION;
+            res = value_type::FUNCTION;
+            break;
         case LUA_TUSERDATA:
-            return value_type::NATIVE_OBJECT;
+            if (lua_getmetatable(L, -1))
+            {
+                luaL_getmetatable(L, META_OBJECT);
+                if (lua_rawequal(L, -1, -2))
+                    res = value_type::OBJECT;
+                else
+                    res = value_type::NATIVE_OBJECT;
+                lua_pop(L, 2);
+            }
+            else
+            {
+                res = value_type::NATIVE_OBJECT;
+            }
+            break;
         default:
-            return value_type::NIL;
+            res = value_type::NIL;
+            break;
         }
+        lua_pop(L, 1);
+        return res;
     }
 
     void set(const value &key, const value &val) override
@@ -888,6 +925,18 @@ public:
         return string_view(s, len);
     }
 
+    pointer<object> as_object() const override
+    {
+        push();
+        void *ud = luaL_testudata(L, -1, META_OBJECT);
+        lua_pop(L, 1);
+        if (ud)
+        {
+            return *static_cast<pointer<object> *>(ud);
+        }
+        return nullptr;
+    }
+
     void *as_pointer() const override
     {
         push();
@@ -896,7 +945,7 @@ public:
         return p;
     }
 
-    intptr_t as_function() const override { return ref_id; }
+    script_delegate as_function() const override { return script_delegate(); }
 
     void call(script_system *sys,
               script_instance *ctx,
@@ -1064,6 +1113,159 @@ public:
     }
 };
 
+static int object_gc(lua_State *L)
+{
+    auto *ptr = (pointer<object> *)lua_touserdata(L, 1);
+    ptr->~pointer();
+    return 0;
+}
+
+static int object_tostring(lua_State *L)
+{
+    auto *ptr = (pointer<object> *)lua_touserdata(L, 1);
+    if (!ptr || !*ptr)
+    {
+        lua_pushstring(L, "nil object");
+        return 1;
+    }
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), "object(%s)", (*ptr)->name());
+    lua_pushstring(L, buffer);
+    return 1;
+}
+
+static int object_eq(lua_State *L)
+{
+    auto *ptr1 = (pointer<object> *)luaL_testudata(L, 1, META_OBJECT);
+    auto *ptr2 = (pointer<object> *)luaL_testudata(L, 2, META_OBJECT);
+    if (ptr1 && ptr2)
+    {
+        lua_pushboolean(L, *ptr1 == *ptr2);
+    }
+    else
+    {
+        lua_pushboolean(L, false);
+    }
+    return 1;
+}
+
+static int object_index(lua_State *L)
+{
+    auto *ptr = (pointer<object> *)lua_touserdata(L, 1);
+    if (!ptr || !*ptr)
+        return 0;
+
+    object *obj     = *ptr;
+    const char *key = luaL_checkstring(L, 2);
+    lua_script_system *sys =
+        (lua_script_system *)lua_touserdata(L, lua_upvalueindex(1));
+
+    const rtti *type = &obj->type();
+    while (type)
+    {
+        const reflection *ref = type->get_reflection();
+        if (!ref)
+            ref = &type->ensure_reflection();
+
+        if (ref)
+        {
+            property_def def;
+            if (ref->properties.try_get_value(string(key), def))
+            {
+                if (def.getter.is_valid())
+                {
+                    auto d = def.getter.as_function();
+                    d.set_object(obj);
+
+                    lua_script_args args(L, 0, 0, sys);
+                    d(sys, nullptr, &args);
+                    return args.returns_count;
+                }
+            }
+
+            value method_val;
+            if (ref->methods.try_get_value(string(key), method_val))
+            {
+                if (method_val.is_valid())
+                {
+                    auto d = method_val.as_function();
+                    d.set_object(obj);
+                    push_callable_value(L, sys, value(d));
+                    return 1;
+                }
+            }
+        }
+        type = type->base();
+    }
+    return 0;
+}
+
+static int object_newindex(lua_State *L)
+{
+    auto *ptr = (pointer<object> *)lua_touserdata(L, 1);
+    if (!ptr || !*ptr)
+        return 0;
+
+    object *obj     = *ptr;
+    const char *key = luaL_checkstring(L, 2);
+    lua_script_system *sys =
+        (lua_script_system *)lua_touserdata(L, lua_upvalueindex(1));
+
+    const rtti *type = &obj->type();
+    while (type)
+    {
+        const reflection *ref = type->get_reflection();
+        if (!ref)
+            ref = &type->ensure_reflection();
+
+        if (ref)
+        {
+            property_def def;
+            if (ref->properties.try_get_value(string(key), def))
+            {
+                if (def.setter.is_valid())
+                {
+                    auto d = def.setter.as_function();
+                    d.set_object(obj);
+
+                    int val_idx = 3;
+                    lua_script_args args(L, val_idx, 1, sys);
+                    d(sys, nullptr, &args);
+                    return 0;
+                }
+            }
+        }
+        type = type->base();
+    }
+
+    return luaL_error(L, "Property '%s' not found or read-only", key);
+}
+
+static void push_object_metatable(lua_State *L)
+{
+    if (luaL_newmetatable(L, META_OBJECT))
+    {
+        lua_script_system *sys = get_sys(L);
+
+        lua_pushcfunction(L, object_gc);
+        lua_setfield(L, -2, "__gc");
+
+        lua_pushcfunction(L, object_tostring);
+        lua_setfield(L, -2, "__tostring");
+
+        lua_pushcfunction(L, object_eq);
+        lua_setfield(L, -2, "__eq");
+
+        lua_pushlightuserdata(L, sys);
+        lua_pushcclosure(L, object_index, 1);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushlightuserdata(L, sys);
+        lua_pushcclosure(L, object_newindex, 1);
+        lua_setfield(L, -2, "__newindex");
+    }
+}
+
 static void push_value_to_lua(lua_State *L, const value &val)
 {
     if (val.is_nil())
@@ -1152,11 +1354,41 @@ static void push_value_to_lua(lua_State *L, const value &val)
         break;
     }
     case value_type::FUNCTION:
-        if (val.as_function() > 0)
-            lua_rawgeti(L, LUA_REGISTRYINDEX, val.as_function());
+        if (val.as_function().is_valid()) // Check valid delegate
+        {
+            if (val.impl->get_type_info().is_exactly(native_value::TYPE))
+            {
+                push_callable_value(L, get_sys(L), val);
+            }
+            else
+            {
+                if (val.as_function().is_valid())
+                    lua_rawgeti(L,
+                                LUA_REGISTRYINDEX,
+                                (intptr_t)val.as_function().get_object());
+                else
+                    lua_pushnil(L);
+            }
+        }
         else
             lua_pushnil(L);
         break;
+    case value_type::OBJECT:
+    {
+        pointer<object> obj = val.as_object();
+        if (obj)
+        {
+            void *ud = lua_newuserdata(L, sizeof(pointer<object>));
+            new (ud) pointer<object>(obj);
+            push_object_metatable(L);
+            lua_setmetatable(L, -2);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+        break;
+    }
     default:
         lua_pushnil(L);
         break;

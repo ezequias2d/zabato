@@ -70,6 +70,12 @@ public:
     {
         return obj && is_derived(obj->type());
     }
+
+    /**
+     * @brief Populates the reflection data for this type.
+     * @param r The reflection structure to populate.
+     */
+    static void reflect(reflection &r);
 #pragma endregion Type
 
 #pragma region Name

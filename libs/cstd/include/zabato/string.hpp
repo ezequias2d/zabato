@@ -1012,6 +1012,24 @@ constexpr basic_string<Allocator> operator+(char lhs,
     return str;
 }
 
+template <class Allocator>
+constexpr basic_string<Allocator> operator+(const basic_string<Allocator> &lhs,
+                                            const char *rhs)
+{
+    basic_string<Allocator> str = lhs;
+    str += rhs;
+    return str;
+}
+
+template <class Allocator>
+constexpr basic_string<Allocator> operator+(const char *lhs,
+                                            const basic_string<Allocator> &rhs)
+{
+    basic_string<Allocator> str(lhs);
+    str += rhs;
+    return str;
+}
+
 template <typename Allocator>
 constexpr auto begin(basic_string<Allocator> &str) ->
     typename basic_string<Allocator>::iterator

@@ -3,6 +3,8 @@
 #include <zabato/controller.hpp>
 #include <zabato/hash_map.hpp>
 #include <zabato/object.hpp>
+#include <zabato/reflection.hpp>
+#include <zabato/script.hpp>
 #include <zabato/serializer.hpp>
 #include <zabato/stream.hpp>
 #include <zabato/string_tree.hpp>
@@ -13,7 +15,7 @@
 namespace zabato
 {
 
-const rtti object::TYPE("zabato.object", nullptr);
+const rtti object::TYPE("zabato.object", nullptr, object::reflect);
 hash_map<uuid, object *> object::s_in_use;
 hash_map<string, object::factory_function> *object::s_factory         = nullptr;
 hash_map<string, object::factory_function_xml> *object::s_factory_xml = nullptr;
@@ -384,6 +386,66 @@ void object::get_all_objects_by_name(const symbol *name,
 {
     if (m_name == name)
         objects.push_back(this);
+}
+
+static void
+object_name_getter(script_system *sys, script_instance *ctx, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    object *obj = (object *)args->get_value(0).as_pointer();
+    if (obj)
+        args->push_return(obj->name());
+    else
+        args->type_error("Null object pointer");
+}
+
+static void
+object_name_setter(script_system *sys, script_instance *ctx, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    object *obj = (object *)args->get_value(0).as_pointer();
+    if (obj)
+        obj->set_name(args->get_value(1).as_string().data());
+    else
+        args->type_error("Null object pointer");
+}
+
+static void object_get_object_by_name(script_system *sys,
+                                      script_instance *ctx,
+                                      script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    object *obj = (object *)args->get_value(0).as_pointer();
+    if (obj)
+    {
+        object *found =
+            obj->get_object_by_name(args->get_value(1).as_string().data());
+        args->push_return((void *)found);
+    }
+    else
+        args->type_error("Null object pointer");
+}
+
+static void
+object_id_getter(script_system *sys, script_instance *ctx, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    object *obj = (object *)args->get_value(0).as_pointer();
+    if (obj)
+        args->push_return(obj->id().to_string());
+    else
+        args->type_error("Null object pointer");
+}
+
+void object::reflect(reflection &r)
+{
+    r.add_property("name", object_name_getter, object_name_setter);
+    r.add_property("id", object_id_getter);
+    r.add_method("get_object_by_name", object_get_object_by_name);
 }
 
 } // namespace zabato

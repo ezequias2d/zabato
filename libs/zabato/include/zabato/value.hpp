@@ -1,6 +1,7 @@
 #pragma once
 
 #include <zabato/hash_map.hpp>
+#include <zabato/object.hpp>
 #include <zabato/rtti.hpp>
 #include <zabato/shared_ptr.hpp>
 #include <zabato/string.hpp>
@@ -20,11 +21,14 @@ enum class value_type
     NATIVE_OBJECT,
     POINTER,
     FUNCTION,
+    OBJECT,
 };
 
+class object;
 class script_system;
 class script_instance;
 class script_args;
+template <class T> class pointer;
 template <typename T> class delegate;
 
 template <typename Ret, typename... Args> class delegate<Ret(Args...)>
@@ -69,6 +73,9 @@ public:
     }
 
     bool operator!=(const delegate &other) const { return !(*this == other); }
+
+    void set_object(void *object) { m_object = object; }
+    void *get_object() const { return m_object; }
 
 private:
     void *m_object;
@@ -127,16 +134,18 @@ struct ivalue
     bool is_function() const { return type() == value_type::FUNCTION; }
     bool is_pointer() const { return type() == value_type::POINTER; }
     bool is_native() const { return type() == value_type::NATIVE_OBJECT; }
+    bool is_object() const { return type() == value_type::OBJECT; }
 
     virtual void
     call(script_system *sys, script_instance *ctx, script_args *args) const = 0;
 
-    virtual bool as_bool() const          = 0;
-    virtual double as_number() const      = 0;
-    virtual int64_t as_int() const        = 0;
-    virtual string_view as_string() const = 0;
-    virtual void *as_pointer() const      = 0;
-    virtual intptr_t as_function() const  = 0;
+    virtual bool as_bool() const                = 0;
+    virtual double as_number() const            = 0;
+    virtual int64_t as_int() const              = 0;
+    virtual string_view as_string() const       = 0;
+    virtual void *as_pointer() const            = 0;
+    virtual pointer<object> as_object() const   = 0;
+    virtual script_delegate as_function() const = 0;
 
 #pragma region Map Access
     virtual void set(const zabato::value &key, const zabato::value &val) = 0;
@@ -181,6 +190,7 @@ struct value
     value(const string &v);
     value(const script_delegate &v);
     value(void (*v)(script_system *, script_instance *, script_args *));
+    value(const pointer<object> &v);
 
     static value make_map();
     static value make_list();
@@ -198,13 +208,18 @@ struct value
     bool is_function() const { return impl && impl->is_function(); }
     bool is_pointer() const { return impl && impl->is_pointer(); }
     bool is_native() const { return impl && impl->is_native(); }
+    bool is_object() const { return impl && impl->is_object(); }
 
     bool as_bool() const { return impl ? impl->as_bool() : false; }
     double as_number() const { return impl ? impl->as_number() : 0.0; }
     int64_t as_int() const { return impl ? impl->as_int() : 0; }
     string_view as_string() const { return impl ? impl->as_string() : ""; }
     void *as_pointer() const { return impl ? impl->as_pointer() : nullptr; }
-    intptr_t as_function() const { return impl ? impl->as_function() : 0; }
+    pointer<object> as_object() const;
+    script_delegate as_function() const
+    {
+        return impl ? impl->as_function() : script_delegate();
+    }
 
     void set(const value &key, const value &val)
     {
@@ -214,7 +229,9 @@ struct value
 
     value get(const value &key) const
     {
-        return impl ? impl->get(key) : value();
+        if (impl)
+            return impl->get(key);
+        return value();
     }
 
     void set_field(string_view key, const value &v)
@@ -225,7 +242,9 @@ struct value
 
     value get_field(string_view key) const
     {
-        return impl ? impl->get_field(key) : value();
+        if (impl)
+            return impl->get_field(key);
+        return value();
     }
 
     void push(const value &v)
@@ -236,14 +255,23 @@ struct value
 
     value get_at(size_t index) const
     {
-        return impl ? impl->get_at(index) : value();
+        if (impl)
+            return impl->get_at(index);
+        return value();
     }
 
-    size_t length() const { return impl ? impl->length() : 0; }
+    size_t length() const
+    {
+        if (impl)
+            return impl->length();
+        return 0;
+    }
 
     shared_ptr<iterator> get_iterator() const
     {
-        return impl ? impl->get_iterator() : nullptr;
+        if (impl)
+            return impl->get_iterator();
+        return nullptr;
     }
 
     void
@@ -251,32 +279,44 @@ struct value
 
     bool operator==(const value &other) const
     {
-        return impl ? impl->operator==(other) : false;
+        if (impl)
+            return impl->operator==(other);
+        return other.is_nil();
     }
 
     bool operator!=(const value &other) const
     {
-        return impl ? impl->operator!=(other) : false;
+        if (impl)
+            return impl->operator!=(other);
+        return !other.is_nil();
     }
 
     bool operator<(const value &other) const
     {
-        return impl ? impl->operator<(other) : false;
+        if (impl)
+            return impl->operator<(other);
+        return other.is_nil();
     }
 
     bool operator>(const value &other) const
     {
-        return impl ? impl->operator>(other) : false;
+        if (impl)
+            return impl->operator>(other);
+        return !other.is_nil();
     }
 
     bool operator<=(const value &other) const
     {
-        return impl ? impl->operator<=(other) : false;
+        if (impl)
+            return impl->operator<=(other);
+        return other.is_nil();
     }
 
     bool operator>=(const value &other) const
     {
-        return impl ? impl->operator>=(other) : false;
+        if (impl)
+            return impl->operator>=(other);
+        return other.is_nil();
     }
 };
 
@@ -294,6 +334,7 @@ public:
         double n_val;
         int64_t i_val;
         void *p_val;
+        pointer<object> o_val;
         intptr_t ref_id;
         string *s_val;
         hash_map<value, value> *t_val;
@@ -302,6 +343,7 @@ public:
     };
 
     native_value() : m_type(value_type::NIL), i_val(0) {}
+    virtual ~native_value();
     native_value(bool v) : m_type(value_type::BOOLEAN), b_val(v) {}
     native_value(double v) : m_type(value_type::NUMBER), n_val(v) {}
     native_value(int64_t v) : m_type(value_type::INTEGER), i_val(v) {}
@@ -319,6 +361,7 @@ public:
     }
 
     native_value(void *v) : m_type(value_type::POINTER), p_val(v) {}
+    native_value(const pointer<object> &v);
     native_value(const script_delegate &v)
         : m_type(value_type::FUNCTION), func(v)
     {
@@ -350,14 +393,19 @@ public:
         return (m_type == value_type::STRING) ? *s_val : "";
     }
 
-    void *as_pointer() const override
-    {
-        return (m_type == value_type::POINTER) ? p_val : nullptr;
-    }
+    void *as_pointer() const override;
 
-    intptr_t as_function() const override
+    pointer<object> as_object() const override;
+
+    script_delegate as_function() const override
     {
-        return (m_type == value_type::FUNCTION) ? ref_id : 0;
+        switch (m_type)
+        {
+        case value_type::FUNCTION:
+            return func;
+        default:
+            return {};
+        }
     }
 
     void call(script_system *sys,
@@ -372,31 +420,41 @@ public:
 
     void set(const value &key, const value &val) override
     {
-        if (m_type == value_type::MAP)
-            t_val->add_or_set(key, val);
-        else if (m_type == value_type::LIST)
+        switch (m_type)
         {
+        case value_type::MAP:
+            t_val->add_or_set(key, val);
+            break;
+        case value_type::LIST:
             if (key.is_int())
                 (*a_val)[key.as_int()] = val;
+            break;
+        default:
+            break;
         }
     }
 
     value get(const value &key) const override
     {
-        if (m_type == value_type::MAP)
+        switch (m_type)
+        {
+        case value_type::MAP:
         {
             value out;
             if (t_val->try_get_value(key, out))
                 return out;
+            break;
         }
-        else if (m_type == value_type::LIST)
-        {
+        case value_type::LIST:
             if (key.is_int())
             {
                 size_t idx = key.as_int();
                 if (idx < a_val->size())
                     return (*a_val)[idx];
             }
+            break;
+        default:
+            break;
         }
         return value();
     }
@@ -447,36 +505,7 @@ public:
     void init_map() { m_type = value_type::MAP; }
     void init_list() { m_type = value_type::LIST; }
 
-    bool operator==(const value &other) const override
-    {
-        if (m_type != other.type())
-            return false;
-        if (m_type == value_type::NIL)
-            return true;
-        if (m_type == value_type::BOOLEAN)
-            return as_bool() == other.as_bool();
-        if (m_type == value_type::NUMBER)
-            return as_number() == other.as_number();
-        if (m_type == value_type::INTEGER)
-            return as_int() == other.as_int();
-        if (m_type == value_type::STRING)
-            return as_string() == other.as_string();
-        if (m_type == value_type::MAP)
-            return get_type_info().is_exactly(other.impl->get_type_info()) &&
-                   t_val ==
-                       static_cast<native_value *>(other.impl.get())->t_val;
-        if (m_type == value_type::LIST)
-            return get_type_info().is_exactly(other.impl->get_type_info()) &&
-                   a_val ==
-                       static_cast<native_value *>(other.impl.get())->a_val;
-        if (m_type == value_type::POINTER)
-            return p_val == other.as_pointer();
-        if (m_type == value_type::FUNCTION)
-            return ref_id == other.as_function();
-        if (m_type == value_type::NATIVE_OBJECT)
-            return get_type_info().is_exactly(other.impl->get_type_info());
-        return false;
-    }
+    bool operator==(const value &other) const override;
 
     bool operator!=(const value &other) const override
     {
