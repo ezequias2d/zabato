@@ -6,7 +6,9 @@ namespace zabato
 {
 class world;
 
-const rtti node::TYPE("zabato.node", &spatial::TYPE);
+const rtti node::TYPE("zabato.node", &spatial::TYPE, node::reflect);
+
+void node::reflect(reflection &r) { spatial::reflect(r); }
 
 node::node() {}
 

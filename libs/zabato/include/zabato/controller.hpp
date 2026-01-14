@@ -17,6 +17,7 @@ class controller : public object
 public:
     static const rtti TYPE;
     const rtti &type() const override { return TYPE; }
+    static void reflect(reflection &r);
 
     controller();
     virtual ~controller();

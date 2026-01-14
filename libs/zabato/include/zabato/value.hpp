@@ -1,7 +1,10 @@
 #pragma once
 
+#include <zabato/color.hpp>
 #include <zabato/hash_map.hpp>
+#include <zabato/math.hpp>
 #include <zabato/object.hpp>
+#include <zabato/real.hpp>
 #include <zabato/rtti.hpp>
 #include <zabato/shared_ptr.hpp>
 #include <zabato/string.hpp>
@@ -22,6 +25,13 @@ enum class value_type
     POINTER,
     FUNCTION,
     OBJECT,
+    VEC2,
+    VEC3,
+    VEC4,
+    QUAT,
+    COLOR,
+    MAT3,
+    MAT4,
 };
 
 class object;
@@ -136,16 +146,33 @@ struct ivalue
     bool is_native() const { return type() == value_type::NATIVE_OBJECT; }
     bool is_object() const { return type() == value_type::OBJECT; }
 
+    virtual bool is_vec2() const  = 0;
+    virtual bool is_vec3() const  = 0;
+    virtual bool is_vec4() const  = 0;
+    virtual bool is_quat() const  = 0;
+    virtual bool is_color() const = 0;
+    virtual bool is_mat3() const  = 0;
+    virtual bool is_mat4() const  = 0;
+
     virtual void
     call(script_system *sys, script_instance *ctx, script_args *args) const = 0;
 
-    virtual bool as_bool() const                = 0;
-    virtual double as_number() const            = 0;
-    virtual int64_t as_int() const              = 0;
-    virtual string_view as_string() const       = 0;
-    virtual void *as_pointer() const            = 0;
-    virtual pointer<object> as_object() const   = 0;
+    virtual bool as_bool() const              = 0;
+    virtual double as_number() const          = 0;
+    virtual int64_t as_int() const            = 0;
+    virtual string_view as_string() const     = 0;
+    virtual void *as_pointer() const          = 0;
+    virtual pointer<object> as_object() const = 0;
+
     virtual script_delegate as_function() const = 0;
+
+    virtual vec2<real> as_vec2() const = 0;
+    virtual vec3<real> as_vec3() const = 0;
+    virtual vec4<real> as_vec4() const = 0;
+    virtual quat<real> as_quat() const = 0;
+    virtual color as_color() const     = 0;
+    virtual mat3<real> as_mat3() const = 0;
+    virtual mat4<real> as_mat4() const = 0;
 
 #pragma region Map Access
     virtual void set(const zabato::value &key, const zabato::value &val) = 0;
@@ -190,7 +217,15 @@ struct value
     value(const string &v);
     value(const script_delegate &v);
     value(void (*v)(script_system *, script_instance *, script_args *));
+    value(object *v);
     value(const pointer<object> &v);
+    value(const vec2<real> &v);
+    value(const vec3<real> &v);
+    value(const vec4<real> &v);
+    value(const quat<real> &v);
+    value(const color &v);
+    value(const mat3<real> &v);
+    value(const mat4<real> &v);
 
     static value make_map();
     static value make_list();
@@ -209,6 +244,13 @@ struct value
     bool is_pointer() const { return impl && impl->is_pointer(); }
     bool is_native() const { return impl && impl->is_native(); }
     bool is_object() const { return impl && impl->is_object(); }
+    bool is_vec2() const { return impl && impl->is_vec2(); }
+    bool is_vec3() const { return impl && impl->is_vec3(); }
+    bool is_vec4() const { return impl && impl->is_vec4(); }
+    bool is_quat() const { return impl && impl->is_quat(); }
+    bool is_color() const { return impl && impl->is_color(); }
+    bool is_mat3() const { return impl && impl->is_mat3(); }
+    bool is_mat4() const { return impl && impl->is_mat4(); }
 
     bool as_bool() const { return impl ? impl->as_bool() : false; }
     double as_number() const { return impl ? impl->as_number() : 0.0; }
@@ -220,6 +262,14 @@ struct value
     {
         return impl ? impl->as_function() : script_delegate();
     }
+
+    vec2<real> as_vec2() const { return impl ? impl->as_vec2() : vec2<real>(); }
+    vec3<real> as_vec3() const { return impl ? impl->as_vec3() : vec3<real>(); }
+    vec4<real> as_vec4() const { return impl ? impl->as_vec4() : vec4<real>(); }
+    quat<real> as_quat() const { return impl ? impl->as_quat() : quat<real>(); }
+    color as_color() const { return impl ? impl->as_color() : color(); }
+    mat3<real> as_mat3() const { return impl ? impl->as_mat3() : mat3<real>(); }
+    mat4<real> as_mat4() const { return impl ? impl->as_mat4() : mat4<real>(); }
 
     void set(const value &key, const value &val)
     {
@@ -340,6 +390,13 @@ public:
         hash_map<value, value> *t_val;
         vector<value> *a_val;
         script_delegate func;
+        vec2<real> v2_val;
+        vec3<real> v3_val;
+        vec4<real> v4_val;
+        quat<real> q_val;
+        color c_val;
+        mat3<real> *m3_val;
+        mat4<real> *m4_val;
     };
 
     native_value() : m_type(value_type::NIL), i_val(0) {}
@@ -349,7 +406,7 @@ public:
     native_value(int64_t v) : m_type(value_type::INTEGER), i_val(v) {}
     native_value(const string_view &v) : m_type(value_type::STRING)
     {
-        s_val = new string(v);
+        s_val = new string(v.data(), v.size());
     }
     native_value(const hash_map<value, value> &v) : m_type(value_type::MAP)
     {
@@ -361,11 +418,19 @@ public:
     }
 
     native_value(void *v) : m_type(value_type::POINTER), p_val(v) {}
+    native_value(object *v) : m_type(value_type::OBJECT), o_val(v) {}
     native_value(const pointer<object> &v);
     native_value(const script_delegate &v)
         : m_type(value_type::FUNCTION), func(v)
     {
     }
+    native_value(const vec2<real> &v) : m_type(value_type::VEC2), v2_val(v) {}
+    native_value(const vec3<real> &v) : m_type(value_type::VEC3), v3_val(v) {}
+    native_value(const vec4<real> &v) : m_type(value_type::VEC4), v4_val(v) {}
+    native_value(const quat<real> &v) : m_type(value_type::QUAT), q_val(v) {}
+    native_value(const color &v) : m_type(value_type::COLOR), c_val(v) {}
+    native_value(const mat3<real> &v);
+    native_value(const mat4<real> &v);
 
     value_type type() const override { return m_type; }
 
@@ -390,7 +455,8 @@ public:
 
     string_view as_string() const override
     {
-        return (m_type == value_type::STRING) ? *s_val : "";
+        return (m_type == value_type::STRING) ? string_view(*s_val)
+                                              : string_view();
     }
 
     void *as_pointer() const override;
@@ -407,6 +473,22 @@ public:
             return {};
         }
     }
+
+    bool is_vec2() const override;
+    bool is_vec3() const override;
+    bool is_vec4() const override;
+    bool is_quat() const override;
+    bool is_color() const override;
+    bool is_mat3() const override;
+    bool is_mat4() const override;
+
+    vec2<real> as_vec2() const override;
+    vec3<real> as_vec3() const override;
+    vec4<real> as_vec4() const override;
+    quat<real> as_quat() const override;
+    color as_color() const override;
+    mat3<real> as_mat3() const override;
+    mat4<real> as_mat4() const override;
 
     void call(script_system *sys,
               script_instance *ctx,
@@ -502,8 +584,17 @@ public:
 
     shared_ptr<iterator> get_iterator() const override;
 
-    void init_map() { m_type = value_type::MAP; }
-    void init_list() { m_type = value_type::LIST; }
+    void init_map()
+    {
+        m_type = value_type::MAP;
+        t_val  = new hash_map<value, value>();
+    }
+
+    void init_list()
+    {
+        m_type = value_type::LIST;
+        a_val  = new vector<value>();
+    }
 
     bool operator==(const value &other) const override;
 

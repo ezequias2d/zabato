@@ -1,10 +1,124 @@
 #include "zabato/math.hpp"
 #include <zabato/camera.hpp>
+#include <zabato/reflection.hpp>
+#include <zabato/script.hpp>
 
 namespace zabato
 {
 
-const rtti camera::TYPE("zabato.camera", &spatial::TYPE);
+const rtti camera::TYPE("zabato.camera", &spatial::TYPE, camera::reflect);
+
+static void
+camera_fov_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    camera *c = c_dynamic_cast<camera>(o);
+    if (c)
+        args->push_return((double)c->get_fov());
+}
+
+static void
+camera_fov_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    camera *c = c_dynamic_cast<camera>(o);
+    value v2  = args->get_value(1);
+    if (c)
+        c->set_perspective(
+            v2.as_number(), c->get_aspect(), c->get_near(), c->get_far());
+}
+
+static void
+camera_aspect_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    camera *c = c_dynamic_cast<camera>(o);
+    if (c)
+        args->push_return((double)c->get_aspect());
+}
+static void
+camera_aspect_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    camera *c = c_dynamic_cast<camera>(o);
+    value v2  = args->get_value(1);
+    if (c)
+        c->set_perspective(
+            c->get_fov(), v2.as_number(), c->get_near(), c->get_far());
+}
+
+static void
+camera_near_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    camera *c = c_dynamic_cast<camera>(o);
+    if (c)
+        args->push_return((double)c->get_near());
+}
+static void
+camera_near_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    camera *c = c_dynamic_cast<camera>(o);
+    value v2  = args->get_value(1);
+    if (c)
+        c->set_perspective(
+            c->get_fov(), c->get_aspect(), v2.as_number(), c->get_far());
+}
+
+static void
+camera_far_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    camera *c = c_dynamic_cast<camera>(o);
+    if (c)
+        args->push_return((double)c->get_far());
+}
+static void
+camera_far_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    camera *c = c_dynamic_cast<camera>(o);
+    value v2  = args->get_value(1);
+    if (c)
+        c->set_perspective(c->get_fov(),
+                           c->get_aspect(),
+                           c->get_near(),
+                           args->get_value(1).as_number());
+}
+
+void camera::reflect(reflection &r)
+{
+    spatial::reflect(r);
+    r.properties.add("fov", {camera_fov_getter, camera_fov_setter});
+    r.properties.add("aspect", {camera_aspect_getter, camera_aspect_setter});
+    r.properties.add("near", {camera_near_getter, camera_near_setter});
+    r.properties.add("far", {camera_far_getter, camera_far_setter});
+}
 
 void frustum::extract_from_matrix(const mat4<real> &vp)
 {
@@ -53,7 +167,9 @@ void frustum::extract_from_matrix(const mat4<real> &vp)
     }
 }
 
-camera::camera() : m_frustum_dirty(true)
+camera::camera()
+    : m_frustum_dirty(true), m_fov(45.0f), m_aspect(1.777f), m_near(0.1f),
+      m_far(100.0f)
 {
     m_projection = mat4<real>::identity();
     m_view       = mat4<real>::identity();
@@ -63,11 +179,14 @@ camera::~camera() {}
 
 void camera::set_perspective(real fovY, real aspect, real near, real far)
 {
+    m_fov           = fovY;
+    m_aspect        = aspect;
+    m_near          = near;
+    m_far           = far;
     m_projection    = mat4_perspective_fov(fovY, aspect, near, far);
     m_frustum_dirty = true;
 }
 
-// Helper to extract transform from matrix
 void extract_transform(const mat4<real> &m, transformation &t)
 {
     vec3<real> scale, trans;

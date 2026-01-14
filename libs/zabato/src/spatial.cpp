@@ -1,6 +1,8 @@
 #include <string.h>
 #include <tinyxml2.h>
 
+#include <zabato/reflection.hpp>
+#include <zabato/script.hpp>
 #include <zabato/spatial.hpp>
 #include <zabato/string.hpp>
 #include <zabato/xml_serializer.hpp>
@@ -8,7 +10,87 @@
 namespace zabato
 {
 
-const rtti spatial::TYPE("zabato::spatial", &object::TYPE);
+const rtti spatial::TYPE("zabato::spatial", &object::TYPE, spatial::reflect);
+
+static void spatial_translate_getter(script_system *sys,
+                                     script_instance *ctx,
+                                     script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v    = args->get_value(0);
+    object *o  = v.as_object();
+    spatial *s = c_dynamic_cast<spatial>(o);
+    if (s)
+    {
+        vec3<real> t = s->get_local().translate();
+        value v      = t;
+        args->push_return(v);
+    }
+}
+
+static void spatial_translate_setter(script_system *sys,
+                                     script_instance *ctx,
+                                     script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1   = args->get_value(0);
+    object *o  = v1.as_object();
+    spatial *s = c_dynamic_cast<spatial>(o);
+    value v2   = args->get_value(1);
+    if (s && v2.is_vec3())
+    {
+        vec3<real> t         = v2.as_vec3();
+        transformation trans = s->get_local();
+        trans.set_translate(t);
+        s->set_local(trans);
+    }
+}
+
+static void spatial_scale_getter(script_system *sys,
+                                 script_instance *ctx,
+                                 script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v    = args->get_value(0);
+    object *o  = v.as_object();
+    spatial *s = c_dynamic_cast<spatial>(o);
+    if (s)
+    {
+        vec3<real> sc = s->get_local().scale();
+        value v       = sc;
+        args->push_return(v);
+    }
+}
+
+static void spatial_scale_setter(script_system *sys,
+                                 script_instance *ctx,
+                                 script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1   = args->get_value(0);
+    object *o  = v1.as_object();
+    spatial *s = c_dynamic_cast<spatial>(o);
+    value v2   = args->get_value(1);
+    if (s && v2.is_vec3())
+    {
+        vec3<real> sc        = v2.as_vec3();
+        transformation trans = s->get_local();
+        trans.set_scale(sc);
+        s->set_local(trans);
+    }
+}
+
+void spatial::reflect(reflection &r)
+{
+    object::reflect(r);
+    r.properties.add("translation",
+                     {spatial_translate_getter, spatial_translate_setter});
+    r.properties.add("scale", {spatial_scale_getter, spatial_scale_setter});
+}
 
 void spatial::save_xml(xml_serializer &serializer,
                        tinyxml2::XMLElement &element) const

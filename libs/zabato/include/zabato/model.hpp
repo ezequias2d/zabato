@@ -15,6 +15,7 @@ class model : public spatial
 public:
     static const rtti TYPE;
     virtual const rtti &type() const override { return TYPE; }
+    static void reflect(reflection &r);
 
     model();
     virtual ~model();
@@ -37,6 +38,12 @@ public:
      * @return Shared pointer to the mesh, or null if not loaded.
      */
     shared_ptr<mesh> get_mesh() const;
+
+    /**
+     * @brief Get the path to the mesh resource.
+     * @return The path to the mesh resource.
+     */
+    string_view get_mesh_path() const;
 
     /**
      * @brief Set the animator for this model.

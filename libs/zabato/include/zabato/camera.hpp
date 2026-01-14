@@ -45,6 +45,11 @@ public:
                  const vec3<real> &center,
                  const vec3<real> &up);
 
+    real get_fov() const { return m_fov; }
+    real get_aspect() const { return m_aspect; }
+    real get_near() const { return m_near; }
+    real get_far() const { return m_far; }
+
     const mat4<real> &get_projection() const { return m_projection; }
     const mat4<real> &get_view() const { return m_view; }
 
@@ -70,11 +75,18 @@ public:
      */
     void update_view_from_transform();
 
+    static void reflect(reflection &r);
+
 private:
     mat4<real> m_projection;
     mat4<real> m_view;
     mutable frustum m_frustum;
     mutable bool m_frustum_dirty;
+
+    real m_fov;
+    real m_aspect;
+    real m_near;
+    real m_far;
 };
 
 } // namespace zabato

@@ -122,6 +122,8 @@ public:
     static const error_code file_not_found;
     /// @brief The path could not be found (-23).
     static const error_code path_not_found;
+    /// @brief The operation is not implemented (-24).
+    static const error_code not_implemented;
     /// @brief An unknown error occurred (-128).
     static const error_code unknown;
 
@@ -155,6 +157,7 @@ constexpr error_code error_code::fail_to_decompress_berg{-20};
 constexpr error_code error_code::invalid_path{-21};
 constexpr error_code error_code::file_not_found{-22};
 constexpr error_code error_code::path_not_found{-23};
+constexpr error_code error_code::not_implemented{-24};
 constexpr error_code error_code::unknown{-128};
 
 /**
@@ -274,6 +277,8 @@ inline const char *get_error_message(error_code error)
     case error_code::fail_to_decompress_berg:
         return "Failed to decompress data with berg for chunk ID '%s'(0x%x), "
                "berg code: %d";
+    case error_code::not_implemented:
+        return "Not implemented";
     case error_code::unknown:
         return "Unknown error";
     default:

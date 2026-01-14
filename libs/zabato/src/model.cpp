@@ -1,12 +1,50 @@
 #include <zabato/mesh.hpp>
 #include <zabato/model.hpp>
+#include <zabato/reflection.hpp>
+#include <zabato/script.hpp>
 #include <zabato/serializer.hpp>
 #include <zabato/xml_serializer.hpp>
 
 namespace zabato
 {
 
-const rtti model::TYPE("zabato.model", &spatial::TYPE);
+const rtti model::TYPE("zabato.model", &spatial::TYPE, model::reflect);
+
+static void
+model_mesh_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    model *m  = c_dynamic_cast<model>(o);
+    if (m)
+    {
+        args->push_return(m->get_mesh() ? m->get_mesh_path() : "");
+    }
+}
+
+static void
+model_mesh_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    model *m  = c_dynamic_cast<model>(o);
+    value v2  = args->get_value(1);
+    if (m)
+    {
+        string_view path = v2.as_string();
+        m->set_mesh(string(path).c_str());
+    }
+}
+
+void model::reflect(reflection &r)
+{
+    spatial::reflect(r);
+    r.properties.add("mesh", {model_mesh_getter, model_mesh_setter});
+}
 
 model::model()
     : m_model_bound(nullptr), m_world_bound(nullptr), m_bound_dirty(true)
@@ -31,6 +69,8 @@ void model::set_resource_manager(resource_manager *mgr)
 }
 
 shared_ptr<mesh> model::get_mesh() const { return m_mesh.get<mesh>(); }
+
+string_view model::get_mesh_path() const { return m_mesh.path(); }
 
 void model::bind_skeleton()
 {

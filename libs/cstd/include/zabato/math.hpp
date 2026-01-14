@@ -1068,6 +1068,17 @@ template <typename T> struct mat3
         m21 = v.y;
         m22 = v.z;
     }
+
+    bool operator==(const mat3<T> &other) const
+    {
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
+                if (columns[i][j] != other.columns[i][j])
+                    return false;
+        return true;
+    }
+
+    bool operator!=(const mat3<T> &other) const { return !(*this == other); }
 };
 
 /**
@@ -1242,6 +1253,17 @@ template <typename T> struct mat4
         m[2][i] = v.z;
         m[3][i] = v.w;
     }
+
+    bool operator==(const mat4<T> &other) const
+    {
+        for (int i = 0; i < 4; i++)
+            for (int j = 0; j < 4; j++)
+                if (m[i][j] != other.m[i][j])
+                    return false;
+        return true;
+    }
+
+    bool operator!=(const mat4<T> &other) const { return !(*this == other); }
 };
 
 /**

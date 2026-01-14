@@ -1,7 +1,9 @@
 #include <string.h>
+#include <zabato/color.hpp>
 #include <zabato/error.hpp>
 #include <zabato/game_message.hpp>
 #include <zabato/lua.hpp>
+#include <zabato/math.hpp>
 #include <zabato/object.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/serializer.hpp>
@@ -15,6 +17,15 @@ namespace zabato
 static void push_value_to_lua(lua_State *L, const value &val);
 static const char *META_OBJECT = "zabato.object";
 static const char *SYS_REG_KEY = "zabato.sys";
+
+// Metatable names for Math types
+static const char *META_VEC2  = "zabato.vec2";
+static const char *META_VEC3  = "zabato.vec3";
+static const char *META_VEC4  = "zabato.vec4";
+static const char *META_QUAT  = "zabato.quat";
+static const char *META_COLOR = "zabato.color";
+static const char *META_MAT3  = "zabato.mat3";
+static const char *META_MAT4  = "zabato.mat4";
 
 static lua_script_system *get_sys(lua_State *L)
 {
@@ -229,6 +240,7 @@ enum class LuaType : uint8_t
     Number  = 2,
     String  = 3,
     Table   = 4
+    // TODO: Add support for saving VEC2/3/4 etc
 };
 
 static void serialize_value(lua_State *L, serializer &stream, int index);
@@ -359,7 +371,7 @@ void lua_script_instance::load(serializer &stream, serializer_link *link)
     if (stream.get_manager())
     {
         ref.set_manager(stream.get_manager());
-        m_script = shared_ptr<zabato::script>(ref.get<zabato::script>());
+        m_script = shared_ptr(ref.get<zabato::script>());
     }
 
     if (m_script && m_L)
@@ -429,6 +441,24 @@ lua_script_system::lua_script_system(fs::file_system &fs)
 
 lua_script_system::~lua_script_system() { shutdown(); }
 
+static void register_math_metatables(lua_State *L)
+{
+    // Simple registration of metatables so luaL_checkudata works
+    auto reg = [&](const char *name)
+    {
+        luaL_newmetatable(L, name);
+        lua_pop(L, 1);
+    };
+
+    reg(META_VEC2);
+    reg(META_VEC3);
+    reg(META_VEC4);
+    reg(META_QUAT);
+    reg(META_COLOR);
+    reg(META_MAT3);
+    reg(META_MAT4);
+}
+
 bool lua_script_system::initialize()
 {
     m_L = luaL_newstate();
@@ -438,6 +468,8 @@ bool lua_script_system::initialize()
 
     lua_pushlightuserdata(m_L, this);
     lua_setfield(m_L, LUA_REGISTRYINDEX, SYS_REG_KEY);
+
+    register_math_metatables(m_L);
 
     return true;
 }
@@ -808,24 +840,46 @@ public:
             res = value_type::FUNCTION;
             break;
         case LUA_TUSERDATA:
+        {
             if (lua_getmetatable(L, -1))
             {
-                luaL_getmetatable(L, META_OBJECT);
+                lua_getfield(L, LUA_REGISTRYINDEX, META_OBJECT);
                 if (lua_rawequal(L, -1, -2))
+                {
                     res = value_type::OBJECT;
-                else
-                    res = value_type::NATIVE_OBJECT;
-                lua_pop(L, 2);
+                }
+                lua_pop(L, 1);
+
+                if (res == value_type::NIL)
+                {
+                    auto check = [&](const char *meta, value_type target)
+                    {
+                        if (res != value_type::NIL)
+                            return;
+                        lua_getfield(L, LUA_REGISTRYINDEX, meta);
+                        if (lua_rawequal(L, -1, -2))
+                            res = target;
+                        lua_pop(L, 1);
+                    };
+                    check(META_VEC2, value_type::VEC2);
+                    check(META_VEC3, value_type::VEC3);
+                    check(META_VEC4, value_type::VEC4);
+                    check(META_QUAT, value_type::QUAT);
+                    check(META_COLOR, value_type::COLOR);
+                    check(META_MAT3, value_type::MAT3);
+                    check(META_MAT4, value_type::MAT4);
+                }
+                lua_pop(L, 1); // Pop MT
             }
-            else
-            {
-                res = value_type::NATIVE_OBJECT;
-            }
-            break;
-        default:
-            res = value_type::NIL;
+            if (res == value_type::NIL)
+                res = value_type::POINTER;
             break;
         }
+        case LUA_TLIGHTUSERDATA:
+            res = value_type::POINTER;
+            break;
+        }
+
         lua_pop(L, 1);
         return res;
     }
@@ -895,52 +949,64 @@ public:
     bool as_bool() const override
     {
         push();
-        bool v = lua_toboolean(L, -1);
+        bool b = lua_toboolean(L, -1);
         lua_pop(L, 1);
-        return v;
+        return b;
     }
-
     double as_number() const override
     {
         push();
-        double v = lua_tonumber(L, -1);
+        double n = lua_tonumber(L, -1);
         lua_pop(L, 1);
-        return v;
+        return n;
     }
-
     int64_t as_int() const override
     {
         push();
-        int64_t v = lua_tointeger(L, -1);
+        int64_t i = (int64_t)lua_tointeger(L, -1);
         lua_pop(L, 1);
-        return v;
+        return i;
     }
-
     string_view as_string() const override
     {
+        // Warn: unsafe if temporary
         push();
-        size_t len;
-        const char *s = lua_tolstring(L, -1, &len);
+        const char *s = lua_tostring(L, -1);
         lua_pop(L, 1);
-        return string_view(s, len);
+        return s ? s : "";
     }
 
     pointer<object> as_object() const override
     {
+        pointer<object> obj = nullptr;
         push();
-        void *ud = luaL_testudata(L, -1, META_OBJECT);
-        lua_pop(L, 1);
-        if (ud)
+        if (lua_isuserdata(L, -1))
         {
-            return *static_cast<pointer<object> *>(ud);
+            // Check metatable
+            if (lua_getmetatable(L, -1))
+            {
+                lua_getfield(L, LUA_REGISTRYINDEX, META_OBJECT);
+                if (lua_rawequal(L, -1, -2))
+                {
+                    // It's an object!
+                    pointer<object> *ptr =
+                        static_cast<pointer<object> *>(lua_touserdata(L, -2));
+                    if (ptr && *ptr)
+                        obj = *ptr;
+                }
+                lua_pop(L, 2); // MT and Registry[META]
+            }
         }
-        return nullptr;
+        lua_pop(L, 1);
+        return obj;
     }
 
     void *as_pointer() const override
     {
         push();
-        void *p = lua_touserdata(L, -1);
+        void *p = nullptr;
+        if (lua_isuserdata(L, -1) || lua_islightuserdata(L, -1))
+            p = lua_touserdata(L, -1);
         lua_pop(L, 1);
         return p;
     }
@@ -981,6 +1047,32 @@ public:
 
         lua_settop(L, base);
     }
+
+    template <typename T> T as_userdata() const
+    {
+        push();
+        T *ptr = (T *)lua_touserdata(L, -1);
+        T res  = ptr ? *ptr : T();
+        lua_pop(L, 1);
+        return res;
+    }
+
+    bool is_vec2() const override { return type() == value_type::VEC2; }
+    bool is_vec3() const override { return type() == value_type::VEC3; }
+    bool is_vec4() const override { return type() == value_type::VEC4; }
+    bool is_quat() const override { return type() == value_type::QUAT; }
+    bool is_color() const override { return type() == value_type::COLOR; }
+    bool is_mat3() const override { return type() == value_type::MAT3; }
+    bool is_mat4() const override { return type() == value_type::MAT4; }
+
+    // TODO: check type
+    vec2<real> as_vec2() const override { return as_userdata<vec2<real>>(); }
+    vec3<real> as_vec3() const override { return as_userdata<vec3<real>>(); }
+    vec4<real> as_vec4() const override { return as_userdata<vec4<real>>(); }
+    quat<real> as_quat() const override { return as_userdata<quat<real>>(); }
+    color as_color() const override { return as_userdata<color>(); }
+    mat3<real> as_mat3() const override { return as_userdata<mat3<real>>(); }
+    mat4<real> as_mat4() const override { return as_userdata<mat4<real>>(); }
 
     void set_field(string_view key, const value &v) override
     {
@@ -1043,7 +1135,7 @@ public:
         }
 
         lua_rawgeti(L, -1, index + 1); // Lua 1-based
-        value res(zabato::make_shared<lua_value>(L, -1, true));
+        value res(make_shared<lua_value>(L, -1, true));
         lua_pop(L, 2);
         return res;
     }
@@ -1300,8 +1392,64 @@ static void push_value_to_lua(lua_State *L, const value &val)
     {
         string s = val.as_string();
         lua_pushlstring(L, s.c_str(), s.length());
+        break;
     }
-    break;
+    case value_type::VEC2:
+    {
+        void *u = lua_newuserdata(L, sizeof(vec2<real>));
+        new (u) vec2<real>(val.as_vec2());
+        luaL_getmetatable(L, META_VEC2);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case value_type::VEC3:
+    {
+        void *u = lua_newuserdata(L, sizeof(vec3<real>));
+        new (u) vec3<real>(val.as_vec3());
+        luaL_getmetatable(L, META_VEC3);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case value_type::VEC4:
+    {
+        void *u = lua_newuserdata(L, sizeof(vec4<real>));
+        new (u) vec4<real>(val.as_vec4());
+        luaL_getmetatable(L, META_VEC4);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case value_type::QUAT:
+    {
+        void *u = lua_newuserdata(L, sizeof(quat<real>));
+        new (u) quat<real>(val.as_quat());
+        luaL_getmetatable(L, META_QUAT);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case value_type::COLOR:
+    {
+        void *u = lua_newuserdata(L, sizeof(color));
+        new (u) color(val.as_color());
+        luaL_getmetatable(L, META_COLOR);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case value_type::MAT3:
+    {
+        void *u = lua_newuserdata(L, sizeof(mat3<real>));
+        new (u) mat3<real>(val.as_mat3());
+        luaL_getmetatable(L, META_MAT3);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case value_type::MAT4:
+    {
+        void *u = lua_newuserdata(L, sizeof(mat4<real>));
+        new (u) mat4<real>(val.as_mat4());
+        luaL_getmetatable(L, META_MAT4);
+        lua_setmetatable(L, -2);
+        break;
+    }
     case value_type::MAP:
     case value_type::LIST:
     {
@@ -1397,11 +1545,10 @@ static void push_value_to_lua(lua_State *L, const value &val)
 
 script_value lua_script_system::to_value(int index)
 {
-    return script_value(
-        zabato::make_shared<zabato::lua_value>(m_L, index, true));
+    return script_value(make_shared<lua_value>(m_L, index, true));
 }
 
-void lua_script_system::push_value(const script_value &val)
+void lua_script_system::push_value(const value &val)
 {
     push_value_to_lua(m_L, val);
 }
@@ -1517,7 +1664,7 @@ struct lua_iterator : public iterator
             lua_pop(m_main_L, 1);
             return res;
         }
-        return zabato::value();
+        return value();
     }
 };
 

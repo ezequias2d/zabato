@@ -11,6 +11,7 @@ class node : public spatial
 {
 public:
     static const rtti TYPE;
+    static void reflect(reflection &r);
 
     const rtti &type() const override { return TYPE; }
 

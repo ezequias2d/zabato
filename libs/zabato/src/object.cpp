@@ -393,7 +393,8 @@ object_name_getter(script_system *sys, script_instance *ctx, script_args *args)
 {
     if (args->count() < 1)
         return;
-    object *obj = (object *)args->get_value(0).as_pointer();
+    value v     = args->get_value(0);
+    object *obj = v.as_object();
     if (obj)
         args->push_return(obj->name());
     else
@@ -405,7 +406,8 @@ object_name_setter(script_system *sys, script_instance *ctx, script_args *args)
 {
     if (args->count() < 2)
         return;
-    object *obj = (object *)args->get_value(0).as_pointer();
+    value v     = args->get_value(0);
+    object *obj = v.as_object();
     if (obj)
         obj->set_name(args->get_value(1).as_string().data());
     else
@@ -418,7 +420,8 @@ static void object_get_object_by_name(script_system *sys,
 {
     if (args->count() < 2)
         return;
-    object *obj = (object *)args->get_value(0).as_pointer();
+    value v     = args->get_value(0);
+    object *obj = v.as_object();
     if (obj)
     {
         object *found =
@@ -434,9 +437,13 @@ object_id_getter(script_system *sys, script_instance *ctx, script_args *args)
 {
     if (args->count() < 1)
         return;
-    object *obj = (object *)args->get_value(0).as_pointer();
+    value v     = args->get_value(0);
+    object *obj = v.as_object();
     if (obj)
-        args->push_return(obj->id().to_string());
+    {
+        string id = obj->id().to_string();
+        args->push_return(id);
+    }
     else
         args->type_error("Null object pointer");
 }

@@ -12,6 +12,7 @@ class spatial : public object
 {
 public:
     static const rtti TYPE;
+    static void reflect(reflection &r);
 
     const rtti &type() const override { return TYPE; }
 
@@ -59,11 +60,12 @@ protected:
     spatial() : m_parent(nullptr), is_world_dirty(false) {}
     spatial *m_parent;
 
-public:
     void set_parent(spatial *parent)
     {
         m_parent       = parent;
         is_world_dirty = true;
     }
+
+    friend class node;
 };
 } // namespace zabato
