@@ -3,6 +3,7 @@
 #include <zabato/camera.hpp>
 #include <zabato/controller.hpp>
 #include <zabato/game_message.hpp>
+#include <zabato/light.hpp>
 #include <zabato/model.hpp>
 #include <zabato/renderer.hpp> // forward decl?
 #include <zabato/spatial.hpp>
@@ -56,6 +57,10 @@ public:
      */
     void unregister_model(model *mod);
 
+    void register_light(light *l);
+    void unregister_light(light *l);
+    const vector<pointer<light>> &get_lights() const { return m_lights; }
+
     void add_controller(controller *ctrl);
     void remove_controller(controller *ctrl);
 
@@ -93,6 +98,7 @@ private:
 
     pointer<spatial> m_root;
     vector<pointer<model>> m_models;
+    vector<pointer<light>> m_lights;
 
     controller *m_controller_head;
 

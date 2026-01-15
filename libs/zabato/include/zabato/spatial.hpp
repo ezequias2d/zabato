@@ -64,6 +64,7 @@ protected:
     {
         m_parent       = parent;
         is_world_dirty = true;
+        on_transform_changed();
     }
 
     friend class node;

@@ -1,5 +1,6 @@
 #include <zabato/camera.hpp>
 #include <zabato/gpu.hpp>
+#include <zabato/light.hpp>
 #include <zabato/model.hpp>
 #include <zabato/node.hpp>
 #include <zabato/renderer.hpp>
@@ -20,6 +21,9 @@ void simple_renderer::begin(camera &cam)
 
     m_gpu.set_matrix_mode(matrix_mode::texture);
     m_gpu.load_identity();
+
+    m_active_lights = 0;
+    m_gpu.enable_lighting(true);
 }
 
 void simple_renderer::end() {}
@@ -55,6 +59,17 @@ void simple_renderer::submit(model *model)
     m_gpu.color(1, 1, 1, 1);
 
     mesh->render(m_gpu, bones);
+}
+
+void simple_renderer::submit(light *light)
+{
+    if (!light)
+        return;
+    if (m_active_lights >= 8)
+        return; // Max 8 lights usually
+
+    m_gpu.set_light(m_active_lights, &light->get_data());
+    m_active_lights++;
 }
 
 } // namespace zabato

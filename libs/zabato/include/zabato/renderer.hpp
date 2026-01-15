@@ -20,6 +20,12 @@ public:
      * @param model The model to render.
      */
     virtual void submit(model *model) = 0;
+
+    /**
+     * @brief Submit a light for the frame.
+     * @param light The light to submit.
+     */
+    virtual void submit(class light *light) = 0;
 };
 
 class simple_renderer : public renderer
@@ -31,10 +37,12 @@ public:
     void end() override final;
 
     void submit(model *model) override final;
+    void submit(class light *light) override final;
 
 private:
     camera *m_cam;
     gpu &m_gpu;
+    int m_active_lights = 0;
 };
 
 } // namespace zabato

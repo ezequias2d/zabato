@@ -98,10 +98,10 @@ static inline const char *color_format_name(color_format format)
 #pragma region Data Structs
 
 /**
- * @struct light
+ * @struct light_data
  * @brief Describes a light source for the lighting system.
  */
-struct light
+struct light_data
 {
     light_type type;
     color5551 ambient;
@@ -311,10 +311,10 @@ public:
 
 #pragma region Lighting
 
-    virtual void set_shade_model(shade_model model) = 0;
-    virtual void enable_lighting(bool enabled)      = 0;
-    virtual void set_light(int id, const light *l)  = 0;
-    virtual void set_material(const material *m)    = 0;
+    virtual void set_shade_model(shade_model model)     = 0;
+    virtual void enable_lighting(bool enabled)          = 0;
+    virtual void set_light(int id, const light_data *l) = 0;
+    virtual void set_material(const material *m)        = 0;
 
 #pragma endregion
 

@@ -35,6 +35,16 @@ void world::register_model(model *mod)
 
 void world::unregister_model(model *mod) { m_models.remove(mod); }
 
+void world::register_light(light *l)
+{
+    if (std::find(m_lights.begin(), m_lights.end(), l) == m_lights.end())
+    {
+        m_lights.push_back(l);
+    }
+}
+
+void world::unregister_light(light *l) { m_lights.remove(l); }
+
 void world::add_controller(controller *ctrl)
 {
     if (!ctrl)
@@ -150,6 +160,11 @@ void world::process_messages()
 
 void world::render(renderer &rnd, camera &cam)
 {
+    for (auto &l : m_lights)
+    {
+        rnd.submit(l);
+    }
+
     const frustum &f = cam.get_frustum();
 
     for (auto &mod : m_models)
