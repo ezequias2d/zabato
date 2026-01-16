@@ -77,6 +77,13 @@ public:
 
     static void reflect(reflection &r);
 
+    virtual void save_xml(xml_serializer &serializer,
+                          tinyxml2::XMLElement &element) const override;
+    virtual void load_xml(xml_serializer &serializer,
+                          tinyxml2::XMLElement &element) override;
+
+    virtual void on_transform_changed() override;
+
 private:
     mat4<real> m_projection;
     mat4<real> m_view;

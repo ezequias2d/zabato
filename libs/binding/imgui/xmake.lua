@@ -5,3 +5,4 @@ target("zabato_imgui")
     set_languages("c++23")
     
     add_deps("zabato", "imgui")
+    add_packages("tinyxml2")

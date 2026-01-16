@@ -17,8 +17,8 @@ namespace zabato
 
 const rtti object::TYPE("zabato.object", nullptr, object::reflect);
 hash_map<uuid, object *> object::s_in_use;
-hash_map<string, object::factory_function> *object::s_factory         = nullptr;
-hash_map<string, object::factory_function_xml> *object::s_factory_xml = nullptr;
+hash_map<string, object::factory_delegate> *object::s_factory         = nullptr;
+hash_map<string, object::factory_delegate_xml> *object::s_factory_xml = nullptr;
 
 object::object() : m_name(nullptr), m_uiID(uuid::generate()), m_uiRefCount(0)
 {
@@ -43,11 +43,11 @@ bool object::register_factory()
 void object::initialize_factory()
 {
     if (!s_factory)
-        s_factory = new hash_map<string, factory_function>(FACTORY_MAP_SIZE);
+        s_factory = new hash_map<string, factory_delegate>(FACTORY_MAP_SIZE);
 
     if (!s_factory_xml)
         s_factory_xml =
-            new hash_map<string, factory_function_xml>(FACTORY_MAP_SIZE);
+            new hash_map<string, factory_delegate_xml>(FACTORY_MAP_SIZE);
 }
 
 void object::terminate_factory()
@@ -75,7 +75,7 @@ object *object::factory(serializer &stream)
     string name;
     stream.read(name);
 
-    factory_function pFunc = nullptr;
+    factory_delegate pFunc;
 
     // Dispatch to the specific class factory function.
     // The registered factory function is responsible for:
@@ -83,7 +83,7 @@ object *object::factory(serializer &stream)
     // 2. invoking the Load() method to populate the object from the stream.
     // Note that the RTTI name has already been consumed by this dispatcher.
     if (s_factory->try_get_value(name, pFunc))
-        return (*pFunc)(stream);
+        return pFunc(stream);
 
     // If the class is not registered in the factory map, return nullptr.
     // This indicates that the class type serialized in the stream is unknown to
@@ -96,10 +96,10 @@ object *object::factory(xml_serializer &serializer, tinyxml2::XMLElement &el)
     if (!s_factory)
         return nullptr;
 
-    string name                = el.Name();
-    factory_function_xml pFunc = nullptr;
+    string name = el.Name();
+    factory_delegate_xml pFunc;
     if (s_factory_xml->try_get_value(name, pFunc))
-        return (*pFunc)(serializer, el);
+        return pFunc(serializer, el);
     return nullptr;
 }
 
@@ -162,12 +162,45 @@ void object::link(serializer &stream, serializer_link *link)
     // stream.get_from_map().
 }
 
+void object::print_in_use(const char *file, const char *acMessage)
+{
+    printf("DEBUG: print_in_use (%s): %s\n", file, acMessage);
+    for (auto &entry : s_in_use)
+    {
+        char buf[37];
+        entry.key.to_chars(buf);
+        printf("  - ID: %s, Obj: %p, Name: %s\n",
+               buf,
+               entry.value,
+               entry.value->name());
+    }
+}
+
+void object::set_id(const uuid &id)
+{
+    if (m_uiID != id)
+    {
+        s_in_use.erase(m_uiID);
+        m_uiID = id;
+        s_in_use.add(m_uiID, this);
+    }
+}
+
 void object::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &el)
 {
     const char *id = el.Attribute("id");
     assert(id);
-    uuid uuid;
-    uuid.parse(id);
+    uuid uuid_val;
+    if (uuid::try_parse(id, uuid_val))
+    {
+        uuid_val = serializer.remap(uuid_val);
+        set_id(uuid_val);
+        serializer.add_object(uuid_val, this);
+    }
+    else
+    {
+        assert(false && "Invalid UUID");
+    }
 
     const char *name = el.Attribute("name");
     if (name)
@@ -198,7 +231,7 @@ void object::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &el)
 void object::save_xml(xml_serializer &serializer,
                       tinyxml2::XMLElement &el) const
 {
-    el.SetAttribute("id", uuid().to_string().c_str());
+    el.SetAttribute("id", id().to_string().c_str());
     el.SetAttribute("name", name());
 
     if (!m_controllers.empty())
@@ -207,10 +240,8 @@ void object::save_xml(xml_serializer &serializer,
             el.InsertNewChildElement("controllers");
         for (auto &ctrl : m_controllers)
         {
-            rtti type = ctrl->type();
-            tinyxml2::XMLElement *controller =
-                controllers->InsertNewChildElement(type.name());
-            ctrl->save_xml(serializer, *controller);
+            if (ctrl)
+                serializer.write_object(*controllers, ctrl);
         }
     }
 }
@@ -227,6 +258,13 @@ void object::link(xml_serializer &serializer, tinyxml2::XMLElement &el)
         for (; controller != nullptr;
              controller = controller->NextSiblingElement())
         {
+            if (index >= m_controllers.size())
+            {
+                printf("ERROR: object::link controller count mismatch! XML has "
+                       "more controllers than loaded.\n");
+                break;
+            }
+
             pointer<zabato::controller> ctrl = m_controllers[index++];
             if (!ctrl)
                 continue;

@@ -10,22 +10,23 @@
 #include <zabato/string.hpp>
 #include <zabato/symbol.hpp>
 #include <zabato/value.hpp>
+#include <zabato/xml_serializer.hpp>
 
 namespace zabato
 {
 
 static void push_value_to_lua(lua_State *L, const value &val);
-static const char *META_OBJECT = "zabato.object";
 static const char *SYS_REG_KEY = "zabato.sys";
+const char *META_OBJECT        = "zabato.object";
 
 // Metatable names for Math types
-static const char *META_VEC2  = "zabato.vec2";
-static const char *META_VEC3  = "zabato.vec3";
-static const char *META_VEC4  = "zabato.vec4";
-static const char *META_QUAT  = "zabato.quat";
-static const char *META_COLOR = "zabato.color";
-static const char *META_MAT3  = "zabato.mat3";
-static const char *META_MAT4  = "zabato.mat4";
+const char *META_VEC2  = "zabato.vec2";
+const char *META_VEC3  = "zabato.vec3";
+const char *META_VEC4  = "zabato.vec4";
+const char *META_QUAT  = "zabato.quat";
+const char *META_COLOR = "zabato.color";
+const char *META_MAT3  = "zabato.mat3";
+const char *META_MAT4  = "zabato.mat4";
 
 static lua_script_system *get_sys(lua_State *L)
 {
@@ -34,6 +35,7 @@ static lua_script_system *get_sys(lua_State *L)
     lua_pop(L, 1);
     return sys;
 }
+
 class lua_script_args : public script_args
 {
 public:
@@ -69,14 +71,21 @@ public:
     }
 };
 
-const rtti lua_script_instance::TYPE("zabato.lua.script_instance",
+const rtti lua_script_instance::TYPE("zabato.lua.script",
                                      &script_instance::TYPE);
 
+lua_script_instance::lua_script_instance(lua_State *L)
+    : script_instance(nullptr), m_script_path(), m_L(L), m_env_ref(LUA_NOREF)
+{
+}
+
 lua_script_instance::lua_script_instance(
+    const string &path,
     const shared_ptr<zabato::script> &script_resource,
     lua_State *L,
     int env_ref)
-    : script_instance(script_resource), m_L(L), m_env_ref(env_ref)
+    : script_instance(script_resource), m_script_path(path), m_L(L),
+      m_env_ref(env_ref)
 {
 }
 
@@ -222,6 +231,9 @@ bool lua_script_instance::register_object(serializer &stream) const
 void lua_script_instance::save(serializer &stream) const
 {
     resource_ref ref;
+    if (!m_script_path.empty())
+        ref.set_path(m_script_path.c_str());
+
     stream.write(ref);
     bool has_data = (m_env_ref != LUA_NOREF);
     stream.write(has_data);
@@ -233,14 +245,98 @@ void lua_script_instance::save(serializer &stream) const
     }
 }
 
+void lua_script_instance::save_xml(xml_serializer &serializer,
+                                   tinyxml2::XMLElement &el) const
+{
+    script_instance::save_xml(serializer, el);
+    if (!m_script_path.empty())
+        el.SetAttribute("src", m_script_path.c_str());
+}
+
+void lua_script_instance::load_xml(xml_serializer &serializer,
+                                   tinyxml2::XMLElement &el)
+{
+    object::load_xml(serializer, el);
+    const char *src = el.Attribute("src");
+
+    if (src)
+    {
+        m_script_path = src;
+        if (serializer.get_manager())
+        {
+            auto res =
+                serializer.get_manager()->load<zabato::script>(string(src));
+            if (!res.has_error())
+                m_script = res.value;
+        }
+
+        if (m_script && m_L)
+        {
+            string path        = src;
+            string_view source = m_script->source();
+
+            // Ensure environment exists
+            if (m_env_ref == LUA_NOREF)
+            {
+                lua_newtable(m_L);
+                lua_newtable(m_L);
+                lua_pushglobaltable(m_L);
+                lua_setfield(m_L, -2, "__index");
+                lua_setmetatable(m_L, -2);
+                m_env_ref = luaL_ref(m_L, LUA_REGISTRYINDEX);
+            }
+
+            if (luaL_loadbuffer(
+                    m_L, source.data(), source.size(), path.c_str()) == LUA_OK)
+            {
+                // Set environment for the chunk
+                lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_env_ref);
+                lua_setupvalue(m_L, -2, 1);
+
+                if (lua_pcall(m_L, 0, 0, 0) != LUA_OK)
+                {
+                    report(report_type::error,
+                           "Script XML Load Error: %s",
+                           lua_tostring(m_L, -1));
+                    lua_pop(m_L, 1);
+                }
+                else
+                {
+                    // Inject owner/instance
+                    lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_env_ref);
+                    string uuid_str = id().to_string();
+                    lua_pushlstring(m_L, uuid_str.c_str(), uuid_str.length());
+                    lua_setfield(m_L, -2, "owner_id");
+
+                    lua_pushlightuserdata(m_L, this);
+                    lua_setfield(m_L, -2, "__instance");
+                    lua_pop(m_L, 1);
+                }
+            }
+            else
+            {
+                std::cout << "Script XML Compile Error: "
+                          << lua_tostring(m_L, -1) << std::endl;
+                lua_pop(m_L, 1);
+            }
+        }
+    }
+}
+
 enum class LuaType : uint8_t
 {
     Nil     = 0,
     Boolean = 1,
     Number  = 2,
     String  = 3,
-    Table   = 4
-    // TODO: Add support for saving VEC2/3/4 etc
+    Table   = 4,
+    Vec2    = 5,
+    Vec3    = 6,
+    Vec4    = 7,
+    Quat    = 8,
+    Color   = 9,
+    Mat3    = 10,
+    Mat4    = 11
 };
 
 static void serialize_value(lua_State *L, serializer &stream, int index);
@@ -300,6 +396,49 @@ static void serialize_value(lua_State *L, serializer &stream, int index)
         stream.write(LuaType::Table);
         serialize_table(L, stream, index);
         break;
+    case LUA_TUSERDATA:
+    {
+        if (auto *v2 = (vec2<real> *)luaL_testudata(L, index, META_VEC2))
+        {
+            stream.write(LuaType::Vec2);
+            stream.write(*v2);
+        }
+        else if (auto *v3 = (vec3<real> *)luaL_testudata(L, index, META_VEC3))
+        {
+            stream.write(LuaType::Vec3);
+            stream.write(*v3);
+        }
+        else if (auto *v4 = (vec4<real> *)luaL_testudata(L, index, META_VEC4))
+        {
+            stream.write(LuaType::Vec4);
+            stream.write(*v4);
+        }
+        else if (auto *q = (quat<real> *)luaL_testudata(L, index, META_QUAT))
+        {
+            stream.write(LuaType::Quat);
+            stream.write(*q);
+        }
+        else if (auto *c = (color *)luaL_testudata(L, index, META_COLOR))
+        {
+            stream.write(LuaType::Color);
+            stream.write(*c);
+        }
+        else if (auto *m3 = (mat3<real> *)luaL_testudata(L, index, META_MAT3))
+        {
+            stream.write(LuaType::Mat3);
+            stream.write(*m3);
+        }
+        else if (auto *m4 = (mat4<real> *)luaL_testudata(L, index, META_MAT4))
+        {
+            stream.write(LuaType::Mat4);
+            stream.write(*m4);
+        }
+        else
+        {
+            stream.write(LuaType::Nil);
+        }
+        break;
+    }
     default:
         // Unsupported types treated as Nil
         stream.write(LuaType::Nil);
@@ -357,6 +496,76 @@ static void deserialize_value(lua_State *L, serializer &stream)
     case LuaType::Table:
         deserialize_table(L, stream);
         break;
+    case LuaType::Vec2:
+    {
+        vec2<real> val;
+        stream.read(val);
+        void *u = lua_newuserdata(L, sizeof(vec2<real>));
+        new (u) vec2<real>(val);
+        luaL_getmetatable(L, META_VEC2);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case LuaType::Vec3:
+    {
+        vec3<real> val;
+        stream.read(val);
+        void *u = lua_newuserdata(L, sizeof(vec3<real>));
+        new (u) vec3<real>(val);
+        luaL_getmetatable(L, META_VEC3);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case LuaType::Vec4:
+    {
+        vec4<real> val;
+        stream.read(val);
+        void *u = lua_newuserdata(L, sizeof(vec4<real>));
+        new (u) vec4<real>(val);
+        luaL_getmetatable(L, META_VEC4);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case LuaType::Quat:
+    {
+        quat<real> val;
+        stream.read(val);
+        void *u = lua_newuserdata(L, sizeof(quat<real>));
+        new (u) quat<real>(val);
+        luaL_getmetatable(L, META_QUAT);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case LuaType::Color:
+    {
+        color val;
+        stream.read(val);
+        void *u = lua_newuserdata(L, sizeof(color));
+        new (u) color(val);
+        luaL_getmetatable(L, META_COLOR);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case LuaType::Mat3:
+    {
+        mat3<real> val;
+        stream.read(val);
+        void *u = lua_newuserdata(L, sizeof(mat3<real>));
+        new (u) mat3<real>(val);
+        luaL_getmetatable(L, META_MAT3);
+        lua_setmetatable(L, -2);
+        break;
+    }
+    case LuaType::Mat4:
+    {
+        mat4<real> val;
+        stream.read(val);
+        void *u = lua_newuserdata(L, sizeof(mat4<real>));
+        new (u) mat4<real>(val);
+        luaL_getmetatable(L, META_MAT4);
+        lua_setmetatable(L, -2);
+        break;
+    }
     default:
         lua_pushnil(L);
         break;
@@ -371,7 +580,9 @@ void lua_script_instance::load(serializer &stream, serializer_link *link)
     if (stream.get_manager())
     {
         ref.set_manager(stream.get_manager());
-        m_script = shared_ptr(ref.get<zabato::script>());
+        m_script = ref.get<zabato::script>();
+        if (ref.path().length() > 0)
+            m_script_path = string(ref.path());
     }
 
     if (m_script && m_L)
@@ -441,23 +652,7 @@ lua_script_system::lua_script_system(fs::file_system &fs)
 
 lua_script_system::~lua_script_system() { shutdown(); }
 
-static void register_math_metatables(lua_State *L)
-{
-    // Simple registration of metatables so luaL_checkudata works
-    auto reg = [&](const char *name)
-    {
-        luaL_newmetatable(L, name);
-        lua_pop(L, 1);
-    };
-
-    reg(META_VEC2);
-    reg(META_VEC3);
-    reg(META_VEC4);
-    reg(META_QUAT);
-    reg(META_COLOR);
-    reg(META_MAT3);
-    reg(META_MAT4);
-}
+// Math functions moved to lua_math.cpp
 
 bool lua_script_system::initialize()
 {
@@ -469,9 +664,36 @@ bool lua_script_system::initialize()
     lua_pushlightuserdata(m_L, this);
     lua_setfield(m_L, LUA_REGISTRYINDEX, SYS_REG_KEY);
 
-    register_math_metatables(m_L);
+    register_math_bindings(m_L);
+
+    // Register factories
+    if (object::s_factory)
+        object::s_factory->add(lua_script_instance::TYPE.name(),
+                               object::factory_delegate::from_method<
+                                   lua_script_system,
+                                   &lua_script_system::create_instance>(this));
+
+    if (object::s_factory_xml)
+        object::s_factory_xml->add(
+            lua_script_instance::TYPE.name(),
+            object::factory_delegate_xml::from_method<
+                lua_script_system,
+                &lua_script_system::create_instance_xml>(this));
 
     return true;
+}
+
+object *lua_script_system::create_instance(serializer &s)
+{
+    return new lua_script_instance(m_L);
+}
+
+object *lua_script_system::create_instance_xml(xml_serializer &s,
+                                               tinyxml2::XMLElement &el)
+{
+    auto *inst = new lua_script_instance(m_L);
+    inst->load_xml(s, el);
+    return inst;
 }
 
 void lua_script_system::shutdown()
@@ -556,7 +778,7 @@ script_instance *lua_script_system::load_script(const char *filepath,
     string source_str(buffer.data(), buffer.size());
     auto script_res = make_shared<script>(source_str);
 
-    auto *inst = new lua_script_instance(script_res, m_L, env_ref);
+    auto *inst = new lua_script_instance(filepath, script_res, m_L, env_ref);
 
     // Inject instance
     lua_rawgeti(m_L, LUA_REGISTRYINDEX, env_ref);
@@ -788,6 +1010,8 @@ public:
     lua_State *L;
     int ref_id;
 
+    mutable string m_string_cache;
+
     lua_value(lua_State *l, int ref) : L(l), ref_id(ref) {}
     lua_value(lua_State *l, int index, bool) : L(l)
     {
@@ -967,13 +1191,20 @@ public:
         lua_pop(L, 1);
         return i;
     }
+
     string_view as_string() const override
     {
-        // Warn: unsafe if temporary
         push();
-        const char *s = lua_tostring(L, -1);
-        lua_pop(L, 1);
-        return s ? s : "";
+        size_t len    = 0;
+        const char *s = luaL_tolstring(L, -1, &len);
+
+        if (s)
+            m_string_cache.assign(s, len);
+        else
+            m_string_cache.clear();
+
+        lua_pop(L, 2);
+        return m_string_cache;
     }
 
     pointer<object> as_object() const override

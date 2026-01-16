@@ -103,7 +103,13 @@ void spatial::load_xml(xml_serializer &serializer,
                        tinyxml2::XMLElement &element)
 {
     object::load_xml(serializer, element);
-    local = xml_serializer::read_transform(element);
+
+    if (element.FirstChildElement("transform"))
+    {
+        transformation t = get_local();
+        xml_serializer::read_transform_into(element, t);
+        set_local(t);
+    }
 }
 
 void spatial::link(xml_serializer &serializer, tinyxml2::XMLElement &element)
@@ -122,7 +128,6 @@ void spatial::link(xml_serializer &serializer, tinyxml2::XMLElement &element)
                 uuid parentId;
                 bool result = uuid::try_parse({id, strlen(id)}, parentId);
                 assert(result && "Invalid parent id");
-
                 object *parentObj = serializer.get_object(parentId);
                 spatial *parent   = c_dynamic_cast<spatial>(parentObj);
                 assert(parent && "Invalid parent");

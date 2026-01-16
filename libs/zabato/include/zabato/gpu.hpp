@@ -56,6 +56,32 @@ enum class color_format : uint8_t
     palette256,
 };
 
+/** @brief Depth comparison functions. */
+enum class depth_func : uint8_t
+{
+    never,
+    less,
+    equal,
+    less_equal,
+    greater,
+    not_equal,
+    greater_equal,
+    always,
+};
+
+/** @brief Alpha comparison functions. */
+enum class alpha_func : uint8_t
+{
+    never,
+    less,
+    equal,
+    less_equal,
+    greater,
+    not_equal,
+    greater_equal,
+    always,
+};
+
 /** @brief Blending factors for source and destination. */
 enum class blend_factor : uint8_t
 {
@@ -356,6 +382,10 @@ public:
 
     // New methods for ImGui support
     virtual void enable_depth_test(bool enabled)                        = 0;
+    virtual void set_depth_func(depth_func func)                        = 0;
+    virtual void set_depth_write(bool enabled)                          = 0;
+    virtual void enable_alpha_test(bool enabled)                        = 0;
+    virtual void set_alpha_func(alpha_func func, real ref)              = 0;
     virtual void enable_blend(bool enabled)                             = 0;
     virtual void set_blend_func(blend_factor src, blend_factor dst)     = 0;
     virtual void enable_scissor_test(bool enabled)                      = 0;

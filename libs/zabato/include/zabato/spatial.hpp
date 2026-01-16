@@ -36,6 +36,10 @@ public:
 
     transformation &get_local() { return local; }
     transformation &get_world_transform();
+    const transformation &get_world_transform() const
+    {
+        return const_cast<spatial *>(this)->get_world_transform();
+    }
 
     void set_local(const transformation &local);
 

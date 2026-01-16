@@ -1,7 +1,8 @@
-#include "zabato/math.hpp"
 #include <zabato/camera.hpp>
+#include <zabato/math.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/script.hpp>
+#include <zabato/xml_serializer.hpp>
 
 namespace zabato
 {
@@ -240,6 +241,40 @@ void camera::update_view_from_transform()
         m_view          = view_mat;
         m_frustum_dirty = true;
     }
+}
+
+void camera::save_xml(xml_serializer &serializer,
+                      tinyxml2::XMLElement &element) const
+{
+    spatial::save_xml(serializer, element);
+    element.SetAttribute("fov", (double)m_fov);
+    element.SetAttribute("aspect", (double)m_aspect);
+    element.SetAttribute("near", (double)m_near);
+    element.SetAttribute("far", (double)m_far);
+}
+
+void camera::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &element)
+{
+    spatial::load_xml(serializer, element);
+
+    float val;
+    if (element.QueryFloatAttribute("fov", &val) == tinyxml2::XML_SUCCESS)
+        m_fov = val;
+    if (element.QueryFloatAttribute("aspect", &val) == tinyxml2::XML_SUCCESS)
+        m_aspect = val;
+    if (element.QueryFloatAttribute("near", &val) == tinyxml2::XML_SUCCESS)
+        m_near = val;
+    if (element.QueryFloatAttribute("far", &val) == tinyxml2::XML_SUCCESS)
+        m_far = val;
+
+    set_perspective(m_fov, m_aspect, m_near, m_far);
+    update_view_from_transform();
+}
+
+void camera::on_transform_changed()
+{
+    spatial::on_transform_changed();
+    update_view_from_transform();
 }
 
 } // namespace zabato

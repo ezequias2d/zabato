@@ -95,9 +95,7 @@ void node::save_xml(xml_serializer &serializer, tinyxml2::XMLElement &el) const
     {
         if (child)
         {
-            tinyxml2::XMLElement *childEl =
-                el.InsertNewChildElement(child->type().name());
-            child->save_xml(serializer, *childEl);
+            serializer.write_object(el, child);
         }
     }
 }
@@ -113,12 +111,15 @@ void node::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &el)
         if (name == "transform" || name == "controllers" || name == "ref")
             continue;
 
-        object *obj           = object::factory(serializer, *childEl);
-        spatial *childSpatial = c_dynamic_cast<spatial>(obj);
-        if (childSpatial)
-            attach_child(childSpatial);
-        else if (obj)
-            delete obj;
+        object *obj = object::factory(serializer, *childEl);
+        if (obj)
+        {
+            spatial *childSpatial = c_dynamic_cast<spatial>(obj);
+            if (childSpatial)
+                attach_child(childSpatial);
+            else
+                delete obj;
+        }
     }
 }
 
@@ -127,8 +128,7 @@ void node::link(xml_serializer &serializer, tinyxml2::XMLElement &el)
     spatial::link(serializer, el);
 
     tinyxml2::XMLElement *childEl = el.FirstChildElement();
-
-    size_t index = 0;
+    size_t index                  = 0;
     for (; childEl; childEl = childEl->NextSiblingElement())
     {
         string name = childEl->Name();
@@ -137,26 +137,27 @@ void node::link(xml_serializer &serializer, tinyxml2::XMLElement &el)
 
         if (name != "ref")
         {
-            pointer<spatial> child = m_children[index++];
-            if (child)
-                child->link(serializer, *childEl);
+            if (index < m_children.size())
+            {
+                pointer<spatial> child = m_children[index++];
+                if (child)
+                    child->link(serializer, *childEl);
+            }
         }
         else
         {
             const char *id = childEl->Attribute("id");
-            if (!id)
-                continue;
-
-            uuid uuid;
-            bool result = uuid::try_parse({id, strlen(id)}, uuid);
-            assert(result && "Invalid UUID");
-
-            object *obj           = serializer.get_object(uuid);
-            spatial *childSpatial = c_dynamic_cast<spatial>(obj);
-            if (childSpatial)
-                attach_child(childSpatial);
-            else if (obj)
-                delete obj;
+            if (id)
+            {
+                uuid uuid_val;
+                if (uuid::try_parse({id, strlen(id)}, uuid_val))
+                {
+                    object *obj           = serializer.get_object(uuid_val);
+                    spatial *childSpatial = c_dynamic_cast<spatial>(obj);
+                    if (childSpatial)
+                        attach_child(childSpatial);
+                }
+            }
         }
     }
 }

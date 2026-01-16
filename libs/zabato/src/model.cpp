@@ -3,6 +3,7 @@
 #include <zabato/reflection.hpp>
 #include <zabato/script.hpp>
 #include <zabato/serializer.hpp>
+#include <zabato/world.hpp>
 #include <zabato/xml_serializer.hpp>
 
 namespace zabato
@@ -53,6 +54,10 @@ model::model()
 
 model::~model()
 {
+    world *w = get_world();
+    if (w)
+        w->unregister_model(this);
+
     delete m_model_bound;
     delete m_world_bound;
 }
@@ -123,8 +128,10 @@ void model::update_model_bound()
         }
         m_model_bound = bounding_volume::create(vec3<real>(0), 0);
         if (m_model_bound)
+        {
             m_model_bound->compute_from_data(
                 span<const vec3<real>>(points.data(), points.size()));
+        }
     }
 }
 
@@ -183,7 +190,7 @@ void model::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &element)
 {
     spatial::load_xml(serializer, element);
     xml_serializer::read_resource_ref(element, m_mesh);
-    // TODO: m_mesh.set_manager(serializer.get_manager());
+    m_mesh.set_manager(serializer.get_manager());
     update_model_bound();
     bind_skeleton();
 }

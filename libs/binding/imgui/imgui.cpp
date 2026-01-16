@@ -300,10 +300,6 @@ void mouse_button_cb(zabato::window *w,
     else if (button == zabato::mouse_button::middle)
         imgui_button = 2;
 
-    std::cout << "[ImGui] Mouse Button: " << (int)button
-              << " Action: " << (int)action << " ImGuiBtn: " << imgui_button
-              << " Pos: " << io.MousePos.x << "," << io.MousePos.y << std::endl;
-
     if (imgui_button != -1)
         io.AddMouseButtonEvent(imgui_button,
                                action == zabato::button_state::press);
@@ -327,7 +323,6 @@ namespace zabato::imgui
 {
 void init(zabato::window *win)
 {
-    std::cout << "[ImGui] Init called with window: " << win << std::endl;
     g_window = win;
     g_gpu    = zabato::init_gpu();
 
@@ -393,7 +388,6 @@ void new_frame()
     // Font texture
     if (!g_font_texture)
     {
-        std::cout << "[ImGui] Creating font texture..." << std::endl;
         if (!g_gpu)
         {
             std::cerr << "[ImGui] Error: GPU is null during texture creation!"

@@ -33,6 +33,9 @@ public:
         m_base_type = base_type;
     }
 
+    rtti(const rtti &)            = delete;
+    rtti &operator=(const rtti &) = delete;
+
     ~rtti();
 
     /**

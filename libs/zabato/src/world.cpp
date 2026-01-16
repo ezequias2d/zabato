@@ -1,5 +1,6 @@
-#include "zabato/controller.hpp"
-#include <algorithm>
+#include <zabato/controller.hpp>
+#include <zabato/light.hpp>
+#include <zabato/model.hpp>
 #include <zabato/node.hpp>
 #include <zabato/world.hpp>
 
@@ -86,6 +87,11 @@ void world::register_controllers_recursive(spatial *s)
     for (auto &c : ctrls)
         add_controller(c);
 
+    if (s->is_derived(model::TYPE))
+        register_model(static_cast<model *>(s));
+    else if (s->is_derived(light::TYPE))
+        register_light(static_cast<light *>(s));
+
     // Recurse children if node
     if (s->is_derived(node::TYPE))
     {
@@ -104,6 +110,11 @@ void world::unregister_controllers_recursive(spatial *s)
     const auto &ctrls = s->get_controllers();
     for (auto &c : ctrls)
         remove_controller(c);
+
+    if (s->is_derived(model::TYPE))
+        unregister_model(static_cast<model *>(s));
+    else if (s->is_derived(light::TYPE))
+        unregister_light(static_cast<light *>(s));
 
     // Recurse children if node
     if (s->is_derived(node::TYPE))

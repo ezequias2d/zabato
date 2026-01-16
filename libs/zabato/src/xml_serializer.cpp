@@ -47,7 +47,6 @@ object *xml_serializer::load(const char *path)
     if (!obj)
         return nullptr;
 
-    obj->load_xml(*this, *rootEl);
     obj->link(*this, *rootEl);
 
     return obj;
@@ -117,22 +116,62 @@ void xml_serializer::write_transform(tinyxml2::XMLElement &el,
 transformation xml_serializer::read_transform(tinyxml2::XMLElement &el)
 {
     transformation t;
+    read_transform_into(el, t);
+    return t;
+}
+
+void xml_serializer::read_transform_into(tinyxml2::XMLElement &el,
+                                         transformation &t)
+{
     tinyxml2::XMLElement *transEl = el.FirstChildElement("transform");
     if (transEl)
     {
         tinyxml2::XMLElement *posEl = transEl->FirstChildElement("position");
         if (posEl)
-            t.set_translate(read_vec3(*posEl));
+        {
+            vec3<real> p = t.translate();
+            float f;
+            if (posEl->QueryFloatAttribute("x", &f) == tinyxml2::XML_SUCCESS)
+                p.x = f;
+            if (posEl->QueryFloatAttribute("y", &f) == tinyxml2::XML_SUCCESS)
+                p.y = f;
+            if (posEl->QueryFloatAttribute("z", &f) == tinyxml2::XML_SUCCESS)
+                p.z = f;
+            t.set_translate(p);
+        }
 
         tinyxml2::XMLElement *rotEl = transEl->FirstChildElement("rotation");
         if (rotEl)
-            t.set_rotate(read_quat(*rotEl));
+        {
+            quat<real> q = t.rotate();
+            vec4<real> v = q.as_vec4;
+            float f;
+            if (rotEl->QueryFloatAttribute("x", &f) == tinyxml2::XML_SUCCESS)
+                v.x = f;
+            if (rotEl->QueryFloatAttribute("y", &f) == tinyxml2::XML_SUCCESS)
+                v.y = f;
+            if (rotEl->QueryFloatAttribute("z", &f) == tinyxml2::XML_SUCCESS)
+                v.z = f;
+            if (rotEl->QueryFloatAttribute("w", &f) == tinyxml2::XML_SUCCESS)
+                v.w = f;
+            q.as_vec4 = v;
+            t.set_rotate(q);
+        }
 
         tinyxml2::XMLElement *scaleEl = transEl->FirstChildElement("scale");
         if (scaleEl)
-            t.set_scale(read_vec3(*scaleEl));
+        {
+            vec3<real> s = t.scale();
+            float f;
+            if (scaleEl->QueryFloatAttribute("x", &f) == tinyxml2::XML_SUCCESS)
+                s.x = f;
+            if (scaleEl->QueryFloatAttribute("y", &f) == tinyxml2::XML_SUCCESS)
+                s.y = f;
+            if (scaleEl->QueryFloatAttribute("z", &f) == tinyxml2::XML_SUCCESS)
+                s.z = f;
+            t.set_scale(s);
+        }
     }
-    return t;
 }
 
 void xml_serializer::write_object(tinyxml2::XMLElement &el, object *obj)
@@ -147,12 +186,11 @@ void xml_serializer::write_object(tinyxml2::XMLElement &el, object *obj)
     }
     else
     {
-        rtti type                  = obj->type();
-        tinyxml2::XMLElement *idEl = el.InsertNewChildElement(type.name());
-        char sid[37];
-        id.to_chars(sid);
-        idEl->SetAttribute("id", sid);
-
+        const rtti &type           = obj->type();
+        const char *typeName       = type.name();
+        tinyxml2::XMLElement *idEl = el.InsertNewChildElement(typeName);
+        string sid                 = id.to_string(); // Heap allocation
+        idEl->SetAttribute("id", sid.c_str());
         obj->save_xml(*this, *idEl);
     }
 }
@@ -175,6 +213,34 @@ void xml_serializer::read_resource_ref(tinyxml2::XMLElement &el,
     const char *path = el.Attribute("src");
     if (path)
         res.set_path(path);
+}
+
+object *xml_serializer::get_object(uuid id)
+{
+    object *result = nullptr;
+    if (m_links.try_get_value(id, result))
+        return result;
+
+    return nullptr;
+}
+
+void xml_serializer::add_object(uuid id, object *obj) { m_links.add(id, obj); }
+
+uuid xml_serializer::remap(const uuid &id)
+{
+    if (id == uuid::null())
+        return uuid::null();
+
+    if (!m_remap_ids)
+        return id;
+
+    uuid new_id;
+    if (m_id_map.try_get_value(id, new_id))
+        return new_id;
+
+    new_id = uuid::generate();
+    m_id_map.add(id, new_id);
+    return new_id;
 }
 
 } // namespace zabato

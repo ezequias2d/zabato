@@ -183,6 +183,18 @@ public:
     virtual script_instance *load_script(const char *filepath,
                                          uuid owner_id) = 0;
 
+    /**
+     * @brief Factory method for creating script instances from binary
+     * serializer.
+     */
+    virtual object *create_instance(serializer &s) = 0;
+
+    /**
+     * @brief Factory method for creating script instances from XML serializer.
+     */
+    virtual object *create_instance_xml(xml_serializer &s,
+                                        tinyxml2::XMLElement &el) = 0;
+
     /** @brief Register a global C++ function callable from anywhere. */
     virtual void register_global_function(const string_view &name,
                                           value cb) = 0;
@@ -193,7 +205,14 @@ public:
     /** @brief Set a global variable available to all scripts. */
     virtual void set_global_var(const char *name, const script_value &val) = 0;
 
+    void set_user_data(void *data) { m_user_data = data; }
+    void *get_user_data() const { return m_user_data; }
+
 protected:
     fs::file_system &m_fs;
+    void *m_user_data = nullptr;
 };
+
+void register_script_importer();
+
 } // namespace zabato
