@@ -3,7 +3,7 @@
 namespace zabato
 {
 
-const rtti mesh::TYPE("zabato::mesh", &resource::TYPE);
+const rtti mesh::TYPE("zabato.mesh", &resource::TYPE);
 
 /**
  * @brief Renders the model using a given GPU context.

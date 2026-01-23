@@ -4,6 +4,6 @@
 namespace zabato
 {
 
-const rtti resource::TYPE("zabato::resource", nullptr);
+const rtti resource::TYPE("zabato.resource", nullptr);
 
 } // namespace zabato

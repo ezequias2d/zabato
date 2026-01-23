@@ -49,7 +49,7 @@ public:
         size_t last_dot = xml_path.rfind('.');
         if (last_dot != string::npos)
         {
-            xml_path = xml_path.substr(0, last_dot) + ".xml";
+            xml_path = xml_path + ".xml";
 
             if (m_fs->exists(xml_path))
             {

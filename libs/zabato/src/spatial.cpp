@@ -10,7 +10,7 @@
 namespace zabato
 {
 
-const rtti spatial::TYPE("zabato::spatial", &object::TYPE, spatial::reflect);
+const rtti spatial::TYPE("zabato.spatial", &object::TYPE, spatial::reflect);
 
 static void spatial_translate_getter(script_system *sys,
                                      script_instance *ctx,
