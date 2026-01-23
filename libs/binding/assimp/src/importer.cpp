@@ -274,4 +274,50 @@ assimp_importer::import(fs::file_system &fs,
     return result<shared_ptr<resource>>(move(res_mesh));
 }
 
+vector<importer_option>
+assimp_importer::get_options(const tinyxml2::XMLElement *settings) const
+{
+    vector<importer_option> opts;
+
+    bool gen_normals = true;
+    bool flip_uvs    = true;
+
+    if (settings)
+    {
+        for (const tinyxml2::XMLElement *param =
+                 settings->FirstChildElement("param");
+             param;
+             param = param->NextSiblingElement("param"))
+        {
+            const char *name = param->Attribute("name");
+            if (name)
+            {
+                if (string_view(name) == "generate_normals")
+                    param->QueryBoolAttribute("value", &gen_normals);
+                else if (string_view(name) == "flip_uvs")
+                    param->QueryBoolAttribute("value", &flip_uvs);
+            }
+        }
+    }
+
+    {
+        importer_option opt;
+        opt.name          = "generate_normals";
+        opt.description   = "Generate smooth normals if missing.";
+        opt.type_default  = value(true);
+        opt.current_value = value(gen_normals);
+        opts.push_back(opt);
+    }
+    {
+        importer_option opt;
+        opt.name          = "flip_uvs";
+        opt.description   = "Flip UV coordinates on Y axis.";
+        opt.type_default  = value(true);
+        opt.current_value = value(flip_uvs);
+        opts.push_back(opt);
+    }
+
+    return opts;
+}
+
 } // namespace zabato::assimp

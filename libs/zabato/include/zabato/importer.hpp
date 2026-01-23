@@ -4,6 +4,7 @@
 #include <zabato/fs.hpp>
 #include <zabato/shared_ptr.hpp>
 #include <zabato/string.hpp>
+#include <zabato/value.hpp>
 #include <zabato/vector.hpp>
 
 #include <tinyxml2.h>
@@ -13,6 +14,17 @@ namespace zabato
 
 class resource;
 class rtti;
+struct value;
+
+struct importer_option
+{
+    string name;
+    string description;
+    value type_default;
+    value current_value;
+
+    vector<string> enum_values; //< Optional: for list/enum selection
+};
 
 /**
  * @class importer
@@ -55,6 +67,17 @@ public:
      * @return True if the importer can import this resource type.
      */
     virtual bool is_resource_type(const zabato::rtti &type) const = 0;
+
+    /**
+     * @brief Retrieves the configurable options for this importer.
+     * @param settings The current XML settings element (optional).
+     * @return A vector of options with their current or default values.
+     */
+    virtual vector<importer_option>
+    get_options(const tinyxml2::XMLElement *settings) const
+    {
+        return {};
+    }
 };
 
 /**
