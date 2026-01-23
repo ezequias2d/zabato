@@ -116,7 +116,7 @@ public:
 
     void set_shade_model(shade_model model) override;
     void enable_lighting(bool enabled) override;
-    void set_light(int id, const light *l) override;
+    void set_light(int id, const light_data *l) override;
     void set_material(const material *m) override;
 
     texture *create_texture(uint16_t width,

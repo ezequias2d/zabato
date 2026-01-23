@@ -521,7 +521,8 @@ void GlGpu::enable_lighting(bool enabled)
     else
         glDisable(GL_LIGHTING);
 }
-void GlGpu::set_light(int id, const light *l)
+
+void GlGpu::set_light(int id, const light_data *l)
 {
     const GLenum light_id = GL_LIGHT0 + id;
     if (!l)
@@ -562,6 +563,7 @@ void GlGpu::set_light(int id, const light *l)
         glLightf(light_id, GL_SPOT_EXPONENT, float(l->spot_exponent));
     }
 }
+
 void GlGpu::set_material(const material *m)
 { /* ... implementation needed ... */ }
 
