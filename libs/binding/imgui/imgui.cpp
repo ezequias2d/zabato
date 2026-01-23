@@ -1,330 +1,330 @@
+#include "imgui_internal.h"
 #include <zabato/gpu.hpp>
 #include <zabato/imgui.hpp>
 #include <zabato/vector.hpp>
 #include <zabato/window.hpp>
 
-namespace
+namespace zabato::imgui
 {
-zabato::window *g_window                    = nullptr;
-zabato::gpu *g_gpu                          = nullptr;
-zabato::texture *g_font_texture             = nullptr;
-uint64_t g_time                             = 0;
-zabato::window_flags g_backend_window_flags = zabato::window_flags::none;
+window *g_window                     = nullptr;
+gpu *g_gpu                           = nullptr;
+texture *g_font_texture              = nullptr;
+uint64_t g_time                      = 0;
+window_flags g_backend_window_flags  = window_flags::none;
+atlas_pack_callback g_atlas_callback = nullptr;
+void *g_atlas_callback_data          = nullptr;
 
-void update_modifiers(zabato::modifier_keys mods)
+void update_modifiers(modifier_keys mods)
 {
     ImGuiIO &io = ImGui::GetIO();
     io.AddKeyEvent(ImGuiMod_Ctrl,
-                   (mods & zabato::modifier_keys::control) !=
-                       zabato::modifier_keys::none);
+                   (mods & modifier_keys::control) != modifier_keys::none);
     io.AddKeyEvent(ImGuiMod_Shift,
-                   (mods & zabato::modifier_keys::shift) !=
-                       zabato::modifier_keys::none);
+                   (mods & modifier_keys::shift) != modifier_keys::none);
     io.AddKeyEvent(ImGuiMod_Alt,
-                   (mods & zabato::modifier_keys::alt) !=
-                       zabato::modifier_keys::none);
+                   (mods & modifier_keys::alt) != modifier_keys::none);
     io.AddKeyEvent(ImGuiMod_Super,
-                   (mods & zabato::modifier_keys::super) !=
-                       zabato::modifier_keys::none);
+                   (mods & modifier_keys::super) != modifier_keys::none);
 }
 
-ImGuiKey key_to_imgui(zabato::key_code key)
+ImGuiKey key_to_imgui(key_code key)
 {
     switch (key)
     {
-    case zabato::key_code::tab:
+    case key_code::tab:
         return ImGuiKey_Tab;
-    case zabato::key_code::left:
+    case key_code::left:
         return ImGuiKey_LeftArrow;
-    case zabato::key_code::right:
+    case key_code::right:
         return ImGuiKey_RightArrow;
-    case zabato::key_code::up:
+    case key_code::up:
         return ImGuiKey_UpArrow;
-    case zabato::key_code::down:
+    case key_code::down:
         return ImGuiKey_DownArrow;
-    case zabato::key_code::page_up:
+    case key_code::page_up:
         return ImGuiKey_PageUp;
-    case zabato::key_code::page_down:
+    case key_code::page_down:
         return ImGuiKey_PageDown;
-    case zabato::key_code::home:
+    case key_code::home:
         return ImGuiKey_Home;
-    case zabato::key_code::end:
+    case key_code::end:
         return ImGuiKey_End;
-    case zabato::key_code::insert:
+    case key_code::insert:
         return ImGuiKey_Insert;
-    case zabato::key_code::del:
+    case key_code::del:
         return ImGuiKey_Delete;
-    case zabato::key_code::backspace:
+    case key_code::backspace:
         return ImGuiKey_Backspace;
-    case zabato::key_code::space:
+    case key_code::space:
         return ImGuiKey_Space;
-    case zabato::key_code::enter:
+    case key_code::enter:
         return ImGuiKey_Enter;
-    case zabato::key_code::escape:
+    case key_code::escape:
         return ImGuiKey_Escape;
-    case zabato::key_code::apostrophe:
+    case key_code::apostrophe:
         return ImGuiKey_Apostrophe;
-    case zabato::key_code::comma:
+    case key_code::comma:
         return ImGuiKey_Comma;
-    case zabato::key_code::minus:
+    case key_code::minus:
         return ImGuiKey_Minus;
-    case zabato::key_code::period:
+    case key_code::period:
         return ImGuiKey_Period;
-    case zabato::key_code::slash:
+    case key_code::slash:
         return ImGuiKey_Slash;
-    case zabato::key_code::semicolon:
+    case key_code::semicolon:
         return ImGuiKey_Semicolon;
-    case zabato::key_code::equal:
+    case key_code::equal:
         return ImGuiKey_Equal;
-    case zabato::key_code::left_bracket:
+    case key_code::left_bracket:
         return ImGuiKey_LeftBracket;
-    case zabato::key_code::backslash:
+    case key_code::backslash:
         return ImGuiKey_Backslash;
-    case zabato::key_code::right_bracket:
+    case key_code::right_bracket:
         return ImGuiKey_RightBracket;
-    case zabato::key_code::grave_accent:
+    case key_code::grave_accent:
         return ImGuiKey_GraveAccent;
-    case zabato::key_code::caps_lock:
+    case key_code::caps_lock:
         return ImGuiKey_CapsLock;
-    case zabato::key_code::scroll_lock:
+    case key_code::scroll_lock:
         return ImGuiKey_ScrollLock;
-    case zabato::key_code::num_lock:
+    case key_code::num_lock:
         return ImGuiKey_NumLock;
-    case zabato::key_code::print_screen:
+    case key_code::print_screen:
         return ImGuiKey_PrintScreen;
-    case zabato::key_code::pause:
+    case key_code::pause:
         return ImGuiKey_Pause;
-    case zabato::key_code::kp_0:
+    case key_code::kp_0:
         return ImGuiKey_Keypad0;
-    case zabato::key_code::kp_1:
+    case key_code::kp_1:
         return ImGuiKey_Keypad1;
-    case zabato::key_code::kp_2:
+    case key_code::kp_2:
         return ImGuiKey_Keypad2;
-    case zabato::key_code::kp_3:
+    case key_code::kp_3:
         return ImGuiKey_Keypad3;
-    case zabato::key_code::kp_4:
+    case key_code::kp_4:
         return ImGuiKey_Keypad4;
-    case zabato::key_code::kp_5:
+    case key_code::kp_5:
         return ImGuiKey_Keypad5;
-    case zabato::key_code::kp_6:
+    case key_code::kp_6:
         return ImGuiKey_Keypad6;
-    case zabato::key_code::kp_7:
+    case key_code::kp_7:
         return ImGuiKey_Keypad7;
-    case zabato::key_code::kp_8:
+    case key_code::kp_8:
         return ImGuiKey_Keypad8;
-    case zabato::key_code::kp_9:
+    case key_code::kp_9:
         return ImGuiKey_Keypad9;
-    case zabato::key_code::kp_decimal:
+    case key_code::kp_decimal:
         return ImGuiKey_KeypadDecimal;
-    case zabato::key_code::kp_divide:
+    case key_code::kp_divide:
         return ImGuiKey_KeypadDivide;
-    case zabato::key_code::kp_multiply:
+    case key_code::kp_multiply:
         return ImGuiKey_KeypadMultiply;
-    case zabato::key_code::kp_subtract:
+    case key_code::kp_subtract:
         return ImGuiKey_KeypadSubtract;
-    case zabato::key_code::kp_add:
+    case key_code::kp_add:
         return ImGuiKey_KeypadAdd;
-    case zabato::key_code::kp_enter:
+    case key_code::kp_enter:
         return ImGuiKey_KeypadEnter;
-    case zabato::key_code::kp_equal:
+    case key_code::kp_equal:
         return ImGuiKey_KeypadEqual;
-    case zabato::key_code::left_shift:
+    case key_code::left_shift:
         return ImGuiKey_LeftShift;
-    case zabato::key_code::left_control:
+    case key_code::left_control:
         return ImGuiKey_LeftCtrl;
-    case zabato::key_code::left_alt:
+    case key_code::left_alt:
         return ImGuiKey_LeftAlt;
-    case zabato::key_code::left_super:
+    case key_code::left_super:
         return ImGuiKey_LeftSuper;
-    case zabato::key_code::right_shift:
+    case key_code::right_shift:
         return ImGuiKey_RightShift;
-    case zabato::key_code::right_control:
+    case key_code::right_control:
         return ImGuiKey_RightCtrl;
-    case zabato::key_code::right_alt:
+    case key_code::right_alt:
         return ImGuiKey_RightAlt;
-    case zabato::key_code::right_super:
+    case key_code::right_super:
         return ImGuiKey_RightSuper;
-    case zabato::key_code::menu:
+    case key_code::menu:
         return ImGuiKey_Menu;
-    case zabato::key_code::num_0:
+    case key_code::num_0:
         return ImGuiKey_0;
-    case zabato::key_code::num_1:
+    case key_code::num_1:
         return ImGuiKey_1;
-    case zabato::key_code::num_2:
+    case key_code::num_2:
         return ImGuiKey_2;
-    case zabato::key_code::num_3:
+    case key_code::num_3:
         return ImGuiKey_3;
-    case zabato::key_code::num_4:
+    case key_code::num_4:
         return ImGuiKey_4;
-    case zabato::key_code::num_5:
+    case key_code::num_5:
         return ImGuiKey_5;
-    case zabato::key_code::num_6:
+    case key_code::num_6:
         return ImGuiKey_6;
-    case zabato::key_code::num_7:
+    case key_code::num_7:
         return ImGuiKey_7;
-    case zabato::key_code::num_8:
+    case key_code::num_8:
         return ImGuiKey_8;
-    case zabato::key_code::num_9:
+    case key_code::num_9:
         return ImGuiKey_9;
-    case zabato::key_code::a:
+    case key_code::a:
         return ImGuiKey_A;
-    case zabato::key_code::b:
+    case key_code::b:
         return ImGuiKey_B;
-    case zabato::key_code::c:
+    case key_code::c:
         return ImGuiKey_C;
-    case zabato::key_code::d:
+    case key_code::d:
         return ImGuiKey_D;
-    case zabato::key_code::e:
+    case key_code::e:
         return ImGuiKey_E;
-    case zabato::key_code::f:
+    case key_code::f:
         return ImGuiKey_F;
-    case zabato::key_code::g:
+    case key_code::g:
         return ImGuiKey_G;
-    case zabato::key_code::h:
+    case key_code::h:
         return ImGuiKey_H;
-    case zabato::key_code::i:
+    case key_code::i:
         return ImGuiKey_I;
-    case zabato::key_code::j:
+    case key_code::j:
         return ImGuiKey_J;
-    case zabato::key_code::k:
+    case key_code::k:
         return ImGuiKey_K;
-    case zabato::key_code::l:
+    case key_code::l:
         return ImGuiKey_L;
-    case zabato::key_code::m:
+    case key_code::m:
         return ImGuiKey_M;
-    case zabato::key_code::n:
+    case key_code::n:
         return ImGuiKey_N;
-    case zabato::key_code::o:
+    case key_code::o:
         return ImGuiKey_O;
-    case zabato::key_code::p:
+    case key_code::p:
         return ImGuiKey_P;
-    case zabato::key_code::q:
+    case key_code::q:
         return ImGuiKey_Q;
-    case zabato::key_code::r:
+    case key_code::r:
         return ImGuiKey_R;
-    case zabato::key_code::s:
+    case key_code::s:
         return ImGuiKey_S;
-    case zabato::key_code::t:
+    case key_code::t:
         return ImGuiKey_T;
-    case zabato::key_code::u:
+    case key_code::u:
         return ImGuiKey_U;
-    case zabato::key_code::v:
+    case key_code::v:
         return ImGuiKey_V;
-    case zabato::key_code::w:
+    case key_code::w:
         return ImGuiKey_W;
-    case zabato::key_code::x:
+    case key_code::x:
         return ImGuiKey_X;
-    case zabato::key_code::y:
+    case key_code::y:
         return ImGuiKey_Y;
-    case zabato::key_code::z:
+    case key_code::z:
         return ImGuiKey_Z;
-    case zabato::key_code::f1:
+    case key_code::f1:
         return ImGuiKey_F1;
-    case zabato::key_code::f2:
+    case key_code::f2:
         return ImGuiKey_F2;
-    case zabato::key_code::f3:
+    case key_code::f3:
         return ImGuiKey_F3;
-    case zabato::key_code::f4:
+    case key_code::f4:
         return ImGuiKey_F4;
-    case zabato::key_code::f5:
+    case key_code::f5:
         return ImGuiKey_F5;
-    case zabato::key_code::f6:
+    case key_code::f6:
         return ImGuiKey_F6;
-    case zabato::key_code::f7:
+    case key_code::f7:
         return ImGuiKey_F7;
-    case zabato::key_code::f8:
+    case key_code::f8:
         return ImGuiKey_F8;
-    case zabato::key_code::f9:
+    case key_code::f9:
         return ImGuiKey_F9;
-    case zabato::key_code::f10:
+    case key_code::f10:
         return ImGuiKey_F10;
-    case zabato::key_code::f11:
+    case key_code::f11:
         return ImGuiKey_F11;
-    case zabato::key_code::f12:
+    case key_code::f12:
         return ImGuiKey_F12;
-    case zabato::key_code::f13:
+    case key_code::f13:
         return ImGuiKey_F13;
-    case zabato::key_code::f14:
+    case key_code::f14:
         return ImGuiKey_F14;
-    case zabato::key_code::f15:
+    case key_code::f15:
         return ImGuiKey_F15;
-    case zabato::key_code::f16:
+    case key_code::f16:
         return ImGuiKey_F16;
-    case zabato::key_code::f17:
+    case key_code::f17:
         return ImGuiKey_F17;
-    case zabato::key_code::f18:
+    case key_code::f18:
         return ImGuiKey_F18;
-    case zabato::key_code::f19:
+    case key_code::f19:
         return ImGuiKey_F19;
-    case zabato::key_code::f20:
+    case key_code::f20:
         return ImGuiKey_F20;
-    case zabato::key_code::f21:
+    case key_code::f21:
         return ImGuiKey_F21;
-    case zabato::key_code::f22:
+    case key_code::f22:
         return ImGuiKey_F22;
-    case zabato::key_code::f23:
+    case key_code::f23:
         return ImGuiKey_F23;
-    case zabato::key_code::f24:
+    case key_code::f24:
         return ImGuiKey_F24;
     default:
         return ImGuiKey_None;
     }
 }
 
-void key_cb(zabato::window *w,
-            zabato::key_code key,
+void key_cb(window *w,
+            key_code key,
             int scancode,
-            zabato::button_state action,
-            zabato::modifier_keys mods)
+            button_state action,
+            modifier_keys mods)
 {
     ImGuiIO &io = ImGui::GetIO();
     update_modifiers(mods);
     ImGuiKey imgui_key = key_to_imgui(key);
     io.AddKeyEvent(imgui_key,
-                   action == zabato::button_state::press ||
-                       action == zabato::button_state::repeat);
+                   action == button_state::press ||
+                       action == button_state::repeat);
 }
 
-void mouse_button_cb(zabato::window *w,
-                     zabato::mouse_button button,
-                     zabato::button_state action,
-                     zabato::modifier_keys mods)
+void mouse_button_cb(window *w,
+                     mouse_button button,
+                     button_state action,
+                     modifier_keys mods)
 {
     ImGuiIO &io = ImGui::GetIO();
     update_modifiers(mods);
     int imgui_button = -1;
-    if (button == zabato::mouse_button::left)
+    if (button == mouse_button::left)
         imgui_button = 0;
-    else if (button == zabato::mouse_button::right)
+    else if (button == mouse_button::right)
         imgui_button = 1;
-    else if (button == zabato::mouse_button::middle)
+    else if (button == mouse_button::middle)
         imgui_button = 2;
 
     if (imgui_button != -1)
-        io.AddMouseButtonEvent(imgui_button,
-                               action == zabato::button_state::press);
+        io.AddMouseButtonEvent(imgui_button, action == button_state::press);
 }
 
-void scroll_cb(zabato::window *w, zabato::real xoffset, zabato::real yoffset)
+void scroll_cb(window *w, real xoffset, real yoffset)
 {
     ImGuiIO &io = ImGui::GetIO();
     io.AddMouseWheelEvent((float)xoffset, (float)yoffset);
 }
 
-void text_input_cb(zabato::window *w, const char *text)
+void text_input_cb(window *w, const char *text)
 {
     ImGuiIO &io = ImGui::GetIO();
     io.AddInputCharactersUTF8(text);
 }
 
-} // namespace
-
-namespace zabato::imgui
+void set_atlas_pack_callback(atlas_pack_callback cb, void *user_data)
 {
-void init(zabato::window *win)
+    g_atlas_callback      = cb;
+    g_atlas_callback_data = user_data;
+}
+
+void init(window *win)
 {
     g_window = win;
-    g_gpu    = zabato::init_gpu();
+    g_gpu    = init_gpu();
 
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
@@ -337,7 +337,10 @@ void init(zabato::window *win)
     g_window->add_scroll_callback(scroll_cb);
     g_window->add_text_input_callback(text_input_cb);
 
-    g_time = zabato::get_time();
+    g_time = get_time();
+
+    io.Fonts->AddFontFromFileTTF(
+        "./fonts/Chiron_GoRound_TC/static/ChironGoRoundTC-Regular.ttf", 16);
 }
 
 void shutdown()
@@ -373,7 +376,7 @@ void new_frame()
             ImVec2(fb_size.x / size.x, fb_size.y / size.y);
 
     // Setup time step
-    uint64_t current_time = zabato::get_time();
+    uint64_t current_time = get_time();
     io.DeltaTime =
         (float)((real)(current_time - g_time) * (real(1.0f) / real(1000.0f)));
 
@@ -399,6 +402,11 @@ void new_frame()
             int width, height;
             io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
+            if (g_atlas_callback)
+            {
+                g_atlas_callback(pixels, width, height, g_atlas_callback_data);
+            }
+
             vector<uint16_t> tex_data(width * height);
             for (int i = 0; i < width * height; ++i)
             {
@@ -408,18 +416,18 @@ void new_frame()
                 uint8_t a = pixels[i * 4 + 3];
 
                 color c(color8888(r, g, b, a));
-                tex_data[i] = zabato::color4444(c).value;
+                tex_data[i] = color4444(c).value;
             }
 
-            g_font_texture = g_gpu->create_texture(
-                width, height, zabato::color_format::rgba4444);
+            g_font_texture =
+                g_gpu->create_texture(width, height, color_format::rgba4444);
             if (g_font_texture)
             {
                 std::cout << "[ImGui] Texture created: " << g_font_texture
                           << std::endl;
                 g_font_texture->load(width,
                                      height,
-                                     zabato::color_format::rgba4444,
+                                     color_format::rgba4444,
                                      tex_data.size() * sizeof(uint16_t),
                                      tex_data.data());
                 io.Fonts->SetTexID((ImTextureID)g_font_texture);
@@ -457,14 +465,14 @@ void render_draw_data(ImDrawData *draw_data)
             uint8_t a = pixels[i * 4 + 3];
             color c(color8888(r, g, b, a));
 
-            tex_data[i] = zabato::color4444(c).value;
+            tex_data[i] = color4444(c).value;
         }
 
-        g_font_texture = g_gpu->create_texture(
-            width, height, zabato::color_format::rgba4444);
+        g_font_texture =
+            g_gpu->create_texture(width, height, color_format::rgba4444);
         g_font_texture->load(width,
                              height,
-                             zabato::color_format::rgba4444,
+                             color_format::rgba4444,
                              tex_data.size() * sizeof(uint16_t),
                              tex_data.data());
         io.Fonts->SetTexID((ImTextureID)g_font_texture);
@@ -478,7 +486,7 @@ void render_draw_data(ImDrawData *draw_data)
         return;
 
     g_gpu->viewport(fb_width, fb_height);
-    g_gpu->set_matrix_mode(zabato::matrix_mode::projection);
+    g_gpu->set_matrix_mode(matrix_mode::projection);
     g_gpu->push_matrix();
     g_gpu->load_identity();
     g_gpu->ortho(draw_data->DisplayPos.x,
@@ -488,28 +496,26 @@ void render_draw_data(ImDrawData *draw_data)
                  -1.0f,
                  +1.0f);
 
-    g_gpu->set_matrix_mode(zabato::matrix_mode::modelview);
+    g_gpu->set_matrix_mode(matrix_mode::modelview);
     g_gpu->push_matrix();
     g_gpu->load_identity();
 
     g_gpu->enable_lighting(false);
     g_gpu->enable_fog(false);
-    g_gpu->set_shade_model(zabato::shade_model::smooth);
+    g_gpu->set_shade_model(shade_model::smooth);
 
     g_gpu->enable_blend(true);
-    g_gpu->set_blend_func(zabato::blend_factor::src_alpha,
-                          zabato::blend_factor::one_minus_src_alpha);
+    g_gpu->set_blend_func(blend_factor::src_alpha,
+                          blend_factor::one_minus_src_alpha);
     g_gpu->enable_depth_test(false);
     g_gpu->enable_lighting(false);
     g_gpu->enable_scissor_test(true);
 
     // Calculate Clipping Scale and Offset
-    zabato::vec2<int> fb_size     = g_window->get_framebuffer_size();
-    zabato::vec2<real> clip_scale = {(real)fb_size.x / draw_data->DisplaySize.x,
-                                     (real)fb_size.y /
-                                         draw_data->DisplaySize.y};
-    zabato::vec2<real> clip_off   = {draw_data->DisplayPos.x,
-                                     draw_data->DisplayPos.y};
+    vec2<int> fb_size     = g_window->get_framebuffer_size();
+    vec2<real> clip_scale = {(real)fb_size.x / draw_data->DisplaySize.x,
+                             (real)fb_size.y / draw_data->DisplaySize.y};
+    vec2<real> clip_off   = {draw_data->DisplayPos.x, draw_data->DisplayPos.y};
 
     // Render command lists
     for (int n = 0; n < draw_data->CmdListsCount; n++)
@@ -528,10 +534,10 @@ void render_draw_data(ImDrawData *draw_data)
             else
             {
                 // Apply Clipping
-                zabato::vec2<real> clip_min = {
+                vec2<real> clip_min = {
                     ((real)pcmd->ClipRect.x - clip_off.x) * clip_scale.x,
                     ((real)pcmd->ClipRect.y - clip_off.y) * clip_scale.y};
-                zabato::vec2<real> clip_max = {
+                vec2<real> clip_max = {
                     ((real)pcmd->ClipRect.z - clip_off.x) * clip_scale.x,
                     ((real)pcmd->ClipRect.w - clip_off.y) * clip_scale.y};
 
@@ -545,13 +551,13 @@ void render_draw_data(ImDrawData *draw_data)
                                    (int)(clip_max.y - clip_min.y));
 
                 // Bind texture
-                zabato::texture *tex = (zabato::texture *)pcmd->GetTexID();
+                texture *tex = (texture *)pcmd->GetTexID();
                 if (tex)
                     g_gpu->bind_texture(tex);
                 else
                     g_gpu->unbind_texture();
 
-                g_gpu->begin(zabato::primitive_type::triangles);
+                g_gpu->begin(primitive_type::triangles);
                 for (unsigned int i = 0; i < pcmd->ElemCount; i++)
                 {
                     ImDrawIdx idx       = idx_buffer[pcmd->IdxOffset + i];
@@ -576,10 +582,59 @@ void render_draw_data(ImDrawData *draw_data)
     }
 
     g_gpu->enable_scissor_test(false);
-    g_gpu->set_matrix_mode(zabato::matrix_mode::projection);
+    g_gpu->set_matrix_mode(matrix_mode::projection);
     g_gpu->pop_matrix();
-    g_gpu->set_matrix_mode(zabato::matrix_mode::modelview);
+    g_gpu->set_matrix_mode(matrix_mode::modelview);
     g_gpu->pop_matrix();
 }
+
+// Wrapper callbacks for ImGuiSettingsHandler
+static void *settings_read_open_wrapper(ImGuiContext *,
+                                        ImGuiSettingsHandler *handler,
+                                        const char *name)
+{
+    auto *user_handler = (settings_handler *)handler->UserData;
+    if (user_handler->read_open_fn)
+        return user_handler->read_open_fn(user_handler->user_data, name);
+    return nullptr;
+}
+
+static void settings_read_line_wrapper(ImGuiContext *,
+                                       ImGuiSettingsHandler *handler,
+                                       void *entry,
+                                       const char *line)
+{
+    auto *user_handler = (settings_handler *)handler->UserData;
+    if (user_handler->read_line_fn)
+        user_handler->read_line_fn(user_handler->user_data, entry, line);
+}
+
+static void settings_write_all_wrapper(ImGuiContext *,
+                                       ImGuiSettingsHandler *handler,
+                                       ImGuiTextBuffer *out_buf)
+{
+    auto *user_handler = (settings_handler *)handler->UserData;
+    if (user_handler->write_all_fn)
+        user_handler->write_all_fn(user_handler->user_data, out_buf);
+}
+
+void add_settings_handler(const settings_handler &handler)
+{
+    static vector<settings_handler> s_handlers;
+    s_handlers.push_back(handler);
+    settings_handler *stored_handler = &s_handlers.back();
+
+    ImGuiSettingsHandler imgui_handler;
+    imgui_handler.TypeName   = stored_handler->type_name;
+    imgui_handler.TypeHash   = stored_handler->type_hash;
+    imgui_handler.UserData   = stored_handler;
+    imgui_handler.ReadOpenFn = settings_read_open_wrapper;
+    imgui_handler.ReadLineFn = settings_read_line_wrapper;
+    imgui_handler.WriteAllFn = settings_write_all_wrapper;
+
+    ImGui::AddSettingsHandler(&imgui_handler);
+}
+
+uint32_t hash_string(const char *str) { return ImHashStr(str); }
 
 } // namespace zabato::imgui
