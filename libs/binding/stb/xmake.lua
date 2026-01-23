@@ -1,6 +1,3 @@
-add_requires("stb")
-add_requires("tinyxml2")
-
 target("zabato_stb")
     set_kind("static")
     set_languages("c++23")

@@ -1,5 +1,3 @@
-add_requires("tinyxml2")
-
 target("zabato")
     set_languages("c++23")
     set_kind("shared")

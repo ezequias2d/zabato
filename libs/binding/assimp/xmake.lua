@@ -1,6 +1,3 @@
-add_requires("assimp")
-add_requires("tinyxml2")
-
 target("zabato_assimp")
     set_kind("shared")
     set_languages("c++23")

@@ -1,6 +1,3 @@
-add_requires("lua")
-add_requires("tinyxml2")
-
 target("zabato_lua")
     set_kind("static")
     add_files("src/*.cpp")
