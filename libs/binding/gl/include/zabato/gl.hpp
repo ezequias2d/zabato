@@ -110,6 +110,7 @@ public:
     void scale(real x, real y, real z) override;
     void load_identity() override;
     void load_matrix(const mat4<real> &m) override;
+    void mult_matrix(const mat4<real> &m) override;
     void push_matrix() override;
     void pop_matrix() override;
 

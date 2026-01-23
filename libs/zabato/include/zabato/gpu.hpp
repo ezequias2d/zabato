@@ -341,6 +341,7 @@ public:
     virtual void scale(real x, real y, real z)                  = 0;
     virtual void load_identity()                                = 0;
     virtual void load_matrix(const mat4<real> &m)               = 0;
+    virtual void mult_matrix(const mat4<real> &m)               = 0;
     virtual void push_matrix()                                  = 0;
     virtual void pop_matrix()                                   = 0;
 

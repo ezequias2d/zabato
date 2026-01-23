@@ -502,6 +502,11 @@ void GlGpu::load_matrix(const mat4<real> &m)
     mat4<float> fm(m);
     glLoadMatrixf(&fm.m00);
 }
+void GlGpu::mult_matrix(const mat4<real> &m)
+{
+    mat4<float> fm(m);
+    glMultMatrixf(&fm.m00);
+}
 void GlGpu::push_matrix() { glPushMatrix(); }
 void GlGpu::pop_matrix() { glPopMatrix(); }
 
