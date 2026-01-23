@@ -140,11 +140,8 @@ void lua_script_instance::on_message(const game_message &msg)
         lua_newtable(m_L);
 
         // msg_id (symbol) -> string
-        if (msg.msg_id)
-        {
-            lua_pushstring(m_L, get_symbol_name(msg.msg_id));
-            lua_setfield(m_L, -2, "id");
-        }
+        lua_pushstring(m_L, get_symbol_name(msg.msg_id));
+        lua_setfield(m_L, -2, "id");
 
         // sender_id (uuid) -> string
         string sender = msg.sender_id.to_string();
@@ -1136,7 +1133,8 @@ public:
         push_value_to_lua(L, key);
         lua_gettable(L, -2);
 
-        value res(zabato::make_shared<lua_value>(L, -1, true));
+        value res(static_cast<shared_ptr<ivalue>>(
+            make_shared<lua_value>(L, -1, true)));
         lua_pop(L, 2);
         return res;
     }
@@ -1335,7 +1333,8 @@ public:
         lua_gettable(L, -2);
 
         // Result is on stack. Capture it into a NEW lua_value.
-        value res(make_shared<lua_value>(L, -1, true));
+        value res(static_cast<shared_ptr<ivalue>>(
+            make_shared<lua_value>(L, -1, true)));
         lua_pop(L, 2); // Pop result and table
         return res;
     }
@@ -1366,7 +1365,8 @@ public:
         }
 
         lua_rawgeti(L, -1, index + 1); // Lua 1-based
-        value res(make_shared<lua_value>(L, -1, true));
+        value res(static_cast<shared_ptr<ivalue>>(
+            make_shared<lua_value>(L, -1, true)));
         lua_pop(L, 2);
         return res;
     }
@@ -1776,7 +1776,8 @@ static void push_value_to_lua(lua_State *L, const value &val)
 
 script_value lua_script_system::to_value(int index)
 {
-    return script_value(make_shared<lua_value>(m_L, index, true));
+    return script_value(static_cast<shared_ptr<ivalue>>(
+        make_shared<lua_value>(m_L, index, true)));
 }
 
 void lua_script_system::push_value(const value &val)
@@ -1877,7 +1878,8 @@ struct lua_iterator : public iterator
         {
             lua_pushvalue(m_thread_L, 3); // Key
             lua_xmove(m_thread_L, m_main_L, 1);
-            value res(make_shared<lua_value>(m_main_L, -1, true));
+            value res(static_cast<shared_ptr<ivalue>>(
+                make_shared<lua_value>(m_main_L, -1, true)));
             lua_pop(m_main_L, 1);
             return res;
         }
@@ -1891,7 +1893,8 @@ struct lua_iterator : public iterator
             // Value is at Slot 5 due to Closing var at 4
             lua_pushvalue(m_thread_L, 5); // Value
             lua_xmove(m_thread_L, m_main_L, 1);
-            value res(make_shared<lua_value>(m_main_L, -1, true));
+            value res(static_cast<shared_ptr<ivalue>>(
+                make_shared<lua_value>(m_main_L, -1, true)));
             lua_pop(m_main_L, 1);
             return res;
         }

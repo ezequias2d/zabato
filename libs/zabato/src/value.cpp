@@ -45,13 +45,14 @@ value value::make_map()
 {
     auto v = make_shared<native_value>();
     v->init_map();
-    return value(v);
+    return value(static_cast<shared_ptr<ivalue>>(v));
 }
+
 value value::make_list()
 {
     auto v = make_shared<native_value>();
     v->init_list();
-    return value(v);
+    return value(static_cast<shared_ptr<ivalue>>(v));
 }
 
 void value::call(script_system *sys,

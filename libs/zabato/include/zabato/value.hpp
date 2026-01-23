@@ -300,6 +300,32 @@ struct value
     }
 };
 
+template <> struct hash<value>
+{
+    size_t operator()(const value &v) const
+    {
+        if (v.is_string())
+        {
+            string_view s = v.as_string();
+            return hash<const char *>()(s.data(), s.length());
+        }
+        if (v.is_int())
+        {
+            return hash<int64_t>()(v.as_int());
+        }
+
+        const size_t size  = sizeof(value);
+        const uint8_t *str = reinterpret_cast<const uint8_t *>(&v);
+        uint32_t h         = 2166136261u;
+        for (size_t i = 0; i < size; i++)
+        {
+            h ^= str[i];
+            h *= 16777619;
+        }
+        return h;
+    }
+};
+
 #pragma region Native Implementation
 class native_value : public ivalue
 {
