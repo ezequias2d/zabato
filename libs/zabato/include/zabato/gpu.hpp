@@ -100,6 +100,14 @@ enum class blend_factor : uint8_t
     src_alpha_saturate,
 };
 
+/** @brief Polygon rasterization modes. */
+enum class polygon_mode : uint8_t
+{
+    point,
+    line,
+    fill,
+};
+
 static inline const char *color_format_name(color_format format)
 {
     switch (format)
@@ -383,16 +391,18 @@ public:
 #pragma endregion
 
     // New methods for ImGui support
-    virtual void enable_depth_test(bool enabled)                        = 0;
-    virtual void set_depth_func(depth_func func)                        = 0;
-    virtual void set_depth_write(bool enabled)                          = 0;
-    virtual void enable_alpha_test(bool enabled)                        = 0;
-    virtual void set_alpha_func(alpha_func func, real ref)              = 0;
-    virtual void enable_blend(bool enabled)                             = 0;
-    virtual void set_blend_func(blend_factor src, blend_factor dst)     = 0;
-    virtual void enable_scissor_test(bool enabled)                      = 0;
-    virtual void set_scissor(int x, int y, int width, int height)       = 0;
-    virtual void set_viewport_rect(int x, int y, int width, int height) = 0;
+    virtual void enable_depth_test(bool enabled)                           = 0;
+    virtual void set_depth_func(depth_func func)                           = 0;
+    virtual void set_depth_write(bool enabled)                             = 0;
+    virtual void enable_alpha_test(bool enabled)                           = 0;
+    virtual void set_alpha_func(alpha_func func, real ref)                 = 0;
+    virtual void enable_blend(bool enabled)                                = 0;
+    virtual void set_blend_func(blend_factor src, blend_factor dst)        = 0;
+    virtual void enable_scissor_test(bool enabled)                         = 0;
+    virtual void set_scissor(int x, int y, int width, int height)          = 0;
+    virtual void set_viewport_rect(int x, int y, int width, int height)    = 0;
+    virtual void set_polygon_mode(polygon_mode mode)                       = 0;
+    virtual void set_polygon_offset(bool enabled, real factor, real units) = 0;
 };
 
 #pragma region Global API Functions

@@ -659,6 +659,81 @@ void GlGpu::enable_depth_test(bool enabled)
         glDisable(GL_DEPTH_TEST);
 }
 
+GLenum to_gl_depth_func(depth_func df)
+{
+    switch (df)
+    {
+    case depth_func::never:
+        return GL_NEVER;
+    case depth_func::less:
+        return GL_LESS;
+    case depth_func::equal:
+        return GL_EQUAL;
+    case depth_func::less_equal:
+        return GL_LEQUAL;
+    case depth_func::greater:
+        return GL_GREATER;
+    case depth_func::not_equal:
+        return GL_NOTEQUAL;
+    case depth_func::greater_equal:
+        return GL_GEQUAL;
+    case depth_func::always:
+        return GL_ALWAYS;
+    }
+    return GL_LESS;
+}
+
+void GlGpu::set_depth_func(depth_func func)
+{
+    glDepthFunc(to_gl_depth_func(func));
+}
+
+void GlGpu::set_depth_write(bool enabled)
+{
+    glDepthMask(enabled ? GL_TRUE : GL_FALSE);
+}
+
+void GlGpu::enable_alpha_test(bool enabled)
+{
+    if (enabled)
+        glEnable(GL_ALPHA_TEST);
+    else
+        glDisable(GL_ALPHA_TEST);
+}
+
+void GlGpu::set_alpha_func(alpha_func func, real ref)
+{
+    GLenum gl_func = GL_ALWAYS;
+    switch (func)
+    {
+    case alpha_func::never:
+        gl_func = GL_NEVER;
+        break;
+    case alpha_func::less:
+        gl_func = GL_LESS;
+        break;
+    case alpha_func::equal:
+        gl_func = GL_EQUAL;
+        break;
+    case alpha_func::less_equal:
+        gl_func = GL_LEQUAL;
+        break;
+    case alpha_func::greater:
+        gl_func = GL_GREATER;
+        break;
+    case alpha_func::not_equal:
+        gl_func = GL_NOTEQUAL;
+        break;
+    case alpha_func::greater_equal:
+        gl_func = GL_GEQUAL;
+        break;
+    case alpha_func::always:
+        gl_func = GL_ALWAYS;
+        break;
+    }
+    glAlphaFunc(gl_func, float(ref));
+}
+
 void GlGpu::enable_blend(bool enabled)
 {
     if (enabled)
@@ -691,6 +766,42 @@ void GlGpu::set_scissor(int x, int y, int width, int height)
 void GlGpu::set_viewport_rect(int x, int y, int width, int height)
 {
     glViewport(x, y, width, height);
+}
+
+GLenum to_gl_polygon_mode(polygon_mode pm)
+{
+    switch (pm)
+    {
+    case polygon_mode::point:
+        return GL_POINT;
+    case polygon_mode::line:
+        return GL_LINE;
+    case polygon_mode::fill:
+        return GL_FILL;
+    }
+    return GL_FILL;
+}
+
+void GlGpu::set_polygon_mode(polygon_mode mode)
+{
+    glPolygonMode(GL_FRONT_AND_BACK, to_gl_polygon_mode(mode));
+}
+
+void GlGpu::set_polygon_offset(bool enabled, real factor, real units)
+{
+    if (enabled)
+    {
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glEnable(GL_POLYGON_OFFSET_LINE);
+        glEnable(GL_POLYGON_OFFSET_POINT);
+        glPolygonOffset(float(factor), float(units));
+    }
+    else
+    {
+        glDisable(GL_POLYGON_OFFSET_FILL);
+        glDisable(GL_POLYGON_OFFSET_LINE);
+        glDisable(GL_POLYGON_OFFSET_POINT);
+    }
 }
 
 gpu *init_gpu()

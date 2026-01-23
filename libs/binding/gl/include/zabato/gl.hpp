@@ -138,11 +138,17 @@ public:
     void set_fog_color(const struct color &c) override;
 
     void enable_depth_test(bool enabled) override;
+    void set_depth_func(depth_func func) override;
+    void set_depth_write(bool enabled) override;
+    void enable_alpha_test(bool enabled) override;
+    void set_alpha_func(alpha_func func, real ref) override;
     void enable_blend(bool enabled) override;
     void set_blend_func(blend_factor src, blend_factor dst) override;
     void enable_scissor_test(bool enabled) override;
     void set_scissor(int x, int y, int width, int height) override;
     void set_viewport_rect(int x, int y, int width, int height) override;
+    void set_polygon_mode(polygon_mode mode) override;
+    void set_polygon_offset(bool enabled, real factor, real units) override;
 };
 
 /**
