@@ -410,7 +410,9 @@ public:
      * @param bones Optional list of bone nodes for skeletal animation.
      *              If provided, it must match the mesh's bone count and order.
      */
-    void render(gpu &gpu, const vector<spatial *> &bones = {}) const;
+    void render(gpu &gpu,
+                const vector<spatial *> &bones = {},
+                const color *override_color    = nullptr) const;
 
 private:
     vector<uint8_t> m_data;
@@ -507,7 +509,8 @@ private:
                        bool has_bone,
                        gpu &gpu,
                        size_t index,
-                       const vector<mat4<real>> *final_bone_matrices) const
+                       const vector<mat4<real>> *final_bone_matrices,
+                       const color *override_color = nullptr) const
     {
         if (has_normal)
         {
@@ -516,7 +519,9 @@ private:
             gpu.normal(normal);
         }
 
-        if (has_color)
+        if (override_color)
+            gpu.color(*override_color);
+        else if (has_color)
         {
             color c = {};
             get_color(index, c);

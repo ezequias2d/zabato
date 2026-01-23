@@ -18,6 +18,8 @@ enum class primitive_type : uint8_t
     triangles,
     points,
     lines,
+    triangle_fan,
+    triangle_strip,
 };
 
 /** @brief The target matrix for transform operations. */

@@ -39,6 +39,10 @@ GLenum to_gl_primitive_type(primitive_type pt)
         return GL_POINTS;
     case primitive_type::lines:
         return GL_LINES;
+    case primitive_type::triangle_fan:
+        return GL_TRIANGLE_FAN;
+    case primitive_type::triangle_strip:
+        return GL_TRIANGLE_STRIP;
     }
     return 0;
 }
