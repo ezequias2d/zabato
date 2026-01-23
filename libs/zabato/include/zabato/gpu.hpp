@@ -314,6 +314,7 @@ public:
     virtual void tex_coord(const vec2<real> &uv)                 = 0;
     virtual void tex_coord(real u, real v)                       = 0;
     virtual void clear(const struct color &c, real depth)        = 0;
+    virtual void clear_depth(real depth)                         = 0;
     virtual void viewport(int width, int height)                 = 0;
 
     virtual void push_state() = 0;
@@ -369,6 +370,12 @@ public:
                                             uint16_t height) = 0;
     virtual void bind_framebuffer(framebuffer *fb)           = 0;
     virtual void unbind_framebuffer()                        = 0;
+    virtual void read_pixels(int x,
+                             int y,
+                             int width,
+                             int height,
+                             color_format format,
+                             void *pixels)                   = 0;
 
 #pragma endregion
 

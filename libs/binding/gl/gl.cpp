@@ -435,6 +435,12 @@ void GlGpu::clear(const struct color &c, real depth)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
+void GlGpu::clear_depth(real depth)
+{
+    glClearDepth(float(depth));
+    glClear(GL_DEPTH_BUFFER_BIT);
+}
+
 void GlGpu::viewport(int width, int height) { glViewport(0, 0, width, height); }
 
 void GlGpu::push_state() { glPushAttrib(GL_ALL_ATTRIB_BITS); }
@@ -588,6 +594,31 @@ void GlGpu::bind_framebuffer(framebuffer *fb)
 }
 
 void GlGpu::unbind_framebuffer() { glBindFramebuffer(GL_FRAMEBUFFER, 0); }
+
+void GlGpu::read_pixels(int x,
+                        int y,
+                        int width,
+                        int height,
+                        color_format format,
+                        void *pixels)
+{
+    GLenum gl_format = GL_RGBA;
+    GLenum gl_type   = GL_UNSIGNED_BYTE;
+
+    switch (format)
+    {
+    case color_format::rgba8888:
+        gl_format = GL_RGBA;
+        gl_type   = GL_UNSIGNED_BYTE;
+        break;
+    default:
+        assert(0 && "Invalid color format");
+        // TODO: support other formats
+        break;
+    }
+
+    glReadPixels(x, y, width, height, gl_format, gl_type, pixels);
+}
 
 display_list *GlGpu::create_display_list() { return new GlDisplayList(); }
 

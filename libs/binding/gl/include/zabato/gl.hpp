@@ -89,6 +89,7 @@ public:
     void tex_coord(const vec2<real> &uv) override;
     void tex_coord(real u, real v) override;
     void clear(const struct color &c, real depth) override;
+    void clear_depth(real depth) override;
     void viewport(int width, int height) override;
     void push_state() override;
     void pop_state() override;
@@ -126,6 +127,12 @@ public:
     framebuffer *create_framebuffer(uint16_t width, uint16_t height) override;
     void bind_framebuffer(framebuffer *fb) override;
     void unbind_framebuffer() override;
+    void read_pixels(int x,
+                     int y,
+                     int width,
+                     int height,
+                     color_format format,
+                     void *pixels) override;
 
     display_list *create_display_list() override;
     void begin_display_list(display_list *list) override;
