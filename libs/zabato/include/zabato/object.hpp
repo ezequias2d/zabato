@@ -9,7 +9,6 @@
 #include <zabato/uuid.hpp>
 #include <zabato/value.hpp>
 #include <zabato/vector.hpp>
-#include <zabato/xml_serializer.hpp>
 
 namespace zabato
 {
@@ -20,6 +19,7 @@ class string_tree;
 class world;
 class controller;
 struct symbol;
+class resource_manager;
 
 template <class T> class pointer;
 
@@ -112,7 +112,7 @@ public:
      * @param name The symbol to search for.
      * @return Pointer to the object if found, nullptr otherwise.
      */
-    virtual object *get_object_by_name(const symbol *name);
+    virtual object *get_object_by_name(const symbol_ref &name);
 
     /**
      * @brief Collect all objects with a specific name.
@@ -127,7 +127,7 @@ public:
      * @param name The symbol to search for.
      * @param objects Vector to populate with found objects.
      */
-    virtual void get_all_objects_by_name(const symbol *name,
+    virtual void get_all_objects_by_name(const symbol_ref &name,
                                          vector<object *> &objects);
 #pragma endregion Name
 
@@ -351,7 +351,7 @@ public:
 #pragma endregion Controllers
 
 private:
-    symbol *m_name;
+    symbol_ref m_name;
     uuid m_uiID;
     unsigned int m_uiRefCount;
 

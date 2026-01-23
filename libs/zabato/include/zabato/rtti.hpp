@@ -27,10 +27,9 @@ public:
      * @param setup Callback to populate reflection data.
      */
     rtti(const char *name, const rtti *base_type, reflect_cb setup = nullptr)
-        : m_reflection(nullptr), m_setup(setup)
+        : m_reflection(nullptr), m_name(name), m_base_type(base_type),
+          m_setup(setup)
     {
-        m_name      = get_symbol(name);
-        m_base_type = base_type;
     }
 
     rtti(const rtti &)            = delete;
@@ -42,12 +41,7 @@ public:
      * @brief Get the name of the type.
      * @return The type name.
      */
-    const char *name() const
-    {
-        if (m_name)
-            return get_symbol_name(m_name);
-        return "";
-    }
+    const char *name() const { return m_name.c_str(); }
 
     /**
      * @brief Get the base type RTTI.
@@ -84,7 +78,7 @@ public:
     const reflection *get_reflection() const { return m_reflection; }
 
 private:
-    symbol *m_name;
+    symbol_ref m_name;
     const rtti *m_base_type;
     mutable reflection *m_reflection;
     reflect_cb m_setup;

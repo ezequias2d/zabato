@@ -6,8 +6,6 @@ namespace zabato
 
 rtti::~rtti()
 {
-    if (m_name)
-        release_symbol(m_name);
     if (m_reflection)
         delete m_reflection;
 }

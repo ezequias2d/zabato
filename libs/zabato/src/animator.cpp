@@ -217,7 +217,7 @@ void animator::update(real delta_time)
                 if (fired)
                 {
                     game_message msg;
-                    msg.msg_id      = get_symbol(key.name.c_str());
+                    msg.msg_id      = key.name.c_str();
                     msg.sender_id   = 0;
                     msg.receiver_id = 0;
 

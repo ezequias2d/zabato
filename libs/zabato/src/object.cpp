@@ -20,18 +20,12 @@ hash_map<uuid, object *> object::s_in_use;
 hash_map<string, object::factory_delegate> *object::s_factory         = nullptr;
 hash_map<string, object::factory_delegate_xml> *object::s_factory_xml = nullptr;
 
-object::object() : m_name(nullptr), m_uiID(uuid::generate()), m_uiRefCount(0)
+object::object() : m_name(""), m_uiID(uuid::generate()), m_uiRefCount(0)
 {
     s_in_use.add(m_uiID, this);
 }
 
-object::~object()
-{
-    s_in_use.erase(m_uiID);
-
-    if (m_name)
-        release_symbol(m_name);
-}
+object::~object() { s_in_use.erase(m_uiID); }
 
 bool object::register_factory()
 {
@@ -304,12 +298,7 @@ void object::save_strings(string_tree *tree)
     tree->set_text(acBuffer);
 }
 
-void object::set_name(const char *name)
-{
-    if (m_name)
-        release_symbol(m_name);
-    m_name = get_symbol(name);
-}
+void object::set_name(const char *name) { m_name = name; }
 
 void object::add_controller(pointer<controller> ctrl)
 {
@@ -367,38 +356,21 @@ void object::get_controllers(const rtti &type,
             out_controllers.push_back(c);
 }
 
-void object::set_name(symbol *name)
-{
-    if (m_name)
-        release_symbol(m_name);
+void object::set_name(symbol *name) { m_name = name; }
 
-    m_name = name;
-    if (m_name)
-        ref_symbol(m_name);
-}
-
-const char *object::name() const
-{
-    if (m_name)
-        return get_symbol_name(m_name);
-    return "";
-}
+const char *object::name() const { return m_name.c_str(); }
 
 object *object::get_object_by_name(const char *name)
 {
     if (!name || name[0] == '\0')
         return nullptr;
 
-    symbol *s = get_symbol(name);
-    if (!s)
-        return nullptr;
-
-    object *obj = get_object_by_name(s);
-    release_symbol(s);
+    symbol_ref s = name;
+    object *obj  = get_object_by_name(s);
     return obj;
 }
 
-object *object::get_object_by_name(const symbol *name)
+object *object::get_object_by_name(const symbol_ref &name)
 {
     if (m_name == name)
         return this;
@@ -411,15 +383,11 @@ void object::get_all_objects_by_name(const char *name,
     if (!name || name[0] == '\0')
         return;
 
-    symbol *s = get_symbol(name);
-    if (!s)
-        return;
-
+    symbol_ref s = name;
     get_all_objects_by_name(s, objects);
-    release_symbol(s);
 }
 
-void object::get_all_objects_by_name(const symbol *name,
+void object::get_all_objects_by_name(const symbol_ref &name,
                                      vector<object *> &objects)
 {
     if (m_name == name)

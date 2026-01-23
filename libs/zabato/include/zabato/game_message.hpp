@@ -14,7 +14,7 @@ const size_t QUEUE_SIZE = 256;
 
 struct game_message
 {
-    symbol *msg_id;
+    symbol_ref msg_id;
     uuid sender_id;
     uuid receiver_id;
     value data;
