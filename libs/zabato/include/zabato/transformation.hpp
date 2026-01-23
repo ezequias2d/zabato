@@ -39,6 +39,12 @@ public:
 
     vec3<real> scale() const { return m_scale; }
 
+    vec3<real> right() const { return m_rotation * vec3<real>(1, 0, 0); }
+
+    vec3<real> up() const { return m_rotation * vec3<real>(0, 1, 0); }
+
+    vec3<real> forward() const { return m_rotation * vec3<real>(0, 0, 1); }
+
     real get_min_scale() const
     {
         if (m_is_uniform_scale)
