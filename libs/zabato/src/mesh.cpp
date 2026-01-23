@@ -12,7 +12,9 @@ const rtti mesh::TYPE("zabato.mesh", &resource::TYPE);
  * rendered with skeletal animation. If null, it is rendered in its bind
  * pose.
  */
-void mesh::render(gpu &gpu, const vector<spatial *> &bones) const
+void mesh::render(gpu &gpu,
+                  const vector<spatial *> &bones,
+                  const color *override_color) const
 {
     const auto primitive_type = get_primitive_type();
 
@@ -74,7 +76,8 @@ void mesh::render(gpu &gpu, const vector<spatial *> &bones) const
                        has_bone,
                        gpu,
                        index,
-                       matrices_ptr);
+                       matrices_ptr,
+                       override_color);
             }
         }
         break;
@@ -92,7 +95,8 @@ void mesh::render(gpu &gpu, const vector<spatial *> &bones) const
                        has_bone,
                        gpu,
                        index,
-                       matrices_ptr);
+                       matrices_ptr,
+                       override_color);
             }
         }
         break;
@@ -108,7 +112,8 @@ void mesh::render(gpu &gpu, const vector<spatial *> &bones) const
                    has_bone,
                    gpu,
                    index,
-                   matrices_ptr);
+                   matrices_ptr,
+                   override_color);
         }
     case primitive_type::lines:
         for (size_t i = 0; i < primitive_count; ++i)
@@ -124,9 +129,13 @@ void mesh::render(gpu &gpu, const vector<spatial *> &bones) const
                        has_bone,
                        gpu,
                        index,
-                       matrices_ptr);
+                       matrices_ptr,
+                       override_color);
             }
         }
+        break;
+    default:
+        assert(0 && "unsupported mesh primitive");
         break;
     }
     gpu.end();
