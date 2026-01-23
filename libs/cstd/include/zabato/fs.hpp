@@ -130,6 +130,14 @@ public:
      */
     virtual vector<file_info> ls(string_view path) = 0;
 
+    /**
+     * @brief Gets information about a specific file or directory.
+     * @param path The path to the item.
+     * @return A file_info struct with details, or empty/zeroed struct if not
+     * found.
+     */
+    virtual file_info get_info(string_view path) = 0;
+
     /** @brief Checks if the path points to a directory. */
     virtual bool is_dir(string_view path) = 0;
     /** @brief Checks if the path points to a file. */
@@ -265,6 +273,15 @@ public:
         auto [fs, relative_path] = resolve(path);
         if (fs)
             return fs->ls(relative_path);
+        return {};
+    }
+
+    /** @copydoc file_system::get_info */
+    file_info get_info(string_view path) override
+    {
+        auto [fs, relative_path] = resolve(path);
+        if (fs)
+            return fs->get_info(relative_path);
         return {};
     }
 

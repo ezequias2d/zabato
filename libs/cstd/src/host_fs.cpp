@@ -82,7 +82,7 @@ struct host_fs_internal
 
 static std_fs::path to_path(const string_view &sv)
 {
-    return std_fs::path(std::string(sv.data(), sv.length()));
+    return std_fs::path(std::string(sv.data(), sv.length())).make_preferred();
 }
 
 result<host_fs *> host_fs::create(string_view root_path)
@@ -165,6 +165,55 @@ vector<file_info> host_fs::ls(string_view path)
         results.push_back(fi);
     }
     return results;
+}
+
+file_info host_fs::get_info(string_view path)
+{
+    auto impl = static_cast<host_fs_internal *>(m_data);
+    file_info fi;
+
+    auto [safe, target] = resolve_safe(impl->root, path);
+    if (!safe || !std_fs::exists(target))
+        return fi;
+
+    fi.name = target.filename().string().c_str();
+
+    std::error_code ec;
+    if (std_fs::is_directory(target))
+    {
+        fi.is_dir = true;
+        fi.size   = 0;
+        try
+        {
+            for (const auto &entry : std_fs::recursive_directory_iterator(
+                     target, std_fs::directory_options::skip_permission_denied))
+            {
+                if (entry.is_symlink())
+                    continue;
+
+                if (entry.is_regular_file())
+                {
+                    fi.size += entry.file_size(ec);
+                    if (ec)
+                        ec.clear();
+                }
+            }
+        }
+        catch (...)
+        {
+        }
+    }
+    else
+    {
+        fi.is_dir = false;
+        fi.size   = std_fs::file_size(target, ec);
+    }
+
+    auto perms = std_fs::status(target).permissions();
+    fi.is_read_only =
+        (perms & std_fs::perms::owner_write) == std_fs::perms::none;
+
+    return fi;
 }
 
 bool host_fs::remove(string_view path)

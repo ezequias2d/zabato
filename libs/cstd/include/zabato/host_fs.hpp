@@ -17,6 +17,7 @@ private:
 
     file *open(string_view path, open_mode mode) override;
     vector<file_info> ls(string_view path) override;
+    file_info get_info(string_view path) override;
     bool remove(string_view path) override;
     bool mkdir(string_view path) override;
     bool exists(string_view path) override;
