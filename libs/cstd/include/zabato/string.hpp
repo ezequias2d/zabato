@@ -250,12 +250,6 @@ public:
             allocate_large(len);
             memcpy(large.data, s, len);
             large.data[len] = '\0';
-
-            large.data = static_cast<char *>(m_allocator.allocate(len + 1));
-            memcpy(large.data, s, len);
-            large.data[len] = '\0';
-            large.size      = len;
-            large.capacity  = len << 1;
         }
     }
 
@@ -271,11 +265,9 @@ public:
         }
         else
         {
-            large.data = static_cast<char *>(m_allocator.allocate(len + 1));
+            allocate_large(len);
             memcpy(large.data, s, len);
             large.data[len] = '\0';
-            large.size      = len;
-            large.capacity  = len << 1;
         }
     }
 
@@ -291,11 +283,8 @@ public:
         }
         else
         {
-            size_t size = other.large.size + 1;
-            large.data  = static_cast<char *>(m_allocator.allocate(size));
-            memcpy(large.data, other.large.data, size);
-            large.size     = other.large.size;
-            large.capacity = other.large.capacity;
+            allocate_large(other.large.size);
+            memcpy(large.data, other.large.data, other.large.size + 1);
         }
     }
 
