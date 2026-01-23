@@ -1,6 +1,7 @@
 #include <string.h>
 #include <tinyxml2.h>
 
+#include <zabato/model.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/script.hpp>
 #include <zabato/spatial.hpp>
@@ -178,4 +179,43 @@ void spatial::set_world(const transformation &world)
     }
 }
 
+void spatial::get_global_bounds(spatial *root,
+                                vec3<real> &min_pt,
+                                vec3<real> &max_pt,
+                                bool include_fallback_radius)
+{
+    if (!root)
+        return;
+
+    bool has_bound = false;
+    if (auto *mdl = c_dynamic_cast<model>(root))
+    {
+        auto *b = mdl->get_world_bound();
+        if (b && b->radius() > 0)
+        {
+            vec3<real> c = b->center();
+            real r       = b->radius();
+            min_pt       = min(min_pt, c - vec3<real>(r, r, r));
+            max_pt       = max(max_pt, c + vec3<real>(r, r, r));
+            has_bound    = true;
+        }
+    }
+
+    if (!has_bound && include_fallback_radius)
+    {
+        vec3<real> c = root->get_world_transform().translate();
+        real r       = 0.5f;
+        min_pt       = min(min_pt, c - vec3<real>(r, r, r));
+        max_pt       = max(max_pt, c + vec3<real>(r, r, r));
+    }
+
+    if (auto *n = c_dynamic_cast<node>(root))
+    {
+        for (int i = 0; i < n->quantity(); ++i)
+        {
+            get_global_bounds(
+                n->child_at(i), min_pt, max_pt, include_fallback_radius);
+        }
+    }
+}
 } // namespace zabato

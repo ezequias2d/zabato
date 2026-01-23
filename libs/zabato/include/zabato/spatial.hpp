@@ -13,6 +13,10 @@ class spatial : public object
 public:
     static const rtti TYPE;
     static void reflect(reflection &r);
+    static void get_global_bounds(spatial *root,
+                                  vec3<real> &min_pt,
+                                  vec3<real> &max_pt,
+                                  bool include_fallback_radius = false);
 
     const rtti &type() const override { return TYPE; }
 
