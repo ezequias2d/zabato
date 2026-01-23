@@ -7,7 +7,7 @@
 namespace zabato
 {
 
-const rtti light::TYPE("zabato::light", &spatial::TYPE, light::reflect);
+const rtti light::TYPE("zabato.light", &spatial::TYPE, light::reflect);
 
 static void
 light_type_getter(script_system *, script_instance *, script_args *args)
@@ -107,12 +107,264 @@ light_diffuse_setter(script_system *, script_instance *, script_args *args)
     }
 }
 
+static void is_spot(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+    {
+        args->push_return(false);
+        return;
+    }
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    if (l && l->get_data().type == light_type::spot)
+        args->push_return(true);
+    else
+        args->push_return(false);
+}
+
+static void
+light_specular_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    if (l)
+    {
+        color5551 c = l->get_data().specular;
+        value v     = color(c);
+        args->push_return(v);
+    }
+}
+
+static void
+light_specular_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    value v2  = args->get_value(1);
+    if (l && v2.is_color())
+    {
+        light_data d = l->get_data();
+        d.specular   = color5551(v2.as_color());
+        l->set_data(d);
+    }
+}
+
+static void
+light_cutoff_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    if (l)
+        args->push_return((double)l->get_data().spot_cutoff);
+}
+
+static void
+light_cutoff_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    value v2  = args->get_value(1);
+    if (l && v2.is_number())
+    {
+        light_data d = l->get_data();
+        float val    = (float)v2.as_number();
+        if (val < 0.0f)
+            val = 0.0f;
+        if (val > 90.0f)
+            val = 90.0f;
+        d.spot_cutoff = val;
+        l->set_data(d);
+    }
+}
+
+static void
+light_exponent_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    if (l)
+        args->push_return((double)l->get_data().spot_exponent);
+}
+
+static void
+light_exponent_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    value v2  = args->get_value(1);
+    if (l && v2.is_number())
+    {
+        light_data d    = l->get_data();
+        d.spot_exponent = (float)v2.as_number();
+        l->set_data(d);
+    }
+}
+
+static void is_positional(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+    {
+        args->push_return(false);
+        return;
+    }
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    // Directional light (0) is not positional. Point (1) and Spot (2) are.
+    if (l && l->get_data().type != light_type::directional)
+        args->push_return(true);
+    else
+        args->push_return(false);
+}
+
+static void
+light_constant_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    if (l)
+        args->push_return((double)l->get_data().constant_attenuation);
+}
+
+static void
+light_constant_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    value v2  = args->get_value(1);
+    if (l && v2.is_number())
+    {
+        light_data d           = l->get_data();
+        d.constant_attenuation = (float)v2.as_number();
+        l->set_data(d);
+    }
+}
+
+static void
+light_linear_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    if (l)
+        args->push_return((double)l->get_data().linear_attenuation);
+}
+
+static void
+light_linear_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    value v2  = args->get_value(1);
+    if (l && v2.is_number())
+    {
+        light_data d         = l->get_data();
+        d.linear_attenuation = (float)v2.as_number();
+        l->set_data(d);
+    }
+}
+
+static void
+light_quadratic_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    if (l)
+        args->push_return((double)l->get_data().quadratic_attenuation);
+}
+
+static void
+light_quadratic_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    light *l  = c_dynamic_cast<light>(o);
+    value v2  = args->get_value(1);
+    if (l && v2.is_number())
+    {
+        light_data d            = l->get_data();
+        d.quadratic_attenuation = (float)v2.as_number();
+        l->set_data(d);
+    }
+}
+
 void light::reflect(reflection &r)
 {
     spatial::reflect(r);
-    r.properties.add("type", {light_type_getter, light_type_setter});
-    r.properties.add("ambient", {light_color_getter, light_ambient_setter});
-    r.properties.add("diffuse", {light_diffuse_getter, light_diffuse_setter});
+
+    value enum_list = value::make_list();
+    enum_list.push("Directional");
+    enum_list.push("Point");
+    enum_list.push("Spot");
+    value type_attrs = value::make_map();
+    type_attrs.set_field("enum", enum_list);
+
+    r.add_property("type", light_type_getter, light_type_setter, type_attrs);
+
+    r.add_property("ambient", light_color_getter, light_ambient_setter);
+    r.add_property("diffuse", light_diffuse_getter, light_diffuse_setter);
+    r.add_property("specular", light_specular_getter, light_specular_setter);
+
+    value spot_attrs = value::make_map();
+    spot_attrs.set_field("visible_if", value(is_spot));
+
+    r.add_property(
+        "spot_cutoff", light_cutoff_getter, light_cutoff_setter, spot_attrs);
+    r.add_property("spot_exponent",
+                   light_exponent_getter,
+                   light_exponent_setter,
+                   spot_attrs);
+
+    value pos_attrs = value::make_map();
+    pos_attrs.set_field("visible_if", value(is_positional));
+
+    r.add_property("constant_attenuation",
+                   light_constant_getter,
+                   light_constant_setter,
+                   pos_attrs);
+    r.add_property("linear_attenuation",
+                   light_linear_getter,
+                   light_linear_setter,
+                   pos_attrs);
+    r.add_property("quadratic_attenuation",
+                   light_quadratic_getter,
+                   light_quadratic_setter,
+                   pos_attrs);
 }
 
 light::light()

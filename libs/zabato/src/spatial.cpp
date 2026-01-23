@@ -87,9 +87,9 @@ static void spatial_scale_setter(script_system *sys,
 void spatial::reflect(reflection &r)
 {
     object::reflect(r);
-    r.properties.add("translation",
-                     {spatial_translate_getter, spatial_translate_setter});
-    r.properties.add("scale", {spatial_scale_getter, spatial_scale_setter});
+    r.add_property(
+        "translation", spatial_translate_getter, spatial_translate_setter);
+    r.add_property("scale", spatial_scale_getter, spatial_scale_setter);
 }
 
 void spatial::save_xml(xml_serializer &serializer,
