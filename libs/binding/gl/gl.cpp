@@ -289,6 +289,8 @@ GlFramebuffer::GlFramebuffer(uint16_t width, uint16_t height)
 {
     m_texture = new GlTexture(
         width, height, color_format::rgba8888); // Assuming 8888 for FBO
+    m_texture->load(width, height, color_format::rgba8888, 0, nullptr);
+
     glGenFramebuffers(1, &m_handle);
     glGenRenderbuffers(1, &m_depth_renderbuffer);
     update();
