@@ -247,9 +247,10 @@ private:
 template <class T, class Allocator = allocator<T>> class vector
 {
 public:
-    using allocator_type = Allocator;
-    using iterator       = vector_iterator<T>;
-    using const_iterator = const_vector_iterator<T>;
+    using allocator_type  = Allocator;
+    using iterator        = vector_iterator<T>;
+    using const_iterator  = const_vector_iterator<T>;
+    using difference_type = ptrdiff_t;
 
     /** @brief Constructs an empty vector with zero size and capacity. */
     vector() noexcept : m_data(nullptr), m_size(0), m_capacity(0), m_allocator()
@@ -341,7 +342,7 @@ public:
                 {
                     for (size_t i = 0; i < other.m_size; ++i)
                     {
-                        m_data[i] = other.m_data[i];
+                        new (&m_data[i]) T(other.m_data[i]);
                     }
                 }
                 m_size = other.m_size;
@@ -450,7 +451,15 @@ public:
             m_capacity = count;
         }
 
-        memcpy(m_data, first, count * sizeof(T));
+        if (is_pod<T>::value)
+        {
+            memcpy(m_data, first, count * sizeof(T));
+        }
+        else
+        {
+            for (size_t i = 0; i < count; ++i)
+                new (&m_data[i]) T(first[i]);
+        }
 
         m_size = count;
     }
@@ -473,6 +482,104 @@ public:
 
         new (&m_data[m_size]) T(zabato::move(value));
         ++m_size;
+    }
+
+    /** @brief Inserts an element at the specified position. */
+    iterator insert(const_iterator pos, const T &value)
+    {
+        auto diff    = pos - begin();
+        size_t index = static_cast<size_t>(diff);
+
+        if (m_size >= m_capacity)
+            reserve(m_capacity == 0 ? 8 : (m_capacity * 3) / 2);
+
+        if (index == m_size)
+        {
+            new (&m_data[m_size]) T(value);
+        }
+        else
+        {
+            // Construct new last element from the current last element
+            new (&m_data[m_size]) T(zabato::move(m_data[m_size - 1]));
+
+            // Shift elements to the right
+            for (size_t i = m_size - 1; i > index; --i)
+                m_data[i] = zabato::move(m_data[i - 1]);
+
+            // Assign value to the hole
+            m_data[index] = value;
+        }
+
+        ++m_size;
+        return begin() + diff;
+    }
+
+    /** @brief Inserts a range of elements at the specified position. */
+    template <typename InputIterator>
+    iterator insert(const_iterator pos, InputIterator first, InputIterator last)
+    {
+        auto diff    = pos - begin();
+        size_t index = static_cast<size_t>(diff);
+        size_t count = 0;
+        for (auto it = first; it != last; ++it)
+            count++;
+
+        if (count == 0)
+            return begin() + diff;
+
+        if (m_size + count > m_capacity)
+        {
+            size_t new_cap = m_capacity == 0 ? 8 : (m_capacity * 3) / 2;
+            if (new_cap < m_size + count)
+                new_cap = m_size + count;
+            reserve(new_cap);
+        }
+
+        // Shift existing elements
+        if (index < m_size)
+        {
+            if (is_pod<T>::value)
+            {
+                // memmove handles overlapping regions
+                memmove(m_data + index + count,
+                        m_data + index,
+                        (m_size - index) * sizeof(T));
+            }
+            else
+            {
+                // Move elements from back to front
+                for (int64_t i = (int64_t)m_size - 1; i >= (int64_t)index; --i)
+                {
+                    if (static_cast<size_t>(i) + count >= m_size)
+                        new (&m_data[i + count]) T(zabato::move(m_data[i]));
+                    else
+                        m_data[i + count] = zabato::move(m_data[i]);
+                }
+            }
+        }
+
+        // Copy new elements
+        T *dest = m_data + index;
+        if (is_pod<T>::value)
+        {
+            size_t i = 0;
+            for (auto it = first; it != last; ++it, ++i)
+                dest[i] = *it;
+        }
+        else
+        {
+            size_t i = 0;
+            for (auto it = first; it != last; ++it, ++i)
+            {
+                if (index + i >= m_size)
+                    new (&dest[i]) T(*it);
+                else
+                    dest[i] = *it;
+            }
+        }
+
+        m_size += count;
+        return begin() + diff;
     }
 
     /** @brief Constructs an element in-place at the end of the vector. */
@@ -524,6 +631,18 @@ public:
         }
 
         --m_size;
+    }
+
+    /**
+     * @brief Removes the element at the specified iterator position.
+     * @param pos Iterator to the element to remove.
+     * @return Iterator following the last removed element.
+     */
+    iterator erase(iterator pos)
+    {
+        ptrdiff_t diff = pos - begin();
+        remove_at(diff);
+        return iterator(m_data + diff);
     }
 
     /**

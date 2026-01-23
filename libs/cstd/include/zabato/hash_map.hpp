@@ -336,6 +336,23 @@ public:
     }
 
     /**
+     * @brief Finds an element with a specific key.
+     * @param key The key to search for.
+     * @return An iterator to the element if found, or end() otherwise.
+     */
+    iterator find(const Key &key)
+    {
+        if (m_size == 0)
+            return end();
+        entry *target = find_entry_internal(key);
+        if (target && target->state == entry_state::occupied)
+        {
+            return iterator(target, m_entries + m_capacity);
+        }
+        return end();
+    }
+
+    /**
      * @brief Removes an element from the map.
      * @param key The key of the element to remove.
      * @return True if an element was removed, false otherwise.
