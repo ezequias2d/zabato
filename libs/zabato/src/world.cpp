@@ -26,6 +26,18 @@ void world::set_scene_root(spatial *root)
     }
 }
 
+void world::clean()
+{
+    set_scene_root(nullptr);
+    m_models.clear();
+    m_lights.clear();
+
+    while (m_controller_head)
+    {
+        remove_controller(m_controller_head);
+    }
+}
+
 void world::register_model(model *mod)
 {
     if (std::find(m_models.begin(), m_models.end(), mod) == m_models.end())

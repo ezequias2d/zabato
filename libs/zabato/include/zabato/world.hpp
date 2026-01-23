@@ -79,6 +79,12 @@ public:
     void unregister_controllers_recursive(spatial *s);
 
     /**
+     * @brief Clean the world (remove all models, lights, controllers, and scene
+     * root).
+     */
+    void clean();
+
+    /**
      * @brief Update the world (scene graph transforms, animations, etc).
      * @param dt Delta time in seconds.
      */
