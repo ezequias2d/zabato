@@ -9,20 +9,15 @@
 
 namespace zabato::fs
 {
+string get_current_dir_path(void);
+string get_exe_path(void);
+string get_exe_dir_path(void);
 
 /**
  * @typedef origin
  * @brief Specifies the reference point for file seeking.
  */
 using origin = zabato::origin;
-
-/**
- * @class mount
- * @brief Tag class for filesystem mounting operations/types.
- */
-class mount
-{
-};
 
 /**
  * @brief Abstract interface representing an open file.
@@ -254,7 +249,7 @@ public:
     /** @copydoc file_system::open */
     file *open(string_view path, open_mode mode) override
     {
-        auto [fs, relative_path] = resolve(path);
+        auto [fs, mount_point, relative_path] = resolve(path);
         if (!fs)
             return nullptr;
         return fs->open(relative_path, mode);
@@ -263,23 +258,77 @@ public:
     /** @copydoc file_system::exists */
     bool exists(string_view path) override
     {
-        auto [fs, relative_path] = resolve(path);
+        auto [fs, mount_point, relative_path] = resolve(path);
+        if (fs == nullptr && relative_path.empty())
+            return true;
         return fs && fs->exists(relative_path);
     }
 
     /** @copydoc file_system::ls */
     vector<file_info> ls(string_view path) override
     {
-        auto [fs, relative_path] = resolve(path);
+        auto p = normalize(path);
+        if (!is_absolute(p))
+        {
+            p.prepend("/");
+            p = normalize(p);
+        }
+
+        auto [fs, mount_point, relative_path] = resolve(path);
+        vector<file_info> files;
         if (fs)
-            return fs->ls(relative_path);
-        return {};
+            files = move(fs->ls(relative_path));
+
+        for (const auto &mount : m_mounts)
+        {
+            if (mount.path.starts_with(p) && mount.path.length() > p.length())
+            {
+                // Use string_view to avoid allocations and enable remove_prefix
+                // Safe because mount.path lives in m_mounts
+                string_view remaining_sv =
+                    string_view(mount.path).substr(p.length());
+
+                // Skip leading separator if we are matching a subdirectory of p
+                if (remaining_sv.starts_with('/'))
+                    remaining_sv.remove_prefix(1);
+
+                if (remaining_sv.empty())
+                    continue;
+
+                auto pos = remaining_sv.find(PATH_SEP);
+                if (pos == string::npos)
+                    pos = remaining_sv.length();
+
+                string_view name_sv = remaining_sv.substr(0, pos);
+
+                bool exists = false;
+                for (const auto &f : files)
+                {
+                    if (f.name == name_sv)
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (exists)
+                    continue;
+
+                file_info info;
+                info.name         = name_sv;
+                info.size         = 0;
+                info.is_dir       = true;
+                info.is_read_only = true;
+                files.push_back(info);
+            }
+        }
+
+        return files;
     }
 
     /** @copydoc file_system::get_info */
     file_info get_info(string_view path) override
     {
-        auto [fs, relative_path] = resolve(path);
+        auto [fs, mount_point, relative_path] = resolve(path);
         if (fs)
             return fs->get_info(relative_path);
         return {};
@@ -292,35 +341,35 @@ public:
         if (path == "/" || path.empty())
             return true;
 
-        auto [fs, relative_path] = resolve(path);
+        auto [fs, mount_point, relative_path] = resolve(path);
         return fs && fs->is_dir(relative_path);
     }
 
     /** @copydoc file_system::is_file */
     bool is_file(string_view path) override
     {
-        auto [fs, relative_path] = resolve(path);
+        auto [fs, mount_point, relative_path] = resolve(path);
         return fs && fs->is_file(relative_path);
     }
 
     /** @copydoc file_system::is_read_only */
     bool is_read_only(string_view path) override
     {
-        auto [fs, relative_path] = resolve(path);
+        auto [fs, mount_point, relative_path] = resolve(path);
         return fs ? fs->is_read_only(relative_path) : true;
     }
 
     /** @copydoc file_system::mkdir */
     bool mkdir(string_view path) override
     {
-        auto [fs, relative_path] = resolve(path);
+        auto [fs, mount_point, relative_path] = resolve(path);
         return fs && fs->mkdir(relative_path);
     }
 
     /** @copydoc file_system::remove */
     bool remove(string_view path) override
     {
-        auto [fs, relative_path] = resolve(path);
+        auto [fs, mount_point, relative_path] = resolve(path);
         return fs && fs->remove(relative_path);
     }
 
@@ -336,7 +385,7 @@ private:
      * @brief Resolves a virtual path to a concrete filesystem and a relative
      * path within it. Uses path normalization to handle ".." and "." correctly.
      */
-    tuple<file_system *, string> resolve(string_view path) const
+    tuple<file_system *, string, string> resolve(string_view path) const
     {
         string normalized = normalize(path);
 
@@ -383,20 +432,20 @@ private:
                                .substr(longest_mount->path.length());
 
             if (sub_path.empty())
-                return {longest_mount->fs, "/"};
+                return {longest_mount->fs, longest_mount->path, "/"};
 
             if (sub_path.front() != '/')
             {
                 string res = "/";
                 res.reserve(sub_path.length() + 1);
                 res += sub_path;
-                return {longest_mount->fs, res};
+                return {longest_mount->fs, longest_mount->path, res};
             }
 
-            return {longest_mount->fs, string(sub_path)};
+            return {longest_mount->fs, longest_mount->path, string(sub_path)};
         }
 
-        return {nullptr, ""};
+        return {nullptr, "", ""};
     }
 };
 } // namespace zabato::fs
