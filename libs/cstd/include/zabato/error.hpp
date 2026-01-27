@@ -124,6 +124,10 @@ public:
     static const error_code path_not_found;
     /// @brief The operation is not implemented (-24).
     static const error_code not_implemented;
+    /// @brief Failed to require zshader (-25).
+    static const error_code failed_to_require_zshader;
+    /// @brief Failed to load zshader (-26).
+    static const error_code failed_to_load_zshader;
     /// @brief An unknown error occurred (-128).
     static const error_code unknown;
 
@@ -158,6 +162,8 @@ constexpr error_code error_code::invalid_path{-21};
 constexpr error_code error_code::file_not_found{-22};
 constexpr error_code error_code::path_not_found{-23};
 constexpr error_code error_code::not_implemented{-24};
+constexpr error_code error_code::failed_to_require_zshader{-25};
+constexpr error_code error_code::failed_to_load_zshader{-26};
 constexpr error_code error_code::unknown{-128};
 
 /**
@@ -279,6 +285,10 @@ inline const char *get_error_message(error_code error)
                "berg code: %d";
     case error_code::not_implemented:
         return "Not implemented";
+    case error_code::failed_to_require_zshader:
+        return "Failed to require zshader: %s";
+    case error_code::failed_to_load_zshader:
+        return "Failed to load zshader: %s";
     case error_code::unknown:
         return "Unknown error";
     default:

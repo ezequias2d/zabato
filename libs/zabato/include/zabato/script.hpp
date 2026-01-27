@@ -1,5 +1,6 @@
 #pragma once
 
+#include <zabato/console.hpp>
 #include <zabato/controller.hpp>
 #include <zabato/error.hpp>
 #include <zabato/fs.hpp>
@@ -159,7 +160,10 @@ protected:
 class script_system
 {
 public:
-    script_system(fs::file_system &fs) : m_fs(fs) {}
+    script_system(fs::file_system &fs, console &console)
+        : m_fs(fs), m_console(console)
+    {
+    }
     virtual ~script_system() = default;
 
     /** @brief Initialize the VM. */
@@ -210,6 +214,7 @@ public:
 
 protected:
     fs::file_system &m_fs;
+    console &m_console;
     void *m_user_data = nullptr;
 };
 

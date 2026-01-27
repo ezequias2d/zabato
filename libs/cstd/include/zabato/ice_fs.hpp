@@ -29,7 +29,7 @@ public:
     bool mkdir(string_view path) override;
 
 private:
-    file_stream m_stream;
+    cfile_stream m_stream;
     ice_reader m_reader;
     ice_writer m_writer;
 

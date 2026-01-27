@@ -182,6 +182,11 @@ template <typename T> struct vec2
      * @return Const reference to the component.
      */
     constexpr const T &operator[](int i) const { return (&x)[i]; }
+
+    constexpr vec2<T> xy() const { return vec2<T>(x, y); }
+    constexpr vec2<T> yx() const { return vec2<T>(y, x); }
+    constexpr vec2<T> xx() const { return vec2<T>(x, x); }
+    constexpr vec2<T> yy() const { return vec2<T>(y, y); }
 };
 
 /**
@@ -585,7 +590,7 @@ template <typename T> struct vec4
      * @brief Unary negation operator.
      * @return A new vector with negated components.
      */
-    constexpr vec4<T> operator-() const { return vec4<T>(-x, -y, -z); }
+    constexpr vec4<T> operator-() const { return vec4<T>(-x, -y, -z, -w); }
 
     /**
      * @brief Component-wise multiplication.
@@ -819,6 +824,12 @@ template <typename T> struct quat
     }
 
     /**
+     * @brief Constructs a quaternion from a vector.
+     * @param v The vector to construct the quaternion from.
+     */
+    constexpr quat(const vec4<T> &v) : x(v.x), y(v.y), z(v.z), w(v.w) {}
+
+    /**
      * @brief Multiplies this quaternion by a scalar.
      * @param s The scalar to multiply by.
      * @return A reference to this quaternion after modification.
@@ -946,6 +957,28 @@ template <typename T> struct mat3
         columns[0] = a;
         columns[1] = b;
         columns[2] = c;
+    }
+
+    /**
+     * @brief Constructs a matrix from a scalar value.
+     * @tparam U The numeric type of the scalar.
+     * @param val The scalar value.
+     */
+    template <typename U> constexpr mat3(U val)
+    {
+        m00 = m10 = m20 = val;
+        m01 = m11 = m21 = val;
+        m02 = m12 = m22 = val;
+    }
+
+    /**
+     * @brief Constructs a matrix from a quaternion.
+     * @tparam U The numeric type of the quaternion.
+     * @param q The quaternion.
+     */
+    template <typename U> constexpr mat3(const quat<U> &q)
+    {
+        *this = mat3_from_quat(q);
     }
 
     /**
@@ -1112,6 +1145,17 @@ template <typename T> struct mat4
     {
         for (int i = 0; i < 16; ++i)
             (&m00)[i] = {};
+    }
+
+    /**
+     * @brief Constructs a matrix from a scalar.
+     * @tparam U The numeric type of the scalar.
+     * @param val The scalar value.
+     */
+    constexpr mat4(T val)
+    {
+        for (int i = 0; i < 16; ++i)
+            (&m00)[i] = val;
     }
 
     /**
@@ -1914,6 +1958,20 @@ constexpr vec3<T> operator*(const quat<T> &q, const vec3<T> &v)
 }
 
 /**
+ * @brief Multiplies a quaternion by a vector (rotates the vector).
+ * @param q The quaternion.
+ * @param v The vector/point to rotate.
+ * @return The rotated vector/point.
+ */
+template <typename T>
+constexpr vec4<T> operator*(const quat<T> &q, const vec4<T> &v)
+{
+    vec3<T> v3(v.x, v.y, v.z);
+    vec3<T> rotated_v3 = q * v3;
+    return vec4<T>(rotated_v3.x, rotated_v3.y, rotated_v3.z, v.w);
+}
+
+/**
  * @brief Multiplies a vector by a quaternion (rotates the vector).
  * @param v The vector to rotate.
  * @param q The quaternion.
@@ -2184,6 +2242,21 @@ constexpr mat3<T> operator*(const mat3<T> &a, const mat3<T> &b)
     return r;
 }
 
+template <typename T> constexpr mat3<T> operator*(const mat3<T> &a, T s)
+{
+    mat3<T> r;
+    r.m00 = a.m00 * s;
+    r.m01 = a.m01 * s;
+    r.m02 = a.m02 * s;
+    r.m10 = a.m10 * s;
+    r.m11 = a.m11 * s;
+    r.m12 = a.m12 * s;
+    r.m20 = a.m20 * s;
+    r.m21 = a.m21 * s;
+    r.m22 = a.m22 * s;
+    return r;
+}
+
 /**
  * @brief Multiplies a 3x3 matrix by a 3D vector.
  * @param m The matrix.
@@ -2390,6 +2463,39 @@ constexpr vec4<T> operator*(const mat4<T> &m, const vec4<T> &v)
                    m.m10 * v.x + m.m11 * v.y + m.m12 * v.z + m.m13 * v.w,
                    m.m20 * v.x + m.m21 * v.y + m.m22 * v.z + m.m23 * v.w,
                    m.m30 * v.x + m.m31 * v.y + m.m32 * v.z + m.m33 * v.w);
+}
+
+/**
+ * @brief Multiplies a 4x4 matrix by a scalar.
+ * @param m The matrix.
+ * @param val The scalar.
+ * @return The product matrix.
+ */
+template <typename T> constexpr mat4<T> operator*(const mat4<T> &m, T val)
+{
+    mat4<T> r;
+    r.m00 = m.m00 * val;
+    r.m01 = m.m01 * val;
+    r.m02 = m.m02 * val;
+    r.m03 = m.m03 * val;
+    r.m10 = m.m10 * val;
+    r.m11 = m.m11 * val;
+    r.m12 = m.m12 * val;
+    r.m13 = m.m13 * val;
+    r.m20 = m.m20 * val;
+    r.m21 = m.m21 * val;
+    r.m22 = m.m22 * val;
+    r.m23 = m.m23 * val;
+    r.m30 = m.m30 * val;
+    r.m31 = m.m31 * val;
+    r.m32 = m.m32 * val;
+    r.m33 = m.m33 * val;
+    return r;
+}
+
+template <typename T> constexpr mat4<T> operator*(T val, const mat4<T> &m)
+{
+    return m * val;
 }
 
 /**
@@ -2735,6 +2841,30 @@ void mat4_decompose(const mat4<T> &m,
                     quat<T> &out_rot)
 {
     out_pos    = {m.m03, m.m13, m.m23};
+    vec3<T> c0 = {m.m00, m.m10, m.m20};
+    vec3<T> c1 = {m.m01, m.m11, m.m21};
+    vec3<T> c2 = {m.m02, m.m12, m.m22};
+    T sx       = length(c0);
+    T sy       = length(c1);
+    T sz       = length(c2);
+    if (sx == T(0))
+        sx = T(1);
+    if (sy == T(0))
+        sy = T(1);
+    if (sz == T(0))
+        sz = T(1);
+    out_scale = {sx, sy, sz};
+    // Normalize columns to get rotation matrix
+    T rm00 = m.m00 / sx, rm01 = m.m01 / sy, rm02 = m.m02 / sz;
+    T rm10 = m.m10 / sx, rm11 = m.m11 / sy, rm12 = m.m12 / sz;
+    T rm20 = m.m20 / sx, rm21 = m.m21 / sy, rm22 = m.m22 / sz;
+    out_rot =
+        quat_from_mat3(rm00, rm01, rm02, rm10, rm11, rm12, rm20, rm21, rm22);
+}
+
+template <typename T>
+void mat3_decompose(const mat3<T> &m, vec3<T> &out_scale, quat<T> &out_rot)
+{
     vec3<T> c0 = {m.m00, m.m10, m.m20};
     vec3<T> c1 = {m.m01, m.m11, m.m21};
     vec3<T> c2 = {m.m02, m.m12, m.m22};

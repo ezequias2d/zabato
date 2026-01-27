@@ -1,5 +1,6 @@
 #pragma once
 
+#include <initializer_list>
 #include <zabato/allocator.hpp>
 #include <zabato/endian.hpp>
 #include <zabato/utils.hpp>
@@ -789,6 +790,162 @@ public:
             }
         }
         return *this;
+    }
+
+    basic_string &replace(size_t pos, size_t len, const basic_string &str)
+    {
+        return replace(pos, len, str.data(), str.size());
+    }
+
+    basic_string &
+    repplace(const_iterator i1, const_iterator i2, const basic_string &str)
+    {
+        return replace(static_cast<size_t>(i1 - begin()),
+                       static_cast<size_t>(i2 - i1),
+                       str.data(),
+                       str.size());
+    }
+
+    basic_string &replace(size_t pos,
+                          size_t len,
+                          const basic_string &str,
+                          size_t subpos,
+                          size_t sublen = npos)
+    {
+        if (subpos > str.size())
+            subpos = str.size();
+
+        size_t rlen = str.size() - subpos;
+        if (sublen < rlen)
+            rlen = sublen;
+
+        return replace(pos, len, str.data() + subpos, rlen);
+    }
+
+    basic_string &replace(size_t pos, size_t len, const char *s)
+    {
+        return replace(pos, len, s, strlen(s));
+    }
+
+    basic_string &replace(size_t pos, size_t len, const char *s, size_t n)
+    {
+        size_t sz = size();
+        assert(pos <= sz);
+
+        // Calculate actual length to remove (clamp to end)
+        size_t remove_len = (pos + len > sz) ? (sz - pos) : len;
+
+        // Check for aliasing: if 's' points inside this string
+        if (s >= begin() && s < end())
+        {
+            basic_string tmp(s, n);
+            return replace(pos, remove_len, tmp.data(), n);
+        }
+
+        size_t new_size = sz - remove_len + n;
+
+        if (new_size > capacity())
+            reserve(new_size);
+
+        char *p = data();
+
+        // Move the tail to the new position
+        // Source: pos + remove_len
+        // Dest: pos + n
+        if (remove_len != n)
+            memmove(p + pos + n, p + pos + remove_len, sz - (pos + remove_len));
+
+        // Insert data into the gap
+        if (n > 0)
+            memcpy(p + pos, s, n);
+
+        if (is_small())
+            set_small(new_size);
+        else
+            large.size = new_size;
+
+        return *this;
+    }
+
+    basic_string &
+    replace(const_iterator i1, const_iterator i2, const char *s, size_t n)
+    {
+        return replace(static_cast<size_t>(i1 - begin()),
+                       static_cast<size_t>(i2 - i1),
+                       s,
+                       n);
+    }
+
+    basic_string &replace(size_t pos, size_t len, size_t n, char c)
+    {
+        size_t sz = size();
+        assert(pos <= sz);
+        size_t remove_len = (pos + len > sz) ? (sz - pos) : len;
+        size_t new_size   = sz - remove_len + n;
+
+        if (new_size > capacity())
+        {
+            reserve(new_size);
+        }
+
+        char *p = data();
+
+        if (remove_len != n)
+        {
+            memmove(p + pos + n, p + pos + remove_len, sz - (pos + remove_len));
+        }
+
+        if (n > 0)
+        {
+            memset(p + pos, c, n);
+        }
+
+        if (is_small())
+            set_small_size(new_size);
+        else
+            large.size = new_size;
+
+        p[new_size] = '\0';
+        return *this;
+    }
+
+    basic_string &
+    replace(const_iterator i1, const_iterator i2, size_t n, char c)
+    {
+        return replace(static_cast<size_t>(i1 - begin()),
+                       static_cast<size_t>(i2 - i1),
+                       n,
+                       c);
+    }
+
+    template <class InputIterator>
+    basic_string &replace(const_iterator i1,
+                          const_iterator i2,
+                          InputIterator first,
+                          InputIterator last)
+    {
+        // Construct a temporary string from the range since we don't know the
+        // size upfront and we need to handle potential aliasing/iterators
+        // safely.
+        basic_string temp;
+        for (auto it = first; it != last; ++it)
+        {
+            temp.push_back(*it);
+        }
+        return replace(static_cast<size_t>(i1 - begin()),
+                       static_cast<size_t>(i2 - i1),
+                       temp.data(),
+                       temp.size());
+    }
+
+    basic_string &replace(const_iterator i1,
+                          const_iterator i2,
+                          std::initializer_list<char> il)
+    {
+        return replace(static_cast<size_t>(i1 - begin()),
+                       static_cast<size_t>(i2 - i1),
+                       il.begin(),
+                       il.size());
     }
 
 private:

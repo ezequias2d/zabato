@@ -14,21 +14,21 @@ public:
     host_file(FILE *f) : m_file(f) {}
     ~host_file() override { close(); }
 
-    size_t read(buffer buffer) override
+    size_t read(buffer buffer) override final
     {
         if (!m_file)
             return 0;
         return fread(buffer.data(), 1, buffer.size(), m_file);
     }
 
-    size_t write(const_buffer buffer) override
+    size_t write(const_buffer buffer) override final
     {
         if (!m_file)
             return 0;
         return fwrite(buffer.data(), 1, buffer.size(), m_file);
     }
 
-    void close() override
+    void close() override final
     {
         if (m_file)
         {
@@ -37,7 +37,7 @@ public:
         }
     }
 
-    bool seek(int64_t offset, origin origin) override
+    bool seek(int64_t offset, origin origin) override final
     {
         if (!m_file)
             return false;
@@ -57,19 +57,23 @@ public:
         return fseek(m_file, offset, seek_origin) == 0;
     }
 
-    bool eof() const override
+    bool eof() const override final
     {
         if (!m_file)
             return true;
         return feof(m_file) != 0;
     }
 
-    size_t tell() const override
+    size_t tell() const override final
     {
         if (!m_file)
             return 0;
         return ftell(m_file);
     }
+
+    bool is_closed() const override final { return !m_file; }
+
+    void flush() override final { fflush(m_file); }
 
 private:
     FILE *m_file;
@@ -285,30 +289,25 @@ file *host_fs::open(string_view path, open_mode mode)
         return nullptr;
 
     const char *mode_str = "rb";
-    if ((mode & open_mode::write) == open_mode::write)
+    bool read            = (mode & open_mode::read) == open_mode::read;
+    bool write           = (mode & open_mode::write) == open_mode::write;
+    if (write)
     {
-        if ((mode & open_mode::append) == open_mode::append)
-            mode_str = "ab";
-        else if ((mode & open_mode::truncate) == open_mode::truncate)
-            mode_str = "wb";
-        else
-            mode_str = "rb+";
-
         bool create   = (mode & open_mode::create) == open_mode::create;
         bool truncate = (mode & open_mode::truncate) == open_mode::truncate;
         bool append   = (mode & open_mode::append) == open_mode::append;
 
-        if (create && truncate)
-            mode_str = "wb";
-        else if (create && append)
-            mode_str = "ab";
+        if (truncate)
+            mode_str = read ? "wb+" : "wb";
         else if (append)
-            mode_str = "ab";
+            mode_str = read ? "ab+" : "ab";
         else if (create)
-            mode_str = "w+b";
+            mode_str = read ? "wb+" : "ab";
         else
-            mode_str = "r+b";
+            mode_str = "rb+";
     }
+    else
+        mode_str = "rb";
 
     FILE *f = fopen(target.c_str(), mode_str);
     if (!f)

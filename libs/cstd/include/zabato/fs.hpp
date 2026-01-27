@@ -34,6 +34,12 @@ public:
      * @brief Closes the file, releasing any resources.
      */
     virtual void close() = 0;
+
+    /**
+     * @brief Checks if the file is closed.
+     * @return True if the file is closed, false otherwise.
+     */
+    virtual bool is_closed() const = 0;
 };
 
 /**

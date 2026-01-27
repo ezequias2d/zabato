@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <initializer_list>
 #include <iterator>
+#include <stdio.h>
 
 namespace zabato
 {

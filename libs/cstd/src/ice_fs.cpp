@@ -14,12 +14,12 @@ namespace zabato::fs
 class ice_fs_file : public file
 {
 public:
-    ice_fs_file(file_stream &stream, uint64_t offset, uint64_t size)
+    ice_fs_file(cfile_stream &stream, uint64_t offset, uint64_t size)
         : m_stream(stream), m_start(offset), m_size(size), m_pos(0)
     {
     }
 
-    size_t read(buffer buffer) override
+    size_t read(buffer buffer) override final
     {
         if (m_pos >= m_size)
             return 0;
@@ -34,11 +34,11 @@ public:
         return readed;
     }
 
-    size_t write(const_buffer buffer) override { return 0; }
+    size_t write(const_buffer buffer) override final { return 0; }
 
-    void close() override {}
+    void close() override final {}
 
-    bool seek(int64_t offset, origin origin) override
+    bool seek(int64_t offset, origin origin) override final
     {
         int64_t target_pos = 0;
         switch (origin)
@@ -61,12 +61,16 @@ public:
         return true;
     }
 
-    bool eof() const override { return m_pos >= m_size; }
+    bool eof() const override final { return m_pos >= m_size; }
 
-    uint64_t tell() const override { return m_pos; }
+    uint64_t tell() const override final { return m_pos; }
+
+    void flush() override final {}
+
+    bool is_closed() const override final { return m_stream.is_closed(); }
 
 private:
-    file_stream m_stream;
+    cfile_stream m_stream;
     uint64_t m_start;
     uint64_t m_size;
     uint64_t m_pos;
@@ -86,7 +90,7 @@ bool ice_fs::mount(const char *ice)
     if (!file)
         return false;
 
-    m_stream = file_stream(file);
+    m_stream = cfile_stream(file);
     m_writer = ice_writer(m_stream); // Needed? Only if writing supported later
     m_reader = ice_reader(m_stream);
 
@@ -136,12 +140,7 @@ bool ice_fs::mount(const char *ice)
 
 bool ice_fs::unmount()
 {
-    FILE *file = m_stream.get_file();
-    if (!file)
-        return false;
-
-    fclose(file);
-    m_stream = file_stream(nullptr);
+    m_stream.close();
     m_entries.clear();
     m_strings.clear();
     return true;

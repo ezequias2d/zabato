@@ -75,16 +75,30 @@ public:
 
     /** @brief Sets position of stream. */
     virtual void pos(int64_t offset) { seek(offset, origin::begin); }
+
+    /** @brief Flushes the stream. */
+    virtual void flush() = 0;
+
+    /** @brief Copies the stream to another stream. */
+    virtual void copy_to(stream *other)
+    {
+        vector<uint8_t> buffer(4096);
+        while (!eof())
+        {
+            size_t bytes_read = read(buffer);
+            other->write({buffer.data(), bytes_read});
+        }
+    }
 };
 
 /**
  * @class file_stream
  * @brief An implementation of stream for standard C FILE pointers.
  */
-class file_stream : public stream
+class cfile_stream : public stream
 {
 public:
-    explicit file_stream(FILE *f) : m_file(f) {}
+    explicit cfile_stream(FILE *f) : m_file(f) {}
 
     FILE *get_file() { return m_file; }
 
@@ -119,6 +133,18 @@ public:
     bool eof() const override final { return feof(m_file); }
 
     size_t tell() const override final { return ftell(m_file); }
+
+    void flush() override final { fflush(m_file); }
+
+    bool is_closed() const { return m_file == nullptr; }
+
+    void close()
+    {
+        if (m_file == nullptr)
+            return;
+        fclose(m_file);
+        m_file = nullptr;
+    }
 
 private:
     FILE *m_file;
@@ -196,6 +222,7 @@ public:
     size_t cursor() const { return m_cursor; }
     size_t size() const { return m_buffer.size(); }
     size_t capacity() const { return m_buffer.capacity(); }
+    void flush() override final {}
 
 private:
     vector<uint8_t> &m_buffer;
