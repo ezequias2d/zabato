@@ -648,8 +648,16 @@ public:
         if (new_cap <= capacity())
             return;
 
+        // Check for overflow or potential wrap-around
+        if (new_cap == size_t(-1))
+            return;
+
         // Force transition to large
         char *new_data = static_cast<char *>(m_allocator.allocate(new_cap + 1));
+        assert(new_data);
+        if (!new_data)
+            return; // Allocation failed
+
         size_t current_size = size();
         memcpy(new_data, data(), current_size + 1); // +1 for null
 
@@ -860,9 +868,11 @@ public:
             memcpy(p + pos, s, n);
 
         if (is_small())
-            set_small(new_size);
+            set_small_size(new_size);
         else
             large.size = new_size;
+
+        p[new_size] = '\0';
 
         return *this;
     }
@@ -1047,6 +1057,9 @@ private:
     {
         size_t clen      = size();
         size_t total_len = clen + len;
+
+        if (total_len < clen)
+            return *this;
 
         if (total_len <= SSO_CAPACITY)
         {
