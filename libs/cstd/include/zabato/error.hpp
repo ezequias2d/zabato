@@ -128,6 +128,10 @@ public:
     static const error_code failed_to_require_zshader;
     /// @brief Failed to load zshader (-26).
     static const error_code failed_to_load_zshader;
+    /// @brief No script system (-27).
+    static const error_code no_script_system;
+    /// @brief Operation not supported (-28).
+    static const error_code not_supported;
     /// @brief An unknown error occurred (-128).
     static const error_code unknown;
 
@@ -164,6 +168,8 @@ constexpr error_code error_code::path_not_found{-23};
 constexpr error_code error_code::not_implemented{-24};
 constexpr error_code error_code::failed_to_require_zshader{-25};
 constexpr error_code error_code::failed_to_load_zshader{-26};
+constexpr error_code error_code::no_script_system{-27};
+constexpr error_code error_code::not_supported{-28};
 constexpr error_code error_code::unknown{-128};
 
 /**
@@ -289,6 +295,10 @@ inline const char *get_error_message(error_code error)
         return "Failed to require zshader: %s";
     case error_code::failed_to_load_zshader:
         return "Failed to load zshader: %s";
+    case error_code::no_script_system:
+        return "No script system";
+    case error_code::not_supported:
+        return "Operation not supported";
     case error_code::unknown:
         return "Unknown error";
     default:
