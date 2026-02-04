@@ -160,7 +160,8 @@ inline string normalize(string_view path)
                 if (res.size() > 1)
                 {
                     size_t last_sep = res.rfind(PATH_SEP);
-                    res.resize((last_sep == 0) ? 1 : last_sep);
+                    if (last_sep != string::npos)
+                        res.resize((last_sep == 0) ? 1 : last_sep);
                 }
             }
             else
