@@ -165,6 +165,132 @@ public:
     /** @brief Destroys the hash_map and its elements. */
     ~hash_map() { clear_and_free(); }
 
+    /** @brief Copy constructor */
+    hash_map(const hash_map &other)
+        : m_entries(nullptr), m_size(0), m_capacity(0),
+          m_allocator(other.m_allocator), m_hasher(other.m_hasher),
+          m_key_equal(other.m_key_equal)
+    {
+        if (other.m_capacity > 0)
+        {
+            m_entries  = m_allocator.allocate(other.m_capacity);
+            m_capacity = other.m_capacity;
+
+            for (size_t i = 0; i < m_capacity; ++i)
+            {
+                m_entries[i].state = entry_state::empty;
+            }
+
+            for (size_t i = 0; i < other.m_capacity; ++i)
+            {
+                if (other.m_entries[i].state == entry_state::occupied)
+                {
+                    // Direct copy to same index since capacity/hasher is same
+                    entry *dest = &m_entries[i];
+                    new (&dest->key) Key(other.m_entries[i].key);
+                    try
+                    {
+                        new (&dest->value) Value(other.m_entries[i].value);
+                    }
+                    catch (...)
+                    {
+                        dest->key.~Key();
+                        throw;
+                    }
+                    dest->state = entry_state::occupied;
+                    m_size++;
+                }
+                else if (other.m_entries[i].state == entry_state::tombstone)
+                {
+                    m_entries[i].state = entry_state::tombstone;
+                }
+            }
+        }
+    }
+
+    /** @brief Copy assignment operator */
+    hash_map &operator=(const hash_map &other)
+    {
+        if (this != &other)
+        {
+            clear_and_free();
+
+            m_allocator = other.m_allocator;
+            m_hasher    = other.m_hasher;
+            m_key_equal = other.m_key_equal;
+
+            if (other.m_capacity > 0)
+            {
+                m_entries  = m_allocator.allocate(other.m_capacity);
+                m_capacity = other.m_capacity;
+
+                for (size_t i = 0; i < m_capacity; ++i)
+                {
+                    m_entries[i].state = entry_state::empty;
+                }
+
+                for (size_t i = 0; i < other.m_capacity; ++i)
+                {
+                    if (other.m_entries[i].state == entry_state::occupied)
+                    {
+                        entry *dest = &m_entries[i];
+                        new (&dest->key) Key(other.m_entries[i].key);
+                        try
+                        {
+                            new (&dest->value) Value(other.m_entries[i].value);
+                        }
+                        catch (...)
+                        {
+                            dest->key.~Key();
+                            throw;
+                        }
+                        dest->state = entry_state::occupied;
+                        m_size++;
+                    }
+                    else if (other.m_entries[i].state == entry_state::tombstone)
+                    {
+                        m_entries[i].state = entry_state::tombstone;
+                    }
+                }
+            }
+        }
+        return *this;
+    }
+
+    /** @brief Move constructor */
+    hash_map(hash_map &&other) noexcept
+        : m_entries(other.m_entries), m_size(other.m_size),
+          m_capacity(other.m_capacity),
+          m_allocator(zabato::move(other.m_allocator)),
+          m_hasher(zabato::move(other.m_hasher)),
+          m_key_equal(zabato::move(other.m_key_equal))
+    {
+        other.m_entries  = nullptr;
+        other.m_size     = 0;
+        other.m_capacity = 0;
+    }
+
+    /** @brief Move assignment operator */
+    hash_map &operator=(hash_map &&other) noexcept
+    {
+        if (this != &other)
+        {
+            clear_and_free();
+
+            m_entries   = other.m_entries;
+            m_size      = other.m_size;
+            m_capacity  = other.m_capacity;
+            m_allocator = zabato::move(other.m_allocator);
+            m_hasher    = zabato::move(other.m_hasher);
+            m_key_equal = zabato::move(other.m_key_equal);
+
+            other.m_entries  = nullptr;
+            other.m_size     = 0;
+            other.m_capacity = 0;
+        }
+        return *this;
+    }
+
     iterator begin() { return iterator(m_entries, m_entries + m_capacity); }
 
     iterator end()
