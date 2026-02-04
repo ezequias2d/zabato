@@ -9,7 +9,8 @@ extern "C"
 {
 static const char ZABATO_LOADED_TABLE[]  = "ZABATO_LOADED";
 static const char ZABATO_PRELOAD_TABLE[] = "ZABATO_PRELOAD";
-static const char DEFAULT_LUA_PATH[]     = "./?.lua;./?/init.lua";
+static const char DEFAULT_LUA_PATH[] =
+    "./?.lua;./?/init.lua;embedded/scripts/?.lua;embedded/scripts/?/init.lua";
 
 static int ll_require(lua_State *L)
 {
@@ -28,6 +29,8 @@ static int ll_require(lua_State *L)
     if (!lua_istable(L, -1))
         return luaL_error(L, "'package.searchers' must be a table");
 
+    int searchers_index = lua_gettop(L);
+
     luaL_Buffer msg;
     luaL_buffinit(L, &msg);
     luaL_addstring(&msg, "\n\t");
@@ -35,7 +38,7 @@ static int ll_require(lua_State *L)
     int i = 1;
     while (true)
     {
-        lua_rawgeti(L, -1, i); /* Get searchers[i] */
+        lua_rawgeti(L, searchers_index, i); /* Get searchers[i] */
         if (lua_isnil(L, -1))
         {
             lua_pop(L, 1);
@@ -138,6 +141,11 @@ static int loader(lua_State *L)
                          debug.c_str(),
                          "t") != LUA_OK)
         return lua_error(L);
+
+    // Call the module
+    lua_pushvalue(L, 1); // name
+    lua_pushvalue(L, 2); // path
+    lua_call(L, 2, 1);   // returns result
 
     return 1;
 }

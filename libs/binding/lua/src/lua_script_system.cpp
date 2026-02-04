@@ -99,22 +99,12 @@ script_instance *lua_script_system::load_script(const char *filepath,
     if (!m_L)
         return nullptr;
 
-    auto file = m_fs.open(filepath, fs::open_mode::read);
-    if (!file)
+    vector<uint8_t> buf = m_fs.read_all_bytes(filepath);
+    if (!buf.empty())
     {
         report(report_type::error, "Failed to load script file: %s", filepath);
         return nullptr;
     }
-
-    // Get file size
-    file->seek(0, fs::origin::end);
-    size_t size = file->tell();
-    file->seek(0, fs::origin::begin);
-
-    // Read file
-    vector<char> buffer(size);
-    file->read({reinterpret_cast<uint8_t *>(buffer.data()), buffer.size()});
-    file->close();
 
     // Create a new environment table
     lua_newtable(m_L); /* Stack: [env] */
@@ -129,8 +119,8 @@ script_instance *lua_script_system::load_script(const char *filepath,
     int env_ref = luaL_ref(m_L, LUA_REGISTRYINDEX); /* Store env in registry */
 
     // Load the chunk
-    if (luaL_loadbufferx(m_L, buffer.data(), buffer.size(), filepath, "t") !=
-        LUA_OK)
+    if (luaL_loadbufferx(
+            m_L, (const char *)buf.data(), buf.size(), filepath, "t") != LUA_OK)
     {
         report(report_type::error, "Lua load error: %s", lua_tostring(m_L, -1));
         lua_pop(m_L, 1);
@@ -158,12 +148,12 @@ script_instance *lua_script_system::load_script(const char *filepath,
     /* Inject metadata into environment */
     lua_rawgeti(m_L, LUA_REGISTRYINDEX, env_ref); /* Stack: [env] */
 
-    string uuid_str = owner_id.to_string();
-    lua_pushlstring(m_L, uuid_str.c_str(), uuid_str.length());
+    string_view uuid_str(owner_id.to_string());
+    lua_pushlstring(m_L, uuid_str.data(), uuid_str.length());
     lua_setfield(m_L, -2, "owner_id"); /* Stack: [env] */
 
     /* Create script */
-    string source_str(buffer.data(), buffer.size());
+    string_view source_str((const char *)buf.data(), buf.size());
     auto script_res = make_shared<script>(source_str);
     auto *inst = new lua_script_instance(filepath, script_res, m_L, env_ref);
 
@@ -316,12 +306,15 @@ void lua_script_system::push_value(const value &val)
     push_value_to_lua(m_L, val);
 }
 
-bool lua_script_system::compile_zshader(const string &path,
+bool lua_script_system::compile_zshader(const string_view &source,
+                                        const string_view &chunk_name,
                                         zshader_compilation_result &out_result,
                                         const string_view &backend)
 {
     if (!m_L)
         return false;
+
+    string name = chunk_name;
 
     int top = lua_gettop(m_L);
 
@@ -339,111 +332,61 @@ bool lua_script_system::compile_zshader(const string &path,
 
     if (!lua_istable(m_L, -1))
     {
-        report_error(error_code::failed_to_require_zshader,
-                     "'zshader' module did not return a table");
+        string type_name = lua_typename(m_L, lua_type(m_L, -1));
+        report(report_type::error,
+               "Required 'zshader' did not return a table. Returned type: %s",
+               type_name.c_str());
         lua_settop(m_L, top);
         return false;
     }
 
-    /* Create Isolated Environment for Zshader */
-    lua_newtable(m_L); /* Stack: [zshader_table, env] */
+    /* Call ZShader.load_string(source, chunk_name) */
+    lua_getfield(m_L, -1, "load_string");               /* Function */
+    lua_pushlstring(m_L, source.data(), source.size()); /* Arg 1: source */
+    lua_pushstring(m_L, chunk_name.data());             /* Arg 2: name */
 
-    lua_newtable(m_L);                /* Stack: [zshader_table, env, mt] */
-    lua_pushglobaltable(m_L);         /* [zshader_table, env, mt, _G] */
-    lua_setfield(m_L, -2, "__index"); /* mt.__index = _G */
-    lua_setmetatable(m_L, -2);        /* env.__metatable = mt */
-
-    /* Stack: [zshader_table, env] */
-
-    /* Unpacks zshader contents into 'env' */
-    lua_pushnil(m_L);
-    while (lua_next(m_L, -3) != 0)
-    {
-        /* Stack: [zshader_table, env, key, value] */
-
-        lua_pushvalue(m_L, -2); /* Copy Key */
-        lua_pushvalue(m_L, -2); /* Copy Value */
-        lua_settable(m_L, -5);  /* Set into 'env' */
-
-        lua_pop(m_L, 1); /* Pop original value */
-    }
-    /* Stack: [zshader_table, env] */
-
-    auto file = m_fs.open(path, fs::open_mode::read);
-    if (!file)
-    {
-        report(
-            report_type::error, "Failed to open shader file: %s", path.c_str());
-        lua_settop(m_L, top);
-        return false;
-    }
-
-    file->seek(0, fs::origin::end);
-    size_t size = file->tell();
-    file->seek(0, fs::origin::begin);
-
-    vector<uint8_t> buffer(size);
-    file->read({buffer.data(), buffer.size()});
-    file->close();
-    delete file;
-
-    string chunkname = "@";
-    chunkname += path;
-    if (luaL_loadbufferx(m_L,
-                         (const char *)buffer.data(),
-                         buffer.size(),
-                         chunkname.c_str(),
-                         "t") != LUA_OK)
+    if (lua_pcall(m_L, 2, 1, 0) != LUA_OK)
     {
         report(report_type::error,
-               "Shader %s failed to load: %s",
-               path.c_str(),
+               "Shader %s failed to load via ZShader.load_string: %s",
+               name.c_str(),
                lua_tostring(m_L, -1));
         lua_settop(m_L, top);
         return false;
     }
-    /* Stack: [zshader_lib, env, user_chunk] */
-
-    lua_pushvalue(m_L, -2);     /* Stack: [zshader_lib, env, user_chunk, env] */
-    lua_setupvalue(m_L, -2, 1); /* Set env as upvalue 1 */
-
-    if (lua_pcall(m_L, 0, 1, 0) != LUA_OK)
-    {
-        report(report_type::error,
-               "Failed to compile shader %s: %s",
-               path.c_str(),
-               lua_tostring(m_L, -1));
-        lua_settop(m_L, top);
-        return false;
-    }
-    /* Stack: [zshader_lib, env, shader_def_table] */
+    /* Stack: [zshader_table, shader_def_table (or nil)] */
 
     if (!lua_istable(m_L, -1))
     {
         report(report_type::error,
-               "Shader %s failed to compile: expected a table, got %s",
-               path.c_str(),
-               lua_tostring(m_L, -1));
+               "Shader script %s must return a table.",
+               name.c_str());
         lua_settop(m_L, top);
         return false;
     }
 
-    out_result.name = path;
+    lua_pop(m_L, 1);
+
+    string effective_backend = backend;
+    if (effective_backend.empty())
+        effective_backend = "glsl";
+
+    out_result.name = chunk_name;
 
     /* Compile shader */
-    lua_getfield(m_L, -3, "compile"); /* Get from zshader_lib[compile] */
-    lua_pushvalue(m_L, -2);           /* Push ShaderDef */
+    lua_getfield(m_L, -2, "compile");
+    lua_pushvalue(m_L, -2);
 
     if (lua_pcall(m_L, 1, 1, 0) != LUA_OK)
     {
         report(report_type::error,
                "Failed to compile shader %s: %s",
-               path.c_str(),
+               name.c_str(),
                lua_tostring(m_L, -1));
         lua_settop(m_L, top);
         return false;
     }
-    /* Stack: [zshader_lib, env, shader_def_table, compiled_shader] */
+    /* Stack: [zshader_table, shader_def_table, compiled_shader] */
 
     /* Extract Uniforms */
     lua_getfield(m_L, -1, "uniforms");
@@ -465,12 +408,12 @@ bool lua_script_system::compile_zshader(const string &path,
     /* Transpile */
     lua_getfield(m_L, -3, "transpile"); // ZShader.transpile
     lua_pushvalue(m_L, -2);             // CompiledShader
-    lua_pushlstring(m_L, backend.data(), backend.size());
+    lua_pushlstring(m_L, effective_backend.c_str(), effective_backend.size());
     if (lua_pcall(m_L, 2, 1, 0) != LUA_OK)
     {
         report(report_type::error,
                "Failed to transpile shader %s: %s",
-               path.c_str(),
+               name.c_str(),
                lua_tostring(m_L, -1));
         lua_settop(m_L, top);
         return false;

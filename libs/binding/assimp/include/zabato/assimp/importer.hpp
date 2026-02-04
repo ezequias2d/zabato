@@ -11,8 +11,7 @@ public:
     string_view name() const override { return "assimp"; }
     bool supports(const string &extension) const override;
     result<shared_ptr<resource>>
-    import(fs::file_system &fs,
-           class gpu *gpu_ctx,
+    import(class resource_manager &manager,
            const string &path,
            const tinyxml2::XMLElement *settings = nullptr) override;
 

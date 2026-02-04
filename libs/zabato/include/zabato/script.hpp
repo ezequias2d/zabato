@@ -4,12 +4,15 @@
 #include <zabato/controller.hpp>
 #include <zabato/error.hpp>
 #include <zabato/fs.hpp>
+#include <zabato/gpu.hpp>
 #include <zabato/hash_map.hpp>
+#include <zabato/material_params.hpp>
 #include <zabato/resource.hpp>
 #include <zabato/shared_ptr.hpp>
 #include <zabato/span.hpp>
 #include <zabato/string.hpp>
 #include <zabato/value.hpp>
+#include <zabato/vector.hpp>
 
 namespace zabato
 {
@@ -17,6 +20,21 @@ struct game_message;
 
 using script_type  = value_type;
 using script_value = value;
+
+/**
+ * @struct zshader_compilation_result
+ * @brief Results from compiling a ZShader script (GLSL code + Reflection).
+ */
+struct zshader_compilation_result
+{
+    string glsl_vertex;
+    string glsl_fragment;
+    string name;
+
+    // Discovered Uniforms (Name -> Type)
+    vector<tuple<string, string>> uniforms;
+    vector<tuple<string, string>> attributes;
+};
 
 class script_args
 {
@@ -211,6 +229,12 @@ public:
 
     void set_user_data(void *data) { m_user_data = data; }
     void *get_user_data() const { return m_user_data; }
+
+    // ZShader Compiler Integration
+    virtual bool compile_zshader(const string_view &source,
+                                 const string_view &chunk_name,
+                                 struct zshader_compilation_result &out_result,
+                                 const string_view &backend = "glsl120") = 0;
 
 protected:
     fs::file_system &m_fs;

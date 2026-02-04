@@ -46,6 +46,30 @@ public:
     string_view get_mesh_path() const;
 
     /**
+     * @brief Set the material resource for this model.
+     * @param path The path to the material resource.
+     */
+    void set_material(const char *path);
+
+    /**
+     * @brief Set the material resource for this model.
+     * @param mat The material to set.
+     */
+    void set_material(shared_ptr<class material> mat);
+
+    /**
+     * @brief Get the material resource.
+     * @return Shared pointer to the material, or null if not loaded.
+     */
+    shared_ptr<class material> get_material() const;
+
+    /**
+     * @brief Get the path to the material resource.
+     * @return The path to the material resource.
+     */
+    string_view get_material_path() const;
+
+    /**
      * @brief Set the animator for this model.
      * @param anim The animator to set.
      */
@@ -85,6 +109,8 @@ public:
 
 private:
     resource_ref m_mesh;
+    resource_ref m_material;
+    shared_ptr<class material> m_material_override;
     bounding_volume *m_model_bound;
     bounding_volume *m_world_bound;
     bool m_bound_dirty;

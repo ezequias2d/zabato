@@ -9,20 +9,6 @@ namespace zabato
 {
 
 /**
- * @struct zshader_compilation_result
- * @brief Results from compiling a ZShader script (GLSL code + Reflection).
- */
-struct zshader_compilation_result
-{
-    string glsl_vertex;
-    string glsl_fragment;
-    string name;
-
-    vector<std::pair<string, string>> uniforms;
-    vector<std::pair<string, string>> attributes;
-};
-
-/**
  * @brief Lua implementation of script_system.
  */
 class lua_script_system : public script_system
@@ -38,9 +24,10 @@ public:
     void tick() override;
 
     // ZShader Compiler Integration
-    bool compile_zshader(const string &path,
+    bool compile_zshader(const string_view &source,
+                         const string_view &chunk_name,
                          zshader_compilation_result &out_result,
-                         const string_view &backend = "glsl120");
+                         const string_view &backend = "glsl120") override;
 
     fs::file_system &get_file_system() { return m_fs; }
     console &get_console() { return m_console; }

@@ -49,15 +49,13 @@ public:
 
     /**
      * @brief Imports a resource from the specified path.
-     * @param fs The file system to read from.
-     * @param gpu_ctx The GPU context (optional, may be null).
+     * @param manager The resource manager.
      * @param path The absolute or relative path to the source file.
      * @param settings Optional XML configuration element for this import.
      * @return A shared_ptr to the imported resource, or an error.
      */
     virtual result<shared_ptr<resource>>
-    import(fs::file_system &fs,
-           class gpu *gpu_ctx,
+    import(class resource_manager &manager,
            const string &path,
            const tinyxml2::XMLElement *settings = nullptr) = 0;
 

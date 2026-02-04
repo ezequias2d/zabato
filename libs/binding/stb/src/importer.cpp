@@ -1,3 +1,4 @@
+#include <zabato/error.hpp>
 #include <zabato/gpu.hpp>
 #include <zabato/shared_ptr.hpp>
 #include <zabato/stb/importer.hpp>
@@ -40,52 +41,36 @@ bool stb_importer::is_resource_type(const zabato::rtti &type) const
 }
 
 result<shared_ptr<resource>>
-stb_importer::import(fs::file_system &fs,
-                     class gpu *gpu_ctx,
+stb_importer::import(class resource_manager &manager,
                      const string &path,
                      const tinyxml2::XMLElement *settings)
 {
+    report(report_type::info, "Importing texture: %s", path.c_str());
+
+    auto gpu_ctx = manager.get_gpu();
     if (!gpu_ctx)
-    {
         return report_error(error_code::value,
                             "GPU context required for texture import");
-    }
 
-    if (!fs.exists(path))
-    {
+    auto fs = manager.get_file_system();
+    if (!fs)
+        return report_error(error_code::value,
+                            "File system not set in resource_manager");
+
+    if (!fs->exists(path))
         return report_error(error_code::file_not_found, path.c_str());
-    }
 
-    auto file = fs.open(path, fs::open_mode::read);
-    if (!file)
-    {
+    vector<uint8_t> buf = fs->read_all_bytes(path);
+    if (buf.empty())
         return report_error(error_code::unable_to_read, path.c_str());
-    }
-
-    file->seek(0, fs::origin::end);
-    size_t len = file->tell();
-    file->seek(0, fs::origin::begin);
-
-    vector<uint8_t> buffer(len);
-    zabato::buffer b(buffer.data(), len);
-    if (file->read(b) != len)
-    {
-        file->close();
-        delete file;
-        return report_error(error_code::unable_to_read, "Read incomplete");
-    }
-    file->close();
-    delete file;
 
     int width, height, channels;
     // Force 4 channels (RGBA)
     stbi_uc *pixels = stbi_load_from_memory(
-        buffer.data(), (int)len, &width, &height, &channels, 4);
+        buf.data(), (int)buf.size(), &width, &height, &channels, 4);
 
     if (!pixels)
-    {
         return report_error(error_code::unable_to_read, stbi_failure_reason());
-    }
 
     // Create GPU Texture
     zabato::texture *tex = gpu_ctx->create_texture(

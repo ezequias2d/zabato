@@ -53,36 +53,21 @@ public:
 
             if (m_fs->exists(xml_path))
             {
-                auto file_xml = m_fs->open(xml_path, fs::open_mode::read);
-                if (file_xml)
+                auto xml = m_fs->read_all_text(xml_path);
+                if (doc.Parse(xml.c_str(), xml.size()) == tinyxml2::XML_SUCCESS)
                 {
-                    // Read entire XML into string
-                    file_xml->seek(0, fs::origin::end);
-                    size_t len = file_xml->tell();
-                    file_xml->seek(0, fs::origin::begin);
-
-                    vector<char> buf(len + 1);
-                    buffer b(reinterpret_cast<uint8_t *>(buf.data()), len);
-                    file_xml->read(b);
-                    buf[len] = 0;
-                    file_xml->close();
-                    delete file_xml;
-
-                    if (doc.Parse(buf.data()) == tinyxml2::XML_SUCCESS)
+                    auto root = doc.FirstChildElement("import");
+                    if (root)
                     {
-                        auto root = doc.FirstChildElement("import");
-                        if (root)
+                        auto importer_elem =
+                            root->FirstChildElement("importer");
+                        if (importer_elem && importer_elem->GetText())
                         {
-                            auto importer_elem =
-                                root->FirstChildElement("importer");
-                            if (importer_elem && importer_elem->GetText())
-                            {
-                                specific_importer =
-                                    importer_registry::find_importer_by_name(
-                                        importer_elem->GetText());
-                            }
-                            settings = root->FirstChildElement("settings");
+                            specific_importer =
+                                importer_registry::find_importer_by_name(
+                                    importer_elem->GetText());
                         }
+                        settings = root->FirstChildElement("settings");
                     }
                 }
             }
@@ -100,10 +85,10 @@ public:
 
         if (importer)
         {
-            auto res = importer->import(*m_fs, m_gpu, path, settings);
+            auto res = importer->import(*this, path, settings);
             if (!res.has_error())
             {
-                m_resources.set(path, res.value);
+                m_resources.add_or_set(path, res.value);
                 return res.value;
             }
             return res.error;
@@ -186,7 +171,7 @@ public:
                 return res.error;
             }
 
-            m_resources.set(path, obj);
+            m_resources.add_or_set(path, obj);
             return obj;
         }
         else
@@ -211,6 +196,13 @@ public:
 
     void set_gpu(class gpu *gpu) { m_gpu = gpu; }
     class gpu *get_gpu() const { return m_gpu; }
+
+    resource_manager()  = default;
+    ~resource_manager() = default;
+
+    // Prevent accidental copying
+    resource_manager(const resource_manager &)            = delete;
+    resource_manager &operator=(const resource_manager &) = delete;
 
 private:
     hash_map<string, resource_ptr> m_resources;
@@ -237,8 +229,8 @@ public:
     {
         if (!m_manager || m_path.empty())
             return nullptr;
+
         result<shared_ptr<T>> resource = m_manager->load<T>(m_path);
-        assert(!resource.has_error());
         if (resource.has_error())
             return nullptr;
         return resource.value;

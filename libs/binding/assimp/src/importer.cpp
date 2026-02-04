@@ -57,8 +57,7 @@ static mat4<real> to_mat4(const aiMatrix4x4 &m)
 }
 
 result<shared_ptr<resource>>
-assimp_importer::import(fs::file_system &fs,
-                        class gpu *gpu_ctx,
+assimp_importer::import(class resource_manager &manager,
                         const string &path,
                         const tinyxml2::XMLElement *settings)
 {
@@ -68,34 +67,17 @@ assimp_importer::import(fs::file_system &fs,
     importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE,
                                 aiPrimitiveType_POINT | aiPrimitiveType_LINE);
 
-    // Read file via VFS
-    if (!fs.exists(path))
-    {
+    auto fs = manager.get_file_system();
+    if (!fs)
+        return report_error(error_code::value,
+                            "File system not set in resource_manager");
+
+    if (!fs->exists(path))
         return report_error(error_code::file_not_found, path.c_str());
-    }
 
-    auto file = fs.open(path, fs::open_mode::read);
-    if (!file)
-    {
+    vector<uint8_t> buf = fs->read_all_bytes(path);
+    if (buf.empty())
         return report_error(error_code::unable_to_read, path.c_str());
-    }
-
-    // Read entire file into buffer
-    file->seek(0, fs::origin::end);
-    size_t file_size = file->tell();
-    file->seek(0, fs::origin::begin);
-
-    vector<char> buffer_data(file_size);
-    buffer b(reinterpret_cast<uint8_t *>(buffer_data.data()), file_size);
-    size_t read = file->read(b);
-    file->close();
-    delete file;
-
-    if (read != file_size)
-    {
-        return report_error(error_code::unable_to_read,
-                            "Failed to read entire file");
-    }
 
     unsigned int ai_flags = aiProcess_Triangulate |
                             aiProcess_JoinIdenticalVertices |
@@ -130,7 +112,7 @@ assimp_importer::import(fs::file_system &fs,
 
     string extension     = path.substr(path.rfind('.'));
     const aiScene *scene = importer.ReadFileFromMemory(
-        buffer_data.data(), buffer_data.size(), ai_flags, extension.c_str());
+        buf.data(), buf.size(), ai_flags, extension.c_str());
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
         !scene->mRootNode)

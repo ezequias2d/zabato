@@ -45,4 +45,25 @@ private:
     int m_active_lights = 0;
 };
 
+class forward_renderer : public renderer
+{
+public:
+    forward_renderer(gpu &gpu, script_system &script_system)
+        : m_gpu(gpu), m_script_system(script_system)
+    {
+    }
+
+    void begin(camera &cam) override final;
+    void end() override final;
+
+    void submit(model *model) override final;
+    void submit(class light *light) override final;
+
+private:
+    camera *m_cam;
+    gpu &m_gpu;
+    script_system &m_script_system;
+    int m_active_lights = 0;
+};
+
 } // namespace zabato

@@ -1,3 +1,5 @@
+#include <zabato/gpu.hpp>
+#include <zabato/material.hpp>
 #include <zabato/mesh.hpp>
 #include <zabato/model.hpp>
 #include <zabato/reflection.hpp>
@@ -41,10 +43,48 @@ model_mesh_setter(script_system *, script_instance *, script_args *args)
     }
 }
 
+static void
+model_material_getter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 1)
+        return;
+    value v   = args->get_value(0);
+    object *o = v.as_object();
+    model *m  = c_dynamic_cast<model>(o);
+    if (m)
+    {
+        args->push_return(m->get_material() ? m->get_material_path() : "");
+    }
+}
+
+static void
+model_material_setter(script_system *, script_instance *, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+    value v1  = args->get_value(0);
+    object *o = v1.as_object();
+    model *m  = c_dynamic_cast<model>(o);
+    value v2  = args->get_value(1);
+    if (m)
+    {
+        string_view path = v2.as_string();
+        m->set_material(string(path).c_str());
+    }
+}
+
 void model::reflect(reflection &r)
 {
     spatial::reflect(r);
-    r.properties.add("mesh", {model_mesh_getter, model_mesh_setter});
+
+    value mesh_attrs = value::make_map();
+    mesh_attrs.set_field("asset_type", "mesh");
+    r.add_property("mesh", model_mesh_getter, model_mesh_setter, mesh_attrs);
+
+    value mat_attrs = value::make_map();
+    mat_attrs.set_field("asset_type", "material");
+    r.add_property(
+        "material", model_material_getter, model_material_setter, mat_attrs);
 }
 
 model::model()
@@ -71,11 +111,32 @@ void model::set_mesh(const char *path)
 void model::set_resource_manager(resource_manager *mgr)
 {
     m_mesh.set_manager(mgr);
+    m_material.set_manager(mgr);
 }
 
 shared_ptr<mesh> model::get_mesh() const { return m_mesh.get<mesh>(); }
 
 string_view model::get_mesh_path() const { return m_mesh.path(); }
+
+void model::set_material(const char *path)
+{
+    m_material_override = nullptr;
+    m_material.set_path(path);
+}
+
+void model::set_material(shared_ptr<material> mat)
+{
+    m_material_override = mat;
+}
+
+shared_ptr<material> model::get_material() const
+{
+    if (m_material_override)
+        return m_material_override;
+    return m_material.get<material>();
+}
+
+string_view model::get_material_path() const { return m_material.path(); }
 
 void model::bind_skeleton()
 {
@@ -165,6 +226,7 @@ void model::save(serializer &stream) const
 {
     spatial::save(stream);
     stream.write(m_mesh);
+    stream.write(m_material);
     // TODO: support saving animator (needs animator serialization support)
 }
 
@@ -173,6 +235,9 @@ void model::load(serializer &stream, serializer_link *link)
     spatial::load(stream, link);
     stream.read(m_mesh);
     m_mesh.set_manager(stream.get_manager());
+
+    stream.read(m_material);
+    m_material.set_manager(stream.get_manager());
 
     update_model_bound();
     bind_skeleton();
@@ -184,13 +249,19 @@ void model::save_xml(xml_serializer &serializer,
 {
     spatial::save_xml(serializer, element);
     xml_serializer::write_resource_ref(element, m_mesh);
+    xml_serializer::write_resource_ref(element, m_material, "material");
 }
 
 void model::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &element)
 {
     spatial::load_xml(serializer, element);
+
     xml_serializer::read_resource_ref(element, m_mesh);
     m_mesh.set_manager(serializer.get_manager());
+
+    xml_serializer::read_resource_ref(element, m_material, "material");
+    m_material.set_manager(serializer.get_manager());
+
     update_model_bound();
     bind_skeleton();
 }

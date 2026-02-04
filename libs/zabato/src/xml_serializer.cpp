@@ -1,5 +1,6 @@
 #include <tinyxml2.h>
 #include <zabato/camera.hpp>
+#include <zabato/fs.hpp>
 #include <zabato/hash_map.hpp>
 #include <zabato/model.hpp>
 #include <zabato/node.hpp>
@@ -14,7 +15,7 @@ xml_serializer::xml_serializer() {}
 
 xml_serializer::~xml_serializer() {}
 
-bool xml_serializer::save(const char *path, object *root)
+bool xml_serializer::save(fs::file_system &fs, const char *path, object *root)
 {
     m_doc.Clear();
     m_links.clear();
@@ -27,17 +28,28 @@ bool xml_serializer::save(const char *path, object *root)
 
     root->save_xml(*this, *rootEl);
 
-    return m_doc.SaveFile(path) == tinyxml2::XML_SUCCESS;
+    tinyxml2::XMLPrinter printer;
+    m_doc.Accept(&printer);
+    string_view xml = printer.CStr();
+
+    auto file = fs.open(path, fs::open_mode::write | fs::open_mode::truncate);
+    size_t writted = file->write({(const uint8_t *)xml.data(), xml.size()});
+    file->close();
+    delete file;
+
+    return writted == xml.size();
 }
 
-object *xml_serializer::load(const char *path)
+object *xml_serializer::load(fs::file_system &fs, const char *path)
 {
     m_links.clear();
 
-    if (m_doc.LoadFile(path) != tinyxml2::XML_SUCCESS)
-    {
+    auto xml = fs.read_all_text(path);
+    if (xml.empty())
         return nullptr;
-    }
+
+    if (m_doc.Parse(xml.c_str(), xml.size()) != tinyxml2::XML_SUCCESS)
+        return nullptr;
 
     tinyxml2::XMLElement *rootEl = m_doc.RootElement();
     if (!rootEl)
@@ -50,6 +62,12 @@ object *xml_serializer::load(const char *path)
     obj->link(*this, *rootEl);
 
     return obj;
+}
+
+void xml_serializer::write_vec2(tinyxml2::XMLElement &el, const vec2<real> &v)
+{
+    el.SetAttribute("x", (float)v.x);
+    el.SetAttribute("y", (float)v.y);
 }
 
 void xml_serializer::write_vec3(tinyxml2::XMLElement &el, const vec3<real> &v)
@@ -70,6 +88,14 @@ void xml_serializer::write_vec4(tinyxml2::XMLElement &el, const vec4<real> &v)
 void xml_serializer::write_quat(tinyxml2::XMLElement &el, const quat<real> &v)
 {
     write_vec4(el, v.as_vec4);
+}
+
+vec2<real> xml_serializer::read_vec2(tinyxml2::XMLElement &el)
+{
+    vec2<real> v;
+    v.x = el.FloatAttribute("x");
+    v.y = el.FloatAttribute("y");
+    return v;
 }
 
 vec3<real> xml_serializer::read_vec3(tinyxml2::XMLElement &el)
@@ -201,18 +227,22 @@ object *xml_serializer::read_object(tinyxml2::XMLElement &el)
 }
 
 void xml_serializer::write_resource_ref(tinyxml2::XMLElement &el,
-                                        const resource_ref &res)
+                                        const resource_ref &res,
+                                        const char *attr)
 {
     if (!res.path().empty())
-        el.SetAttribute("src", res.c_path());
+        el.SetAttribute(attr, res.c_path());
 }
 
 void xml_serializer::read_resource_ref(tinyxml2::XMLElement &el,
-                                       resource_ref &res)
+                                       resource_ref &res,
+                                       const char *attr)
 {
-    const char *path = el.Attribute("src");
+    const char *path = el.Attribute(attr);
     if (path)
         res.set_path(path);
+    else
+        res.set_path("");
 }
 
 object *xml_serializer::get_object(uuid id)

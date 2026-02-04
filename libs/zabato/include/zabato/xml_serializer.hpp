@@ -20,14 +20,16 @@ public:
     xml_serializer();
     ~xml_serializer();
 
-    bool save(const char *path, object *root);
-    object *load(const char *path);
+    bool save(fs::file_system &fs, const char *path, object *root);
+    object *load(fs::file_system &fs, const char *path);
 
     tinyxml2::XMLDocument &doc() { return m_doc; }
 
+    static void write_vec2(tinyxml2::XMLElement &el, const vec2<real> &v);
     static void write_vec3(tinyxml2::XMLElement &el, const vec3<real> &v);
     static void write_vec4(tinyxml2::XMLElement &el, const vec4<real> &v);
     static void write_quat(tinyxml2::XMLElement &el, const quat<real> &v);
+    static vec2<real> read_vec2(tinyxml2::XMLElement &el);
     static vec3<real> read_vec3(tinyxml2::XMLElement &el);
     static vec4<real> read_vec4(tinyxml2::XMLElement &el);
     static quat<real> read_quat(tinyxml2::XMLElement &el);
@@ -41,8 +43,11 @@ public:
                                     transformation &t);
 
     static void write_resource_ref(tinyxml2::XMLElement &el,
-                                   const resource_ref &res);
-    static void read_resource_ref(tinyxml2::XMLElement &el, resource_ref &res);
+                                   const resource_ref &res,
+                                   const char *attr = "src");
+    static void read_resource_ref(tinyxml2::XMLElement &el,
+                                  resource_ref &res,
+                                  const char *attr = "src");
 
     object *get_object(uuid id);
     void add_object(uuid id, object *obj);

@@ -1,5 +1,8 @@
 #include <iostream>
 #include <zabato/gl.hpp>
+#include <zabato/gpu.hpp>
+#include <zabato/shader.hpp>
+#include <zabato/vector.hpp>
 #include <zabato/window.hpp>
 
 namespace zabato
@@ -127,8 +130,11 @@ size_t calculate_texture_data_size(uint16_t width,
     }
 }
 
-GlTexture::GlTexture(uint16_t width, uint16_t height, color_format format)
-    : m_width(width), m_height(height), m_format(format)
+GlTexture::GlTexture(uint16_t width,
+                     uint16_t height,
+                     color_format format,
+                     GLenum target)
+    : m_width(width), m_height(height), m_format(format), m_target(target)
 {
     glGenTextures(1, &m_handle);
 }
@@ -145,8 +151,14 @@ void GlTexture::load(uint16_t width,
                      uint16_t height,
                      color_format format,
                      size_t data_size,
-                     const void *data)
+                     const void *data,
+                     uint8_t face)
 {
+    GLenum target = m_target;
+    if (m_target == GL_TEXTURE_CUBE_MAP)
+        target = GL_TEXTURE_CUBE_MAP_POSITIVE_X + face;
+
+    glBindTexture(m_target, m_handle);
     m_width  = width;
     m_height = height;
     m_format = format;
@@ -171,12 +183,14 @@ void GlTexture::load(uint16_t width,
         m_pixel_data.clear();
 
     vector<uint32_t> buffer;
-    GLint internal_format = GL_RGBA8;
+    GLint internal_fmt = GL_RGBA8;
+    GLenum fmt         = GL_RGBA;
+    GLenum type        = GL_UNSIGNED_BYTE;
 
     if (m_format == color_format::rgba5551)
-        internal_format = GL_RGB5_A1;
+        internal_fmt = GL_RGB5_A1;
     else if (m_format == color_format::rgba4444)
-        internal_format = GL_RGBA4;
+        internal_fmt = GL_RGBA4;
 
     // Only process conversion if data is provided
     if (data != nullptr)
@@ -240,18 +254,17 @@ void GlTexture::load(uint16_t width,
         }
     }
 
-    glBindTexture(GL_TEXTURE_2D, m_handle);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(m_target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(m_target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-    glTexImage2D(GL_TEXTURE_2D,
+    glTexImage2D(target,
                  0,
-                 internal_format,
-                 m_width,
-                 m_height,
+                 internal_fmt,
+                 width,
+                 height,
                  0,
-                 GL_RGBA,
-                 GL_UNSIGNED_BYTE,
+                 fmt,
+                 type,
                  (data != nullptr) ? buffer.data() : nullptr);
 }
 
@@ -394,7 +407,11 @@ void GlGpu::new_frame()
 }
 
 void GlGpu::begin(primitive_type type) { glBegin(to_gl_primitive_type(type)); }
-void GlGpu::end() { glEnd(); }
+void GlGpu::end()
+{
+    glEnd();
+    m_resources.clear();
+}
 void GlGpu::vertex(const vec3<real> &v)
 {
     glVertex3f(float(v.x), float(v.y), float(v.z));
@@ -517,9 +534,16 @@ void GlGpu::set_shade_model(shade_model model)
 void GlGpu::enable_lighting(bool enabled)
 {
     if (enabled)
+    {
         glEnable(GL_LIGHTING);
+        glEnable(GL_COLOR_MATERIAL);
+        glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+    }
     else
+    {
         glDisable(GL_LIGHTING);
+        glDisable(GL_COLOR_MATERIAL);
+    }
 }
 
 void GlGpu::set_light(int id, const light_data *l)
@@ -547,11 +571,34 @@ void GlGpu::set_light(int id, const light_data *l)
     glLightfv(light_id, GL_DIFFUSE, diffuse);
     glLightfv(light_id, GL_SPECULAR, specular);
 
-    float pos[] = {float(l->position.x),
-                   float(l->position.y),
-                   float(l->position.z),
-                   l->type == light_type::directional ? 0.0f : 1.0f};
-    glLightfv(light_id, GL_POSITION, pos);
+    if (l->type == light_type::directional)
+    {
+        // Directional Light: GL_POSITION needs direction TO light (w=0).
+        // spot_direction is direction OF light. So we use -spot_direction.
+        float pos[] = {float(-l->spot_direction.x),
+                       float(-l->spot_direction.y),
+                       float(-l->spot_direction.z),
+                       0.0f};
+        glLightfv(light_id, GL_POSITION, pos);
+    }
+    else
+    {
+        float pos[] = {float(l->position.x),
+                       float(l->position.y),
+                       float(l->position.z),
+                       1.0f};
+        glLightfv(light_id, GL_POSITION, pos);
+    }
+
+    glLightf(light_id,
+             static_cast<GLenum>(GL_CONSTANT_ATTENUATION),
+             float(l->constant_attenuation));
+    glLightf(light_id,
+             static_cast<GLenum>(GL_LINEAR_ATTENUATION),
+             float(l->linear_attenuation));
+    glLightf(light_id,
+             static_cast<GLenum>(GL_QUADRATIC_ATTENUATION),
+             float(l->quadratic_attenuation));
 
     if (l->type == light_type::spot)
     {
@@ -562,29 +609,278 @@ void GlGpu::set_light(int id, const light_data *l)
         glLightf(light_id, GL_SPOT_CUTOFF, float(l->spot_cutoff));
         glLightf(light_id, GL_SPOT_EXPONENT, float(l->spot_exponent));
     }
+    else
+    {
+        glLightf(light_id, GL_SPOT_CUTOFF, 180.0f);
+    }
 }
 
-void GlGpu::set_material(const material *m)
-{ /* ... implementation needed ... */ }
+void GlGpu::set_render_state(const render_state &state)
+{
+    if (state.depth_test)
+        glEnable(GL_DEPTH_TEST);
+    else
+        glDisable(GL_DEPTH_TEST);
+    GLenum depth_funcs[] = {GL_NEVER,
+                            GL_LESS,
+                            GL_EQUAL,
+                            GL_LEQUAL,
+                            GL_GREATER,
+                            GL_NOTEQUAL,
+                            GL_GEQUAL,
+                            GL_ALWAYS};
+    glDepthFunc(depth_funcs[static_cast<int>(state.depth_compare)]);
+    glDepthMask(state.depth_write ? GL_TRUE : GL_FALSE);
+
+    if (state.blend)
+        glEnable(GL_BLEND);
+    else
+        glDisable(GL_BLEND);
+    GLenum blend_factors[] = {GL_ZERO,
+                              GL_ONE,
+                              GL_SRC_COLOR,
+                              GL_ONE_MINUS_SRC_COLOR,
+                              GL_SRC_ALPHA,
+                              GL_ONE_MINUS_SRC_ALPHA,
+                              GL_DST_ALPHA,
+                              GL_ONE_MINUS_DST_ALPHA,
+                              GL_DST_COLOR,
+                              GL_ONE_MINUS_DST_COLOR,
+                              GL_SRC_ALPHA_SATURATE};
+    glBlendFunc(blend_factors[static_cast<int>(state.blend_src)],
+                blend_factors[static_cast<int>(state.blend_dst)]);
+
+    if (state.alpha_test)
+        glEnable(GL_ALPHA_TEST);
+    else
+        glDisable(GL_ALPHA_TEST);
+    GLenum alpha_funcs[] = {GL_NEVER,
+                            GL_LESS,
+                            GL_EQUAL,
+                            GL_LEQUAL,
+                            GL_GREATER,
+                            GL_NOTEQUAL,
+                            GL_GEQUAL,
+                            GL_ALWAYS};
+    glAlphaFunc(alpha_funcs[static_cast<int>(state.alpha_compare)],
+                (float)state.alpha_ref);
+
+    if (state.cull_face)
+        glEnable(GL_CULL_FACE);
+    else
+        glDisable(GL_CULL_FACE);
+    if (state.cull_mode == cull_face_mode::back)
+        glCullFace(GL_BACK);
+    else if (state.cull_mode == cull_face_mode::front)
+        glCullFace(GL_FRONT);
+    else
+        glCullFace(GL_FRONT_AND_BACK);
+
+    GLenum poly_modes[] = {GL_POINT, GL_LINE, GL_FILL};
+    glPolygonMode(GL_FRONT_AND_BACK,
+                  poly_modes[static_cast<int>(state.poly_mode)]);
+
+    set_polygon_offset(
+        state.poly_offset, state.poly_offset_factor, state.poly_offset_units);
+}
+
+// Shader Implementation
+GlShader::GlShader(shader_type type, const string &source) : m_type(type)
+{
+    GLenum gl_type =
+        (type == shader_type::vertex) ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
+    m_handle        = glCreateShader(gl_type);
+    const char *src = source.c_str();
+    glShaderSource(m_handle, 1, &src, nullptr);
+    glCompileShader(m_handle);
+
+    GLint success;
+    glGetShaderiv(m_handle, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        char infoLog[512];
+        glGetShaderInfoLog(m_handle, 512, nullptr, infoLog);
+        std::cout << "Shader Compile Error: " << infoLog << "\nSource:\n"
+                  << source.c_str() << std::endl;
+    }
+}
+GlShader::~GlShader() { destroy(); }
+void GlShader::destroy()
+{
+    if (m_handle)
+    {
+        glDeleteShader(m_handle);
+        m_handle = 0;
+    }
+}
+
+GlProgram::GlProgram() { m_handle = glCreateProgram(); }
+GlProgram::~GlProgram() { destroy(); }
+void GlProgram::destroy()
+{
+    if (m_handle)
+    {
+        glDeleteProgram(m_handle);
+        m_handle = 0;
+    }
+}
+
+void GlProgram::attach(shader *s)
+{
+    if (s && m_handle)
+        glAttachShader(m_handle, static_cast<GlShader *>(s)->get_handle());
+}
+
+void GlProgram::link()
+{
+    if (m_handle)
+    {
+        glLinkProgram(m_handle);
+        GLint success;
+        glGetProgramiv(m_handle, GL_LINK_STATUS, &success);
+        if (!success)
+        {
+            char infoLog[512];
+            glGetProgramInfoLog(m_handle, 512, nullptr, infoLog);
+            std::cout << "Program Link Error: " << infoLog << std::endl;
+        }
+    }
+}
+
+GLint GlProgram::get_uniform_location(const string &name)
+{
+    return glGetUniformLocation(m_handle, name.c_str());
+}
+
+shader *GlGpu::create_shader(shader_type type, const string &source)
+{
+    return new GlShader(type, source);
+}
+
+program *GlGpu::create_program(class shader *vertex_shader,
+                               class shader *fragment_shader)
+{
+    auto *p = new GlProgram();
+    if (vertex_shader)
+        p->attach(vertex_shader);
+    if (fragment_shader)
+        p->attach(fragment_shader);
+    p->link();
+    return p;
+}
+
+void GlGpu::use_program(class program *prog)
+{
+    if (prog)
+        glUseProgram(static_cast<GlProgram *>(prog)->get_handle());
+    else
+        glUseProgram(0);
+}
+
+void GlGpu::set_uniform(class program *prog, const string &name, int val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniform1i(loc, val);
+}
+void GlGpu::set_uniform(class program *prog, const string &name, real val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniform1f(loc, (GLfloat)val);
+}
+void GlGpu::set_uniform(class program *prog,
+                        const string &name,
+                        const vec2<real> &val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniform2f(loc, (GLfloat)val.x, (GLfloat)val.y);
+}
+void GlGpu::set_uniform(class program *prog,
+                        const string &name,
+                        const vec3<real> &val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniform3f(loc, (GLfloat)val.x, (GLfloat)val.y, (GLfloat)val.z);
+}
+void GlGpu::set_uniform(class program *prog,
+                        const string &name,
+                        const vec4<real> &val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniform4f(loc,
+                    (GLfloat)val.x,
+                    (GLfloat)val.y,
+                    (GLfloat)val.z,
+                    (GLfloat)val.w);
+}
+void GlGpu::set_uniform(class program *prog,
+                        const string &name,
+                        const mat4<real> &val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniformMatrix4fv(
+            loc, 1, GL_FALSE, reinterpret_cast<const GLfloat *>(&val.m00));
+}
 
 texture *
 GlGpu::create_texture(uint16_t width, uint16_t height, color_format format)
 {
-    return new GlTexture(width, height, format);
+    return new GlTexture(width, height, format, GL_TEXTURE_2D);
 }
+
+texture *GlGpu::create_cubemap(uint16_t size, color_format format)
+{
+    return new GlTexture(size, size, format, GL_TEXTURE_CUBE_MAP);
+}
+
+void GlGpu::set_active_texture(int unit)
+{
+    glActiveTexture(GL_TEXTURE0 + unit);
+}
+
+void GlGpu::enable_texture(bool enabled)
+{
+    if (enabled)
+        glEnable(GL_TEXTURE_2D);
+    else
+        glDisable(GL_TEXTURE_2D);
+}
+
 void GlGpu::bind_texture(texture *tex)
 {
     if (tex)
     {
-        glBindTexture(GL_TEXTURE_2D,
-                      static_cast<GlTexture *>(tex)->get_handle());
+        GlTexture *gl_tex = static_cast<GlTexture *>(tex);
+        glBindTexture(gl_tex->get_target(), gl_tex->get_handle());
     }
     else
     {
         glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
     }
 }
-void GlGpu::unbind_texture() { glBindTexture(GL_TEXTURE_2D, 0); }
+void GlGpu::unbind_texture()
+{
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+}
 
 framebuffer *GlGpu::create_framebuffer(uint16_t width, uint16_t height)
 {
