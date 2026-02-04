@@ -1,0 +1,117 @@
+return {
+    name = "Lit",
+    
+    uniforms = {
+        u_MainTex = "Texture2D",
+        u_UseTexture = "bool",
+        u_Ambient = "vec4",
+        u_Diffuse = "vec4",
+        u_Specular = "vec4",
+        u_Emission = "vec4",
+        u_Shininess = "float"
+    },
+    
+    varyings = {
+        v_TexCoord = "vec2",
+        v_Color = "vec4"
+    },
+    
+    vertex = function()
+        local pos = Input.Position()
+        local norm = Input.Normal()
+        local uv = Input.UV()
+        local vertCol = Input.Color()
+        
+        Output.Position = Matrix.MVP() * pos
+        Varying.v_TexCoord = vec2(uv)
+        
+        -- Lighting Calculation (Vertex Space)
+        local N = normalize(Matrix.Normal() * norm)
+        local V_pos = vec3(uniforms.ModelViewMatrix * pos)
+        local V_dir = normalize(V_pos * float(-1.0))
+        
+        -- Custom Material Properties
+        local matAmb = uniforms.u_Ambient
+        local matDiff = uniforms.u_Diffuse
+        local matSpec = uniforms.u_Specular
+        local matEmit = uniforms.u_Emission
+        local matShin = uniforms.u_Shininess
+        
+        -- Initial Color (Emission + Global Ambient)
+        local totalAmb = Var("totalAmb", "vec4", uniforms.LightModel.ambient * matAmb)
+        local totalDiff = Var("totalDiff", "vec4", vec4(0.0))
+        local totalSpec = Var("totalSpec", "vec4", vec4(0.0))
+        
+        local zero = float(0.0)
+        local one = float(1.0)
+        
+        for i = 0, 7 do
+             local light = uniforms.LightSource[i]
+             
+             local L = Var("L", "vec3", vec3(0.0))
+             local atten = Var("atten", "float", one)
+             local dist = Var("dist", "float", zero)
+             
+             local lightPos = light.position.xyz
+             
+             If(eq(light.position.w, zero), function()
+                 Assign(L, normalize(lightPos))
+                 Assign(atten, one)
+             end).Else(function()
+                 local lightDir = lightPos - V_pos
+                 Assign(dist, length(lightDir))
+                 Assign(L, normalize(lightDir))
+                 
+                 local kC = light.constantAttenuation
+                 local kL = light.linearAttenuation
+                 local kQ = light.quadraticAttenuation
+                 local d = dist
+                 Assign(atten, one / (kC + kL * d + kQ * d * d))
+                 
+                 local cutoff = light.spotCutoff
+                 If(ne(cutoff, float(180.0)), function()
+                      local spotDir = normalize(light.spotDirection)
+                      local spotCos = dot(L * float(-1.0), spotDir)
+                      
+                      If(lt(spotCos, light.spotCosCutoff), function()
+                          Assign(atten, zero)
+                      end).Else(function()
+                          Assign(atten, atten * pow(spotCos, light.spotExponent))
+                      end)
+                 end)
+             end)
+             
+             local NdotL = max(dot(N, L), zero)
+             
+             If(gt(NdotL, zero), function()
+                 Assign(totalAmb, totalAmb + (light.ambient * matAmb * atten))
+                 Assign(totalDiff, totalDiff + (light.diffuse * matDiff * NdotL * atten))
+                 
+                 local H = normalize(L + V_dir)
+                 local NdotH = max(dot(N, H), zero)
+                 local specFactor = pow(NdotH, matShin)
+                 Assign(totalSpec, totalSpec + (light.specular * matSpec * specFactor * atten))
+             end).Else(function()
+                 Assign(totalAmb, totalAmb + (light.ambient * matAmb * atten))
+             end)
+             
+        end
+        
+        -- Combine Lighting
+        local lighting = matEmit + totalAmb + totalDiff + totalSpec
+        -- Multiply by Vertex Color
+        Varying.v_Color = lighting * vertCol
+    end,
+    
+    fragment = function()
+        local uv = Varying.v_TexCoord
+        local col = Varying.v_Color
+        
+        local tex = uniforms.u_MainTex
+        local useTex = uniforms.u_UseTexture
+        local texCol = texture_sample(tex, uv)
+        local base = mix(vec4(1,1,1,1), texCol, float(useTex))
+        
+        Output.Color = col * base
+    end
+}
