@@ -15,7 +15,7 @@ namespace zabato::imgui
  * @param win Pointer to the application window where input events will be
  * captured.
  */
-void init(window *win);
+void init(window *win, fs::file_system &fs);
 
 /**
  * @brief Shuts down the ImGui binding.

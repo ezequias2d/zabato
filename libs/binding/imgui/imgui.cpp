@@ -1,4 +1,5 @@
 #include "imgui_internal.h"
+#include <zabato/fs.hpp>
 #include <zabato/gpu.hpp>
 #include <zabato/imgui.hpp>
 #include <zabato/vector.hpp>
@@ -321,7 +322,7 @@ void set_atlas_pack_callback(atlas_pack_callback cb, void *user_data)
     g_atlas_callback_data = user_data;
 }
 
-void init(window *win)
+void init(window *win, fs::file_system &fs)
 {
     g_window = win;
     g_gpu    = init_gpu();
@@ -339,8 +340,24 @@ void init(window *win)
 
     g_time = get_time();
 
-    io.Fonts->AddFontFromFileTTF(
-        "./fonts/Chiron_GoRound_TC/static/ChironGoRoundTC-Regular.ttf", 16);
+    auto file = fs.open("embedded/assets/fonts/Chiron_GoRound_TC/static/"
+                        "ChironGoRoundTC-Regular.ttf",
+                        fs::open_mode::read);
+    if (!file)
+    {
+        std::cout << "Failed to load font" << std::endl;
+        return;
+    }
+
+    vector<uint8_t> buf;
+    file->read_all(buf);
+    file->close();
+    delete file;
+
+    void *data = malloc(buf.size());
+    memcpy(data, buf.data(), buf.size());
+
+    io.Fonts->AddFontFromMemoryTTF(data, buf.size(), 16);
 }
 
 void shutdown()
