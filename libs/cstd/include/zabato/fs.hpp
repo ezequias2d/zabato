@@ -1,5 +1,6 @@
 #pragma once
 
+#include <zabato/error.hpp>
 #include <zabato/path.hpp>
 #include <zabato/span.hpp>
 #include <zabato/stream.hpp>
@@ -40,6 +41,23 @@ public:
      * @return True if the file is closed, false otherwise.
      */
     virtual bool is_closed() const = 0;
+
+    /**
+     * @brief Reads the entire file into a vector.
+     * @param out The vector to store the file contents.
+     * @return True if successful, false otherwise.
+     */
+    bool read_all(vector<uint8_t> &out)
+    {
+        size_t cur = tell();
+        seek(0, origin::end);
+        size_t end = tell();
+        seek(cur, origin::begin);
+
+        size_t size = end - cur;
+        out.resize(size);
+        return read(out) == size;
+    }
 };
 
 /**
@@ -159,6 +177,71 @@ public:
      * @return True if successful, false otherwise.
      */
     virtual bool mkdir(string_view path) = 0;
+
+    /**
+     * @brief Renames a file or directory.
+     * @param old_path The current path.
+     * @param new_path The new path.
+     * @return True if successful, false otherwise.
+     */
+    virtual bool rename(string_view old_path, string_view new_path) = 0;
+
+    /**
+     * @brief Gets the native OS path for a given virtual path.
+     * @param path The virtual path.
+     * @return The native path if supported, or an error.
+     */
+    virtual result<string> get_native_path(string_view path)
+    {
+        return report_error(error_code::not_supported);
+    }
+
+    string read_all_text(string_view path)
+    {
+        auto file = open(path, open_mode::read);
+        if (!file)
+            return "";
+        vector<uint8_t> buf;
+        file->read_all(buf);
+        file->close();
+        delete file;
+        return string((const char *)buf.data(), buf.size());
+    }
+
+    bool write_all_text(string_view path, string_view text)
+    {
+        auto file = open(path, open_mode::write | open_mode::truncate);
+        if (!file)
+            return false;
+        size_t writted =
+            file->write({(const uint8_t *)text.data(), text.size()});
+        file->close();
+        delete file;
+        return writted == text.size();
+    }
+
+    vector<uint8_t> read_all_bytes(string_view path)
+    {
+        auto file = open(path, open_mode::read);
+        if (!file)
+            return {};
+        vector<uint8_t> buf;
+        file->read_all(buf);
+        file->close();
+        delete file;
+        return buf;
+    }
+
+    bool write_all_bytes(string_view path, span<const uint8_t> bytes)
+    {
+        auto file = open(path, open_mode::write | open_mode::truncate);
+        if (!file)
+            return false;
+        size_t writted = file->write(bytes);
+        file->close();
+        delete file;
+        return writted == bytes.size();
+    }
 };
 
 /**
@@ -265,9 +348,35 @@ public:
     bool exists(string_view path) override
     {
         auto [fs, mount_point, relative_path] = resolve(path);
-        if (fs == nullptr && relative_path.empty())
+        if (fs && fs->exists(relative_path))
             return true;
-        return fs && fs->exists(relative_path);
+
+        string p = normalize(path);
+        if (!is_absolute(p))
+        {
+            p.prepend("/");
+            p = normalize(p);
+        }
+
+        if (p == "/")
+            return true;
+
+        // Check if it is a parent of any mount
+        for (const auto &mount : m_mounts)
+        {
+            // If mount path starts with p and has more chars, and p is a prefix
+            // component
+            if (mount.path.length() > p.length() && mount.path.starts_with(p))
+            {
+                // Check if p is a full directory component of mount.path
+                // path: /a/b, mount: /a/b/c -> starts_with true. mount[len] ==
+                // '/' mount: /a/bc -> starts_with true. mount[len] == 'c' !=
+                // '/' (unless p ends in /)
+                if (mount.path[p.length()] == '/')
+                    return true;
+            }
+        }
+        return false;
     }
 
     /** @copydoc file_system::ls */
@@ -289,12 +398,9 @@ public:
         {
             if (mount.path.starts_with(p) && mount.path.length() > p.length())
             {
-                // Use string_view to avoid allocations and enable remove_prefix
-                // Safe because mount.path lives in m_mounts
                 string_view remaining_sv =
                     string_view(mount.path).substr(p.length());
 
-                // Skip leading separator if we are matching a subdirectory of p
                 if (remaining_sv.starts_with('/'))
                     remaining_sv.remove_prefix(1);
 
@@ -336,7 +442,32 @@ public:
     {
         auto [fs, mount_point, relative_path] = resolve(path);
         if (fs)
-            return fs->get_info(relative_path);
+        {
+            file_info info = fs->get_info(relative_path);
+            if (!info.name.empty())
+                return info;
+        }
+
+        // If not resolved to a physical FS, check if it's a virtual dir
+        if (exists(path)) // This now checks virtual dirs too
+        {
+            file_info fi;
+            string p = normalize(path);
+            // extracting name from path
+            size_t last_slash = p.rfind('/');
+            if (last_slash != string::npos && last_slash < p.length() - 1)
+                fi.name = p.substr(last_slash + 1);
+            else if (p == "/")
+                fi.name = "/";
+            else
+                fi.name = p;
+
+            fi.is_dir       = true;
+            fi.size         = 0;
+            fi.is_read_only = true;
+            return fi;
+        }
+
         return {};
     }
 
@@ -348,7 +479,26 @@ public:
             return true;
 
         auto [fs, mount_point, relative_path] = resolve(path);
-        return fs && fs->is_dir(relative_path);
+        if (fs && fs->is_dir(relative_path))
+            return true;
+
+        string p = normalize(path);
+        if (!is_absolute(p))
+        {
+            p.prepend("/");
+            p = normalize(p);
+        }
+
+        // Check if it is a parent of any mount (virtual directory)
+        for (const auto &mount : m_mounts)
+        {
+            if (mount.path.length() > p.length() && mount.path.starts_with(p))
+            {
+                if (mount.path[p.length()] == '/')
+                    return true;
+            }
+        }
+        return false;
     }
 
     /** @copydoc file_system::is_file */
@@ -377,6 +527,29 @@ public:
     {
         auto [fs, mount_point, relative_path] = resolve(path);
         return fs && fs->remove(relative_path);
+    }
+
+    /** @copydoc file_system::rename */
+    bool rename(string_view old_path, string_view new_path) override
+    {
+        auto [fs_old, mp_old, rel_old] = resolve(old_path);
+        auto [fs_new, mp_new, rel_new] = resolve(new_path);
+
+        // Renaming across different file systems is not supported natively.
+        // It would require copy + delete.
+        if (fs_old && fs_new && fs_old == fs_new)
+        {
+            return fs_old->rename(rel_old, rel_new);
+        }
+        return false;
+    }
+
+    result<string> get_native_path(string_view path) override
+    {
+        auto [fs, mount_point, relative_path] = resolve(path);
+        if (!fs)
+            return report_error(error_code::file_not_found);
+        return fs->get_native_path(relative_path);
     }
 
 private:

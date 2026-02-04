@@ -231,6 +231,20 @@ bool host_fs::remove(string_view path)
     return std_fs::remove_all(target, ec) > 0;
 }
 
+bool host_fs::rename(string_view old_path, string_view new_path)
+{
+    auto impl        = static_cast<host_fs_internal *>(m_data);
+    auto [safe, old] = resolve_safe(impl->root, old_path);
+    auto [safe2, nw] = resolve_safe(impl->root, new_path);
+
+    if (!safe || !safe2)
+        return false;
+
+    std::error_code ec;
+    std_fs::rename(old, nw, ec);
+    return !ec;
+}
+
 bool host_fs::mkdir(string_view path)
 {
     auto impl           = static_cast<host_fs_internal *>(m_data);
@@ -314,6 +328,15 @@ file *host_fs::open(string_view path, open_mode mode)
         return nullptr;
 
     return new host_file(f);
+}
+
+result<string> host_fs::get_native_path(string_view path)
+{
+    auto impl           = static_cast<host_fs_internal *>(m_data);
+    auto [safe, target] = resolve_safe(impl->root, path);
+    if (!safe)
+        return report_error(error_code::invalid_path);
+    return string{target.string().c_str()};
 }
 
 } // namespace zabato::fs
