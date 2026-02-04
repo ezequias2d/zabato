@@ -685,6 +685,27 @@ struct ICE_QUAT_R16 : ICE_VEC3<ICE_R16, ICE_R16, ICE_R16>
     }
 };
 
+template <typename XT, typename YT, typename ZT, typename WT> struct ICE_VEC4
+{
+    XT x;
+    YT y;
+    ZT z;
+    WT w;
+
+    ICE_VEC4() : x(0), y(0), z(0), w(0) {}
+    ICE_VEC4(XT x, YT y, ZT z, WT w) : x(x), y(y), z(z), w(w) {}
+    ICE_VEC4(const vec4<real> &vec)
+        : x(static_cast<XT>(vec.x)), y(static_cast<YT>(vec.y)),
+          z(static_cast<ZT>(vec.z)), w(static_cast<WT>(vec.w))
+    {
+    }
+
+    operator vec4<real>() const
+    {
+        return vec4<real>(real(x), real(y), real(z), real(w));
+    }
+};
+
 template <typename T> struct ICE_MAT4X4
 {
     T m[4][4];
