@@ -36,8 +36,18 @@ static int aux_vec2_new(lua_State *L, const vec2<real> &v)
 
 static int l_vec2_new(lua_State *L)
 {
-    real x = check_real(L, 1);
-    real y = check_real(L, 2);
+    int top = lua_gettop(L);
+    real x;
+    real y;
+    if (top <= 1)
+        x = y = 0;
+    else if (top == 2)
+        x = y = check_real(L, 2);
+    else if (top >= 3)
+    {
+        x = check_real(L, 2);
+        y = check_real(L, 3);
+    }
     return aux_vec2_new(L, vec2<real>(x, y));
 }
 
@@ -237,9 +247,27 @@ static int aux_vec3_new(lua_State *L, const vec3<real> &v)
 
 static int l_vec3_new(lua_State *L)
 {
-    real x = check_real(L, 1);
-    real y = check_real(L, 2);
-    real z = check_real(L, 3);
+    int top = lua_gettop(L);
+    real x;
+    real y;
+    real z;
+
+    if (top <= 1)
+        x = y = z = 0;
+    else if (top == 2)
+        x = y = z = check_real(L, 2);
+    else if (top == 3)
+    {
+        x = check_real(L, 2);
+        y = check_real(L, 3);
+        z = 0;
+    }
+    else if (top >= 4)
+    {
+        x = check_real(L, 2);
+        y = check_real(L, 3);
+        z = check_real(L, 4);
+    }
     return aux_vec3_new(L, vec3<real>(x, y, z));
 }
 
@@ -574,10 +602,35 @@ static int aux_vec4_new(lua_State *L, const vec4<real> &v)
 
 static int l_vec4_new(lua_State *L)
 {
-    real x = check_real(L, 1);
-    real y = check_real(L, 2);
-    real z = check_real(L, 3);
-    real w = check_real(L, 4);
+    int top = lua_gettop(L);
+    real x;
+    real y;
+    real z;
+    real w;
+    if (top <= 1)
+        x = y = z = w = 0;
+    else if (top == 2)
+        x = y = z = w = check_real(L, 2);
+    else if (top == 3)
+    {
+        x = check_real(L, 2);
+        y = check_real(L, 3);
+        z = w = 0;
+    }
+    else if (top == 4)
+    {
+        x = check_real(L, 2);
+        y = check_real(L, 3);
+        z = check_real(L, 4);
+        w = 0;
+    }
+    else if (top >= 5)
+    {
+        x = check_real(L, 2);
+        y = check_real(L, 3);
+        z = check_real(L, 4);
+        w = check_real(L, 5);
+    }
 
     return aux_vec4_new(L, vec4<real>(x, y, z, w));
 }
@@ -1046,12 +1099,12 @@ static int l_quat_new(lua_State *L)
 {
     // Identity by default: w=1
     real w = 1, x = 0, y = 0, z = 0;
-    if (lua_gettop(L) >= 4)
+    if (lua_gettop(L) >= 5)
     {
-        w = check_real(L, 1);
-        x = check_real(L, 2);
-        y = check_real(L, 3);
-        z = check_real(L, 4);
+        w = check_real(L, 2);
+        x = check_real(L, 3);
+        y = check_real(L, 4);
+        z = check_real(L, 5);
     }
 
     return aux_quat_new(L, quat<real>(w, x, y, z));
@@ -1484,23 +1537,23 @@ static int aux_mat3_new(lua_State *L, const mat3<real> &m)
 static int l_mat3_new(lua_State *L)
 {
     int args = lua_gettop(L);
-    if (args == 0)
+    if (args <= 1)
         return aux_mat3_new(L, mat3<real>());
 
-    if (args == 1)
+    if (args == 2)
     {
-        if (auto *a = (mat3<real> *)luaL_testudata(L, 1, META_MAT3))
+        if (auto *a = (mat3<real> *)luaL_testudata(L, 2, META_MAT3))
             return aux_mat3_new(L, *a);
-        else if (auto *a = (quat<real> *)luaL_testudata(L, 1, META_QUAT))
+        else if (auto *a = (quat<real> *)luaL_testudata(L, 2, META_QUAT))
             return aux_mat3_new(L, mat3<real>(*a));
-        else if (lua_isnumber(L, 1))
-            return aux_mat3_new(L, (real)luaL_checknumber(L, 1));
+        else if (lua_isnumber(L, 2))
+            return aux_mat3_new(L, (real)luaL_checknumber(L, 2));
     }
-    else if (args == 3)
+    else if (args == 4)
     {
         mat3<real> m;
         for (int i = 0; i < 3; i++)
-            m[i] = (real)luaL_checknumber(L, i + 1);
+            m[i] = (real)luaL_checknumber(L, i + 2);
         return aux_mat3_new(L, m);
     }
 
@@ -1618,22 +1671,22 @@ static int aux_mat4_new(lua_State *L, const mat4<real> &m)
 static int l_mat4_new(lua_State *L)
 {
     int args = lua_gettop(L);
-    if (args == 0)
+    if (args <= 1)
         return aux_mat4_new(L, mat4<real>());
-    else if (args == 1)
+    else if (args == 2)
     {
-        if (auto *a = (mat4<real> *)luaL_testudata(L, 1, META_MAT4))
+        if (auto *a = (mat4<real> *)luaL_testudata(L, 2, META_MAT4))
             return aux_mat4_new(L, *a);
-        else if (auto *a = (quat<real> *)luaL_testudata(L, 1, META_QUAT))
+        else if (auto *a = (quat<real> *)luaL_testudata(L, 2, META_QUAT))
             return aux_mat4_new(L, mat4_from_quat(*a));
-        else if (lua_isnumber(L, 1))
-            return aux_mat4_new(L, (real)luaL_checknumber(L, 1));
+        else if (lua_isnumber(L, 2))
+            return aux_mat4_new(L, (real)luaL_checknumber(L, 2));
     }
-    else if (args == 16)
+    else if (args == 17)
     {
         mat4<real> m;
         for (int i = 0; i < 16; i++)
-            m[i] = (real)luaL_checknumber(L, i + 1);
+            m[i] = (real)luaL_checknumber(L, i + 2);
         return aux_mat4_new(L, m);
     }
 
