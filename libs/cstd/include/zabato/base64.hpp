@@ -109,7 +109,7 @@ inline string encode(unsigned char const *bytes_to_encode, size_t in_len)
     return ret;
 }
 
-inline vector<uint8_t> decode(string const &encoded_string)
+inline vector<uint8_t> decode(const string_view &encoded_string)
 {
     size_t in_len = encoded_string.size();
     if (in_len == 0)
