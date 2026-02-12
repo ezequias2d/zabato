@@ -1,4 +1,5 @@
 #include <zabato/fs.hpp>
+#include <zabato/reflection.hpp>
 #include <zabato/script.hpp>
 
 namespace zabato
@@ -6,7 +7,9 @@ namespace zabato
 using namespace zabato::fs;
 
 const rtti script_instance::TYPE =
-    rtti("zabato.script_instance", &controller::TYPE);
+    rtti("zabato.script_instance", &controller::TYPE, script_instance::reflect);
+
+void script_instance::reflect(reflection &r) { controller::reflect(r); }
 
 class script_importer : public importer
 {

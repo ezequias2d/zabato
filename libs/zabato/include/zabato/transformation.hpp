@@ -2,6 +2,7 @@
 
 #include <zabato/math.hpp>
 #include <zabato/real.hpp>
+#include <zabato/shape.hpp>
 
 namespace zabato
 {

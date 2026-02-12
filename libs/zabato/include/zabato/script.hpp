@@ -127,6 +127,7 @@ class script_instance : public controller
 {
 public:
     static const rtti TYPE;
+    static void reflect(reflection &r);
 
     const rtti &type() const override { return TYPE; }
 
@@ -140,6 +141,16 @@ public:
      * @brief Returns the script this instance is associated with.
      */
     const shared_ptr<zabato::script> &script() const { return m_script; }
+
+    /**
+     * @brief Called when the script is first loaded.
+     */
+    virtual void initialize(const controller::context &ctx) override = 0;
+
+    /**
+     * @brief Called when the script is first started.
+     */
+    virtual void start() override = 0;
 
     /**
      * @brief Called every frame to run the script's update logic.

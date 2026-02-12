@@ -1,7 +1,9 @@
 #pragma once
 
-#include "object.hpp"
-#include "transformation.hpp"
+#include <zabato/delegate.hpp>
+#include <zabato/event.hpp>
+#include <zabato/object.hpp>
+#include <zabato/transformation.hpp>
 
 namespace zabato
 {
@@ -30,7 +32,7 @@ public:
     virtual void link(xml_serializer &serializer,
                       tinyxml2::XMLElement &element) override;
 
-    virtual world *get_world() const override final
+    virtual world *get_world() const override
     {
         auto p = parent();
         if (p != nullptr)
@@ -51,12 +53,15 @@ public:
 
     virtual void on_transform_changed() {}
 
+    event<> on_dirty;
+
     void force_dirty()
     {
         if (!is_world_dirty)
         {
             is_world_dirty = true;
             on_transform_changed();
+            on_dirty.invoke();
         }
     }
 
@@ -76,5 +81,6 @@ protected:
     }
 
     friend class node;
+    friend class world;
 };
 } // namespace zabato

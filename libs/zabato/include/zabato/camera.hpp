@@ -1,6 +1,7 @@
 #pragma once
 
 #include <zabato/math.hpp>
+#include <zabato/shape.hpp>
 #include <zabato/spatial.hpp>
 
 namespace zabato

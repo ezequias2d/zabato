@@ -1,11 +1,15 @@
 #pragma once
 
+#include <zabato/console.hpp>
 #include <zabato/object.hpp>
+#include <zabato/resource.hpp>
 
 namespace zabato
 {
 struct game_message;
 class gpu;
+class console;
+class resource_manager;
 
 /**
  * @class controller
@@ -21,6 +25,28 @@ public:
 
     controller();
     virtual ~controller();
+
+    struct context
+    {
+        resource_manager *resources  = nullptr;
+        console *logger              = nullptr;
+        class window *window         = nullptr;
+        class script_system *scripts = nullptr;
+    };
+
+    /**
+     * @brief Called when the controller is first loaded.
+     */
+    virtual void initialize(const context &ctx)
+    {
+        m_console          = ctx.logger;
+        m_resource_manager = ctx.resources;
+    }
+
+    /**
+     * @brief Called when the controller is first started.
+     */
+    virtual void start() = 0;
 
     /**
      * @brief Update logic called every frame.
@@ -56,8 +82,16 @@ public:
     // Friend world to allow it to manipulate links
     friend class world;
 
+    resource_manager *get_resource_manager() const
+    {
+        return m_resource_manager;
+    }
+    console *get_console() const { return m_console; }
+
 protected:
     object *m_object;
+    resource_manager *m_resource_manager = nullptr;
+    console *m_console                   = nullptr;
 
 private:
     controller *m_next;

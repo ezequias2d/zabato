@@ -133,6 +133,8 @@ public:
         return 0;
     }
 
+    size_t write(const char *str) { return write(string_view(str)); }
+
     /**
      * @brief Read an object pointer.
      * Handles resolving existing objects or marking for load.
