@@ -23,12 +23,12 @@ value::value(void (*v)(script_system *, script_instance *, script_args *))
               from_ptr(v)))
 {
 }
-value::value(object *v)
+value::value(base_object *v)
 {
     if (v)
         impl = make_shared<native_value>(v);
 }
-value::value(const pointer<object> &v)
+value::value(const pointer<base_object> &v)
 {
     if (v)
         impl = make_shared<native_value>(v);
@@ -40,6 +40,7 @@ value::value(const quat<real> &v) : impl(make_shared<native_value>(v)) {}
 value::value(const color &v) : impl(make_shared<native_value>(v)) {}
 value::value(const mat3<real> &v) : impl(make_shared<native_value>(v)) {}
 value::value(const mat4<real> &v) : impl(make_shared<native_value>(v)) {}
+value::value(real v) : impl(make_shared<native_value>(v)) {}
 
 value value::make_map()
 {
@@ -63,15 +64,15 @@ void value::call(script_system *sys,
         impl->call(sys, ctx, args);
 }
 
-pointer<object> value::as_object() const
+pointer<base_object> value::as_object() const
 {
     return impl ? impl->as_object() : nullptr;
 }
 
-native_value::native_value(const pointer<object> &v)
+native_value::native_value(const pointer<base_object> &v)
     : m_type(value_type::OBJECT)
 {
-    new (&o_val) pointer<object>(v);
+    new (&o_val) pointer<base_object>(v);
 }
 
 native_value::native_value(const mat3<real> &v) : m_type(value_type::MAT3)
@@ -98,7 +99,7 @@ native_value::~native_value()
         delete a_val;
         break;
     case value_type::OBJECT:
-        o_val.~pointer<object>();
+        o_val.~pointer<base_object>();
         break;
     case value_type::MAT3:
         delete m3_val;
@@ -116,7 +117,7 @@ void *native_value::as_pointer() const
     return (m_type == value_type::POINTER) ? p_val : nullptr;
 }
 
-pointer<object> native_value::as_object() const
+pointer<base_object> native_value::as_object() const
 {
     return (m_type == value_type::OBJECT) ? o_val : nullptr;
 }

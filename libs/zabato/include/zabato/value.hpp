@@ -1,10 +1,11 @@
 #pragma once
 
+#include <zabato/base_object.hpp>
 #include <zabato/color.hpp>
 #include <zabato/delegate.hpp>
 #include <zabato/hash_map.hpp>
 #include <zabato/math.hpp>
-#include <zabato/object.hpp>
+#include <zabato/pointer.hpp>
 #include <zabato/real.hpp>
 #include <zabato/rtti.hpp>
 #include <zabato/shared_ptr.hpp>
@@ -35,7 +36,7 @@ enum class value_type
     MAT4,
 };
 
-class object;
+class base_object;
 class script_system;
 class script_instance;
 class script_args;
@@ -87,12 +88,12 @@ struct ivalue
     virtual void
     call(script_system *sys, script_instance *ctx, script_args *args) const = 0;
 
-    virtual bool as_bool() const              = 0;
-    virtual double as_number() const          = 0;
-    virtual int64_t as_int() const            = 0;
-    virtual string_view as_string() const     = 0;
-    virtual void *as_pointer() const          = 0;
-    virtual pointer<object> as_object() const = 0;
+    virtual bool as_bool() const                   = 0;
+    virtual double as_number() const               = 0;
+    virtual int64_t as_int() const                 = 0;
+    virtual string_view as_string() const          = 0;
+    virtual void *as_pointer() const               = 0;
+    virtual pointer<base_object> as_object() const = 0;
 
     virtual script_delegate as_function() const = 0;
 
@@ -142,13 +143,14 @@ struct value
     value(double v);
     value(int v);
     value(int64_t v);
+    value(real v);
     value(const char *v);
     value(string_view v);
     value(const string &v);
     value(const script_delegate &v);
     value(void (*v)(script_system *, script_instance *, script_args *));
-    value(object *v);
-    value(const pointer<object> &v);
+    value(base_object *v);
+    value(const pointer<base_object> &v);
     value(const vec2<real> &v);
     value(const vec3<real> &v);
     value(const vec4<real> &v);
@@ -187,7 +189,7 @@ struct value
     int64_t as_int() const { return impl ? impl->as_int() : 0; }
     string_view as_string() const { return impl ? impl->as_string() : ""; }
     void *as_pointer() const { return impl ? impl->as_pointer() : nullptr; }
-    pointer<object> as_object() const;
+    pointer<base_object> as_object() const;
     script_delegate as_function() const
     {
         return impl ? impl->as_function() : script_delegate();
@@ -340,7 +342,7 @@ public:
         double n_val;
         int64_t i_val;
         void *p_val;
-        pointer<object> o_val;
+        pointer<base_object> o_val;
         intptr_t ref_id;
         string *s_val;
         hash_map<value, value> *t_val;
@@ -374,8 +376,8 @@ public:
     }
 
     native_value(void *v) : m_type(value_type::POINTER), p_val(v) {}
-    native_value(object *v) : m_type(value_type::OBJECT), o_val(v) {}
-    native_value(const pointer<object> &v);
+    native_value(base_object *v) : m_type(value_type::OBJECT), o_val(v) {}
+    native_value(const pointer<base_object> &v);
     native_value(const script_delegate &v)
         : m_type(value_type::FUNCTION), func(v)
     {
@@ -387,6 +389,7 @@ public:
     native_value(const color &v) : m_type(value_type::COLOR), c_val(v) {}
     native_value(const mat3<real> &v);
     native_value(const mat4<real> &v);
+    native_value(real v) : m_type(value_type::NUMBER), n_val(v) {}
 
     value_type type() const override { return m_type; }
 
@@ -417,7 +420,7 @@ public:
 
     void *as_pointer() const override;
 
-    pointer<object> as_object() const override;
+    pointer<base_object> as_object() const override;
 
     script_delegate as_function() const override
     {

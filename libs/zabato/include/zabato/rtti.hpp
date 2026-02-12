@@ -56,6 +56,9 @@ public:
      */
     bool is_exactly(const rtti &type) const { return &type == this; }
 
+    bool operator==(const rtti &other) const { return this == &other; }
+    bool operator!=(const rtti &other) const { return !(*this == other); }
+
     /**
      * @brief Check if this type is derived from another type.
      * @param type The base type to check against.
@@ -83,4 +86,5 @@ private:
     mutable reflection *m_reflection;
     reflect_cb m_setup;
 };
+
 } // namespace zabato

@@ -14,9 +14,9 @@ light_type_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    light *l  = c_dynamic_cast<light>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    light *l       = c_dynamic_cast<light>(o);
     if (l)
         args->push_return((int64_t)l->get_data().type);
 }
@@ -26,10 +26,10 @@ light_type_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    light *l  = c_dynamic_cast<light>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    light *l       = c_dynamic_cast<light>(o);
+    value v2       = args->get_value(1);
     if (l)
     {
         light_data d = l->get_data();
@@ -41,14 +41,11 @@ light_type_setter(script_system *, script_instance *, script_args *args)
 static void
 light_color_getter(script_system *, script_instance *, script_args *args)
 {
-    // Reuse for ambient/diffuse/specular via closure or separate funcs?
-    // For simplicity, separate funcs or copy-paste.
-    // Let's do ambient.
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    light *l  = c_dynamic_cast<light>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    light *l       = c_dynamic_cast<light>(o);
     if (l)
     {
         color5551 c = l->get_data().ambient;
@@ -62,10 +59,10 @@ light_ambient_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    light *l  = c_dynamic_cast<light>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    light *l       = c_dynamic_cast<light>(o);
+    value v2       = args->get_value(1);
     if (l && v2.is_color())
     {
         light_data d = l->get_data();
@@ -79,9 +76,9 @@ light_diffuse_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    light *l  = c_dynamic_cast<light>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    light *l       = c_dynamic_cast<light>(o);
     if (l)
     {
         color5551 c = l->get_data().diffuse;
@@ -95,10 +92,10 @@ light_diffuse_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    light *l  = c_dynamic_cast<light>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    light *l       = c_dynamic_cast<light>(o);
+    value v2       = args->get_value(1);
     if (l && v2.is_color())
     {
         light_data d = l->get_data();
@@ -114,9 +111,9 @@ static void is_spot(script_system *, script_instance *, script_args *args)
         args->push_return(false);
         return;
     }
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    light *l  = c_dynamic_cast<light>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    light *l       = c_dynamic_cast<light>(o);
     if (l && l->get_data().type == light_type::spot)
         args->push_return(true);
     else
@@ -128,9 +125,9 @@ light_specular_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    light *l  = c_dynamic_cast<light>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    light *l       = c_dynamic_cast<light>(o);
     if (l)
     {
         color5551 c = l->get_data().specular;
@@ -144,10 +141,10 @@ light_specular_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    light *l  = c_dynamic_cast<light>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    light *l       = c_dynamic_cast<light>(o);
+    value v2       = args->get_value(1);
     if (l && v2.is_color())
     {
         light_data d = l->get_data();
@@ -161,9 +158,9 @@ light_cutoff_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    light *l  = c_dynamic_cast<light>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    light *l       = c_dynamic_cast<light>(o);
     if (l)
         args->push_return((double)l->get_data().spot_cutoff);
 }
@@ -173,10 +170,10 @@ light_cutoff_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    light *l  = c_dynamic_cast<light>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    light *l       = c_dynamic_cast<light>(o);
+    value v2       = args->get_value(1);
     if (l && v2.is_number())
     {
         light_data d = l->get_data();
@@ -195,9 +192,9 @@ light_exponent_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    light *l  = c_dynamic_cast<light>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    light *l       = c_dynamic_cast<light>(o);
     if (l)
         args->push_return((double)l->get_data().spot_exponent);
 }
@@ -207,10 +204,10 @@ light_exponent_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    light *l  = c_dynamic_cast<light>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    light *l       = c_dynamic_cast<light>(o);
+    value v2       = args->get_value(1);
     if (l && v2.is_number())
     {
         light_data d    = l->get_data();
@@ -226,10 +223,9 @@ static void is_positional(script_system *, script_instance *, script_args *args)
         args->push_return(false);
         return;
     }
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    light *l  = c_dynamic_cast<light>(o);
-    // Directional light (0) is not positional. Point (1) and Spot (2) are.
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    light *l       = c_dynamic_cast<light>(o);
     if (l && l->get_data().type != light_type::directional)
         args->push_return(true);
     else
@@ -241,9 +237,9 @@ light_constant_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    light *l  = c_dynamic_cast<light>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    light *l       = c_dynamic_cast<light>(o);
     if (l)
         args->push_return((double)l->get_data().constant_attenuation);
 }
@@ -253,10 +249,10 @@ light_constant_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    light *l  = c_dynamic_cast<light>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    light *l       = c_dynamic_cast<light>(o);
+    value v2       = args->get_value(1);
     if (l && v2.is_number())
     {
         light_data d           = l->get_data();
@@ -270,9 +266,9 @@ light_linear_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    light *l  = c_dynamic_cast<light>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    light *l       = c_dynamic_cast<light>(o);
     if (l)
         args->push_return((double)l->get_data().linear_attenuation);
 }
@@ -282,10 +278,10 @@ light_linear_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    light *l  = c_dynamic_cast<light>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    light *l       = c_dynamic_cast<light>(o);
+    value v2       = args->get_value(1);
     if (l && v2.is_number())
     {
         light_data d         = l->get_data();
@@ -299,9 +295,9 @@ light_quadratic_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    light *l  = c_dynamic_cast<light>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    light *l       = c_dynamic_cast<light>(o);
     if (l)
         args->push_return((double)l->get_data().quadratic_attenuation);
 }
@@ -311,10 +307,10 @@ light_quadratic_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    light *l  = c_dynamic_cast<light>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    light *l       = c_dynamic_cast<light>(o);
+    value v2       = args->get_value(1);
     if (l && v2.is_number())
     {
         light_data d            = l->get_data();
@@ -367,7 +363,7 @@ void light::reflect(reflection &r)
                    pos_attrs);
 }
 
-light::light()
+light::light() : m_dirty_transform(true)
 {
     // Default light data
     m_data.type                  = light_type::point;

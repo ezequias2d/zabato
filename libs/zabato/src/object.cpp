@@ -15,12 +15,11 @@
 namespace zabato
 {
 
-const rtti object::TYPE("zabato.object", nullptr, object::reflect);
+const rtti object::TYPE("zabato.object", &base_object::TYPE, object::reflect);
 hash_map<uuid, object *> object::s_in_use;
-hash_map<string, object::factory_delegate> *object::s_factory         = nullptr;
-hash_map<string, object::factory_delegate_xml> *object::s_factory_xml = nullptr;
+hash_map<string, object::factory_info> *object::s_factory = nullptr;
 
-object::object() : m_name(""), m_uiID(uuid::generate()), m_uiRefCount(0)
+object::object() : m_name(""), m_uiID(uuid::generate())
 {
     s_in_use.add(m_uiID, this);
 }
@@ -37,11 +36,7 @@ bool object::register_factory()
 void object::initialize_factory()
 {
     if (!s_factory)
-        s_factory = new hash_map<string, factory_delegate>(FACTORY_MAP_SIZE);
-
-    if (!s_factory_xml)
-        s_factory_xml =
-            new hash_map<string, factory_delegate_xml>(FACTORY_MAP_SIZE);
+        s_factory = new hash_map<string, factory_info>(FACTORY_MAP_SIZE);
 }
 
 void object::terminate_factory()
@@ -51,12 +46,53 @@ void object::terminate_factory()
         delete s_factory;
         s_factory = nullptr;
     }
+}
 
-    if (s_factory_xml)
+bool object::register_factory_type(const string &name,
+                                   const rtti *type,
+                                   factory_delegate f,
+                                   factory_delegate_xml f_xml)
+{
+    if (!s_factory)
+        initialize_factory();
+
+    factory_info info;
+    info.type        = type;
+    info.factory     = f;
+    info.factory_xml = f_xml;
+    s_factory->add_or_set(name, info);
+    return true;
+}
+
+const rtti *object::get_factory_type(const string &name)
+{
+    if (!s_factory)
+        return nullptr;
+
+    factory_info info;
+    if (s_factory->try_get_value(name, info))
+        return info.type;
+    return nullptr;
+}
+
+object *object::create_default(const string &type_name, resource_manager &mgr)
+{
+    if (!s_factory)
+        return nullptr;
+
+    factory_info info;
+    if (s_factory->try_get_value(type_name, info))
     {
-        delete s_factory_xml;
-        s_factory_xml = nullptr;
+        if (!info.factory)
+            return nullptr;
+
+        vector<uint8_t> buffer;
+        memory_stream stream(buffer);
+        serializer ser(mgr);
+
+        return info.factory(ser);
     }
+    return nullptr;
 }
 
 object *object::factory(serializer &stream)
@@ -64,24 +100,14 @@ object *object::factory(serializer &stream)
     if (!s_factory)
         return nullptr;
 
-    // Read the RTTI type string (e.g., "zabato.object") from the stream.
-    // This identifies the class of the object to be created.
     string name;
     stream.read(name);
 
-    factory_delegate pFunc;
+    factory_info info;
 
-    // Dispatch to the specific class factory function.
-    // The registered factory function is responsible for:
-    // 1. Instantiating the specific class (e.g., via new).
-    // 2. invoking the Load() method to populate the object from the stream.
-    // Note that the RTTI name has already been consumed by this dispatcher.
-    if (s_factory->try_get_value(name, pFunc))
-        return pFunc(stream);
+    if (s_factory->try_get_value(name, info) && info.factory)
+        return info.factory(stream);
 
-    // If the class is not registered in the factory map, return nullptr.
-    // This indicates that the class type serialized in the stream is unknown to
-    // the runtime.
     return nullptr;
 }
 
@@ -91,9 +117,9 @@ object *object::factory(xml_serializer &serializer, tinyxml2::XMLElement &el)
         return nullptr;
 
     string name = el.Name();
-    factory_delegate_xml pFunc;
-    if (s_factory_xml->try_get_value(name, pFunc))
-        return pFunc(serializer, el);
+    factory_info info;
+    if (s_factory->try_get_value(name, info) && info.factory_xml)
+        return info.factory_xml(serializer, el);
     return nullptr;
 }
 
@@ -318,9 +344,7 @@ void object::add_controller(pointer<controller> ctrl)
     // If we are in a world, register the controller
     world *w = get_world();
     if (w)
-    {
         w->add_controller(ctrl);
-    }
 }
 
 void object::remove_controller(pointer<controller> ctrl)
@@ -334,9 +358,7 @@ void object::remove_controller(pointer<controller> ctrl)
         ctrl->set_object(nullptr);
         world *w = get_world();
         if (w)
-        {
             w->remove_controller(ctrl);
-        }
     }
 }
 
@@ -399,10 +421,10 @@ object_name_getter(script_system *sys, script_instance *ctx, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v     = args->get_value(0);
-    object *obj = v.as_object();
-    if (obj)
-        args->push_return(obj->name());
+    value v          = args->get_value(0);
+    base_object *obj = v.as_object();
+    if (obj->is_derived(object::TYPE))
+        args->push_return(static_cast<object *>(obj)->name());
     else
         args->type_error("Null object pointer");
 }
@@ -412,10 +434,11 @@ object_name_setter(script_system *sys, script_instance *ctx, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v     = args->get_value(0);
-    object *obj = v.as_object();
-    if (obj)
-        obj->set_name(args->get_value(1).as_string().data());
+    value v          = args->get_value(0);
+    base_object *obj = v.as_object();
+    if (obj->is_derived(object::TYPE))
+        static_cast<object *>(obj)->set_name(
+            args->get_value(1).as_string().data());
     else
         args->type_error("Null object pointer");
 }
@@ -426,12 +449,12 @@ static void object_get_object_by_name(script_system *sys,
 {
     if (args->count() < 2)
         return;
-    value v     = args->get_value(0);
-    object *obj = v.as_object();
-    if (obj)
+    value v          = args->get_value(0);
+    base_object *obj = v.as_object();
+    if (obj->is_derived(object::TYPE))
     {
-        object *found =
-            obj->get_object_by_name(args->get_value(1).as_string().data());
+        object *found = static_cast<object *>(obj)->get_object_by_name(
+            args->get_value(1).as_string().data());
         args->push_return((void *)found);
     }
     else
@@ -443,11 +466,11 @@ object_id_getter(script_system *sys, script_instance *ctx, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v     = args->get_value(0);
-    object *obj = v.as_object();
-    if (obj)
+    value v          = args->get_value(0);
+    base_object *obj = v.as_object();
+    if (obj->is_derived(object::TYPE))
     {
-        string id = obj->id().to_string();
+        string id = static_cast<object *>(obj)->id().to_string();
         args->push_return(id);
     }
     else

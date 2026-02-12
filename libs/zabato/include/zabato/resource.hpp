@@ -100,59 +100,38 @@ public:
 
     template <typename T> bool is_resource_type(const string &path)
     {
-        // Find importer
         string xml_path                        = path;
         size_t last_dot                        = xml_path.rfind('.');
         shared_ptr<importer> specific_importer = nullptr;
-
-        // Simplified check: usually we just look up extension or specific
-        // importer from XML Replicating logic partially for importer lookup
-
-        // ... (Skipping full XML sidecar check for performance in drag loop, or
-        // duplicating it?) The user dragging a file likely relies on extension
-        // unless registered.
 
         if (last_dot != string::npos)
         {
             string ext    = path.substr(last_dot);
             auto importer = importer_registry::find_importer(ext);
             if (importer)
-            {
                 return importer->is_resource_type(T::TYPE);
-            }
         }
         return false;
     }
 
     template <typename T> result<shared_ptr<T>> load(const string &path)
     {
-        // 1. Try to import using registered importers
         auto import_res = import_resource(path);
         if (!import_res.has_error())
-        {
             return static_pointer_cast<T>(import_res.value);
-        }
-        else if (import_res.error != error_code::unable_to_match)
-        {
-            // If importer matched but failed, propagate error
-            return import_res.error;
-        }
 
-        // 2. If no importer found, try native load (only if T is not resource
-        // and not abstract)
+        if (import_res.error != error_code::unable_to_match)
+            return import_res.error;
+
         if constexpr (!std::is_same_v<T, resource> && !std::is_abstract_v<T>)
         {
             resource_ptr resource;
             if (m_resources.try_get_value(path, resource))
-            {
                 return static_pointer_cast<T>(resource);
-            }
 
             if (!m_fs)
-            {
                 return report_error(error_code::value,
                                     "File system not set in resource_manager");
-            }
 
             auto obj = make_shared<T>();
 
@@ -167,9 +146,7 @@ public:
             delete file;
 
             if (res.has_error())
-            {
                 return res.error;
-            }
 
             m_resources.add_or_set(path, obj);
             return obj;

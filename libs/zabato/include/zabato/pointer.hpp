@@ -114,6 +114,8 @@ public:
         return *this;
     }
 
+    T *get() const { return m_object; }
+
     bool operator==(T *obj) const { return m_object == obj; }
     bool operator!=(T *obj) const { return m_object != obj; }
 

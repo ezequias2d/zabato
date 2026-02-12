@@ -1,3 +1,4 @@
+#include "zabato/base_object.hpp"
 #include <string.h>
 #include <tinyxml2.h>
 
@@ -19,9 +20,9 @@ static void spatial_translate_getter(script_system *sys,
 {
     if (args->count() < 1)
         return;
-    value v    = args->get_value(0);
-    object *o  = v.as_object();
-    spatial *s = c_dynamic_cast<spatial>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    spatial *s     = c_dynamic_cast<spatial>(o);
     if (s)
     {
         vec3<real> t = s->get_local().translate();
@@ -36,10 +37,10 @@ static void spatial_translate_setter(script_system *sys,
 {
     if (args->count() < 2)
         return;
-    value v1   = args->get_value(0);
-    object *o  = v1.as_object();
-    spatial *s = c_dynamic_cast<spatial>(o);
-    value v2   = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    spatial *s     = c_dynamic_cast<spatial>(o);
+    value v2       = args->get_value(1);
     if (s && v2.is_vec3())
     {
         vec3<real> t         = v2.as_vec3();
@@ -55,9 +56,9 @@ static void spatial_scale_getter(script_system *sys,
 {
     if (args->count() < 1)
         return;
-    value v    = args->get_value(0);
-    object *o  = v.as_object();
-    spatial *s = c_dynamic_cast<spatial>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    spatial *s     = c_dynamic_cast<spatial>(o);
     if (s)
     {
         vec3<real> sc = s->get_local().scale();
@@ -72,10 +73,10 @@ static void spatial_scale_setter(script_system *sys,
 {
     if (args->count() < 2)
         return;
-    value v1   = args->get_value(0);
-    object *o  = v1.as_object();
-    spatial *s = c_dynamic_cast<spatial>(o);
-    value v2   = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    spatial *s     = c_dynamic_cast<spatial>(o);
+    value v2       = args->get_value(1);
     if (s && v2.is_vec3())
     {
         vec3<real> sc        = v2.as_vec3();

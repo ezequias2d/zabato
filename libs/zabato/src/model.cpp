@@ -18,9 +18,9 @@ model_mesh_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    model *m  = c_dynamic_cast<model>(o);
+    auto v   = args->get_value(0);
+    auto o   = v.as_object();
+    model *m = c_dynamic_cast<model>(o.get());
     if (m)
     {
         args->push_return(m->get_mesh() ? m->get_mesh_path() : "");
@@ -32,10 +32,10 @@ model_mesh_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    model *m  = c_dynamic_cast<model>(o);
-    value v2  = args->get_value(1);
+    auto v1  = args->get_value(0);
+    auto o   = v1.as_object();
+    model *m = c_dynamic_cast<model>(o.get());
+    auto v2  = args->get_value(1);
     if (m)
     {
         string_view path = v2.as_string();
@@ -48,9 +48,9 @@ model_material_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    model *m  = c_dynamic_cast<model>(o);
+    auto v   = args->get_value(0);
+    auto o   = v.as_object();
+    model *m = c_dynamic_cast<model>(o.get());
     if (m)
     {
         args->push_return(m->get_material() ? m->get_material_path() : "");
@@ -62,10 +62,10 @@ model_material_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    model *m  = c_dynamic_cast<model>(o);
-    value v2  = args->get_value(1);
+    auto v1  = args->get_value(0);
+    auto o   = v1.as_object();
+    model *m = c_dynamic_cast<model>(o.get());
+    auto v2  = args->get_value(1);
     if (m)
     {
         string_view path = v2.as_string();
@@ -163,7 +163,7 @@ void model::set_animator(animator *anim) { add_controller(anim); }
 animator *model::get_animator() const
 {
     pointer<controller> ctrl = get_controller(animator::TYPE);
-    return c_dynamic_cast<animator>(ctrl);
+    return c_dynamic_cast<animator>(ctrl.get());
 }
 
 void model::on_transform_changed()

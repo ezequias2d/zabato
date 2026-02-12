@@ -1,3 +1,4 @@
+#include "zabato/base_object.hpp"
 #include <zabato/camera.hpp>
 #include <zabato/math.hpp>
 #include <zabato/reflection.hpp>
@@ -14,9 +15,9 @@ camera_fov_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    camera *c = c_dynamic_cast<camera>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    camera *c      = c_dynamic_cast<camera>(o);
     if (c)
         args->push_return((double)c->get_fov());
 }
@@ -26,10 +27,10 @@ camera_fov_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    camera *c = c_dynamic_cast<camera>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    camera *c      = c_dynamic_cast<camera>(o);
+    value v2       = args->get_value(1);
     if (c)
         c->set_perspective(
             v2.as_number(), c->get_aspect(), c->get_near(), c->get_far());
@@ -40,9 +41,9 @@ camera_aspect_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    camera *c = c_dynamic_cast<camera>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    camera *c      = c_dynamic_cast<camera>(o);
     if (c)
         args->push_return((double)c->get_aspect());
 }
@@ -51,10 +52,10 @@ camera_aspect_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    camera *c = c_dynamic_cast<camera>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    camera *c      = c_dynamic_cast<camera>(o);
+    value v2       = args->get_value(1);
     if (c)
         c->set_perspective(
             c->get_fov(), v2.as_number(), c->get_near(), c->get_far());
@@ -65,9 +66,9 @@ camera_near_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    camera *c = c_dynamic_cast<camera>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    camera *c      = c_dynamic_cast<camera>(o);
     if (c)
         args->push_return((double)c->get_near());
 }
@@ -76,10 +77,10 @@ camera_near_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    camera *c = c_dynamic_cast<camera>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    camera *c      = c_dynamic_cast<camera>(o);
+    value v2       = args->get_value(1);
     if (c)
         c->set_perspective(
             c->get_fov(), c->get_aspect(), v2.as_number(), c->get_far());
@@ -90,9 +91,9 @@ camera_far_getter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 1)
         return;
-    value v   = args->get_value(0);
-    object *o = v.as_object();
-    camera *c = c_dynamic_cast<camera>(o);
+    value v        = args->get_value(0);
+    base_object *o = v.as_object();
+    camera *c      = c_dynamic_cast<camera>(o);
     if (c)
         args->push_return((double)c->get_far());
 }
@@ -101,10 +102,10 @@ camera_far_setter(script_system *, script_instance *, script_args *args)
 {
     if (args->count() < 2)
         return;
-    value v1  = args->get_value(0);
-    object *o = v1.as_object();
-    camera *c = c_dynamic_cast<camera>(o);
-    value v2  = args->get_value(1);
+    value v1       = args->get_value(0);
+    base_object *o = v1.as_object();
+    camera *c      = c_dynamic_cast<camera>(o);
+    value v2       = args->get_value(1);
     if (c)
         c->set_perspective(c->get_fov(),
                            c->get_aspect(),
