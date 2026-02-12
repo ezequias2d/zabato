@@ -118,6 +118,8 @@ struct color
         real b = real(hex & 0xFF) / real(255.0f);
         return color(r, g, b);
     }
+
+    color alpha(real a) const { return color(r, g, b, a); }
 };
 
 #pragma endregion

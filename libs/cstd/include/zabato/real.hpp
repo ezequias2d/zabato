@@ -703,6 +703,9 @@ public:
     /** @brief Returns epsilon from policy. */
     static custom_real epsilon() { return from_raw(Policy::EPSILON); }
 
+    /** @brief Returns min value from policy. */
+    static custom_real min_val() { return from_raw(Policy::MIN); }
+
     /** @brief Returns max value from policy. */
     static custom_real max_val() { return from_raw(Policy::MAX); }
 

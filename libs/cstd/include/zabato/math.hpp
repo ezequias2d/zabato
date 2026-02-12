@@ -11,6 +11,7 @@ template <typename T> struct quat;
 template <typename T> struct mat4;
 template <typename T> struct plane3;
 template <typename T> struct mat3;
+template <typename T> struct box2;
 
 /**
  * @brief A structure representing a 2-dimensional vector.
@@ -1308,44 +1309,6 @@ template <typename T> struct mat4
     }
 
     bool operator!=(const mat4<T> &other) const { return !(*this == other); }
-};
-
-/**
- * @brief A structure representing a plane in 3D space.
- *
- * Defined by a normal vector and a distance from the origin (Hessian normal
- * form).
- *
- * @tparam T The underlying numeric type.
- */
-template <typename T> struct plane3
-{
-    /** @brief The normal vector of the plane. */
-    vec3<T> normal;
-    /** @brief The distance from the origin to the plane. */
-    T d;
-
-    /**
-     * @brief Default constructor. Initializes plane with normal (0, 1, 0) and
-     * distance 0.
-     */
-    constexpr plane3() : normal(0, 1, 0), d(0) {}
-
-    /**
-     * @brief Constructs a plane from a normal and a distance.
-     * @param n The normal vector.
-     * @param d_val The distance value.
-     */
-    constexpr plane3(const vec3<T> &n, T d_val) : normal(n), d(d_val) {}
-
-    /**
-     * @brief Constructs a plane from normal components and a distance.
-     * @param a The x component of the normal.
-     * @param b The y component of the normal.
-     * @param c The z component of the normal.
-     * @param d_val The distance value.
-     */
-    constexpr plane3(T a, T b, T c, T d_val) : normal(a, b, c), d(d_val) {}
 };
 
 /**
@@ -2997,57 +2960,4 @@ constexpr bool inverse(const mat4<T> &mat, mat4<T> &result)
 
     return true;
 }
-
-/**
- * @brief Normalizes a plane (normalizes the normal vector and scales distance).
- * @param p The plane to normalize.
- * @return The normalized plane.
- */
-template <typename T> constexpr plane3<T> normalize(const plane3<T> &p)
-{
-    T len     = length(p.normal);
-    T inv_len = T(1) / len;
-    return plane3<T>(p.normal * inv_len, p.d * inv_len);
-}
-
-/**
- * @brief Calculates the signed distance from a point to a plane.
- * @param p The plane.
- * @param v The point.
- * @return The signed distance (positive if point is on the side of the normal).
- */
-template <typename T>
-constexpr T signed_distance(const plane3<T> &p, const vec3<T> &v)
-{
-    return dot(p.normal, v) + p.d;
-}
-
-/**
- * @brief Creates a plane from a point and a normal.
- * @param point A point on the plane.
- * @param normal The normal vector of the plane.
- * @return The constructed plane.
- */
-template <typename T>
-constexpr plane3<T> plane_from_point_normal(const vec3<T> &point,
-                                            const vec3<T> &normal)
-{
-    return plane3<T>(normal, -dot(normal, point));
-}
-
-/**
- * @brief Creates a plane from three points.
- * @param p1 The first point.
- * @param p2 The second point.
- * @param p3 The third point.
- * @return The constructed plane.
- */
-template <typename T>
-constexpr plane3<T>
-plane_from_points(const vec3<T> &p1, const vec3<T> &p2, const vec3<T> &p3)
-{
-    vec3<T> normal = normalize(cross(p2 - p1, p3 - p1));
-    return plane_from_point_normal(p1, normal);
-}
-
 } // namespace zabato
