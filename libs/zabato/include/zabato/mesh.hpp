@@ -24,11 +24,12 @@ class mesh;
  */
 enum class mesh_flags : uint8_t
 {
-    none   = 0,      ///< No flags set.
-    normal = 1 << 0, ///< Vertex has a normal vector.
-    color  = 1 << 1, ///< Vertex has a color attribute.
-    tex    = 1 << 2, ///< Vertex has a texture coordinate.
-    bone   = 1 << 3, ///< Vertex has bone weights and indices.
+    none    = 0,      ///< No flags set.
+    normal  = 1 << 0, ///< Vertex has a normal vector.
+    color   = 1 << 1, ///< Vertex has a color attribute.
+    tex     = 1 << 2, ///< Vertex has a texture coordinate.
+    bone    = 1 << 3, ///< Vertex has bone weights and indices.
+    tangent = 1 << 4, ///< Vertex has a tangent vector.
 };
 
 inline mesh_flags operator|(mesh_flags a, mesh_flags b)
@@ -104,6 +105,7 @@ using position_t   = vec3<real>;
 using normal_t     = vec3<real>;
 using color_t      = color;
 using texcoord_t   = vec2<real>;
+using tangent_t    = vec3<real>;
 using boneweight_t = bone_weight[4];
 
 class mesh : public resource
@@ -114,7 +116,7 @@ public:
 
     static constexpr chunk_id CHUNK_ID = chunk_id("MESH");
 
-    inline mesh() : m_vertex_count(0) {};
+    inline mesh() : m_vertex_count(0), m_primitive_count(0) {};
     inline ~mesh() {};
 
     void init(mesh_flags flags, primitive_type type)
@@ -414,6 +416,62 @@ public:
                 const vector<spatial *> &bones = {},
                 const color *override_color    = nullptr) const;
 
+    /**
+     * @brief Calculates tangent vectors for the mesh based on positions and
+     * UVs. This requires the mesh to have `mesh_flags::tangent` set.
+     */
+    void calculate_tangents();
+
+    void set_tangent(uint16_t index, const vec3<real> &tan)
+    {
+        assert((m_flags & mesh_flags::tangent) != mesh_flags::none);
+        uint8_t *vertex_ptr = get_vertex_ptr(index);
+        if (!vertex_ptr)
+            return;
+        vertex_ptr += m_tangent_offset;
+        memcpy(vertex_ptr, &tan, sizeof(tangent_t));
+    }
+
+    void get_tangent(uint16_t index, vec3<real> &tan) const
+    {
+        assert((m_flags & mesh_flags::tangent) != mesh_flags::none);
+        const uint8_t *vertex_ptr = get_vertex_ptr(index);
+        if (!vertex_ptr)
+            return;
+        vertex_ptr += m_tangent_offset;
+        memcpy(&tan, vertex_ptr, sizeof(tangent_t));
+    }
+
+    void get_bounds(vec3<real> &min, vec3<real> &max) const
+    {
+        if (m_vertex_count == 0)
+        {
+            min = max = vec3<real>(0);
+            return;
+        }
+
+        vec3<real> pos;
+        get_position(0, pos);
+        min = max = pos;
+
+        for (uint16_t i = 1; i < m_vertex_count; ++i)
+        {
+            get_position(i, pos);
+            if (pos.x < min.x)
+                min.x = pos.x;
+            if (pos.y < min.y)
+                min.y = pos.y;
+            if (pos.z < min.z)
+                min.z = pos.z;
+            if (pos.x > max.x)
+                max.x = pos.x;
+            if (pos.y > max.y)
+                max.y = pos.y;
+            if (pos.z > max.z)
+                max.z = pos.z;
+        }
+    }
+
 private:
     vector<uint8_t> m_data;
     vector<uint16_t> m_indices;
@@ -429,6 +487,7 @@ private:
     size_t m_normal_offset;
     size_t m_color_offset;
     size_t m_texcoord_offset;
+    size_t m_tangent_offset;
     size_t m_boneweight_offset;
 
     uint8_t *get_vertex_ptr(uint16_t index)
@@ -493,6 +552,14 @@ private:
         }
         else
             m_boneweight_offset = 0;
+
+        if ((flags & mesh_flags::tangent) != mesh_flags::none)
+        {
+            m_tangent_offset = current_offset;
+            current_offset += sizeof(tangent_t);
+        }
+        else
+            m_tangent_offset = 0;
 
         m_vertex_size = current_offset;
     }
