@@ -5,22 +5,43 @@
 #include <zabato/game_message.hpp>
 #include <zabato/light.hpp>
 #include <zabato/model.hpp>
-#include <zabato/renderer.hpp> // forward decl?
+#include <zabato/physics/physics_world.hpp>
+#include <zabato/renderer.hpp>
 #include <zabato/spatial.hpp>
 
 namespace zabato
 {
 
-class world : public object
+class world : public spatial
 {
 public:
     static const rtti TYPE;
     virtual const rtti &type() const override { return TYPE; }
+    static void reflect(reflection &r);
 
     world();
     virtual ~world();
 
-    virtual world *get_world() const override
+    void set_context(const controller::context &ctx) { m_context = ctx; }
+
+    const controller::context &get_context() const { return m_context; }
+
+    physics::physics_world *get_physics() const { return m_physics; }
+    void set_physics(physics::physics_world *phy) { m_physics = phy; }
+
+    /**
+     * @brief Set the active camera for the world.
+     * @param cam The camera to set as active.
+     */
+    void set_active_camera(camera *cam);
+
+    /**
+     * @brief Get the currently active camera.
+     * @return Pointer to the active camera.
+     */
+    camera *get_active_camera() const;
+
+    virtual world *get_world() const override final
     {
         return const_cast<world *>(this);
     }
@@ -49,7 +70,7 @@ public:
      * @brief Get all registered models.
      * @return Const reference to the vector of models.
      */
-    const vector<pointer<model>> &get_models() const { return m_models; }
+    const vector<model *> &get_models() const { return m_models; }
 
     /**
      * @brief Unregister a model from the world.
@@ -59,7 +80,7 @@ public:
 
     void register_light(light *l);
     void unregister_light(light *l);
-    const vector<pointer<light>> &get_lights() const { return m_lights; }
+    const vector<light *> &get_lights() const { return m_lights; }
 
     void add_controller(controller *ctrl);
     void remove_controller(controller *ctrl);
@@ -98,18 +119,28 @@ public:
      */
     void send_message(const game_message &msg);
 
+    /**
+     * @brief Finds the first camera in the scene graph.
+     * @return Pointer to the camera or nullptr if not found.
+     */
+    camera *find_camera();
+
 private:
     void update_node(spatial *node, real dt);
     void process_messages();
 
     pointer<spatial> m_root;
-    vector<pointer<model>> m_models;
-    vector<pointer<light>> m_lights;
+    pointer<camera> m_active_camera;
+    vector<model *> m_models;
+    vector<light *> m_lights;
 
     controller *m_controller_head;
 
     // Message Queue
     game_message_queue m_message_queue;
+
+    pointer<physics::physics_world> m_physics;
+    controller::context m_context;
 };
 
 } // namespace zabato

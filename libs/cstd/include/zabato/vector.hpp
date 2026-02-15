@@ -728,6 +728,9 @@ public:
     T *data() { return m_data; }
     const T *data() const { return m_data; }
 
+    T &front() { return m_data[0]; }
+    const T &front() const { return m_data[0]; }
+
     T &back() { return m_data[m_size - 1]; }
     const T &back() const { return m_data[m_size - 1]; }
 

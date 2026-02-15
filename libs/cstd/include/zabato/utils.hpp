@@ -253,6 +253,52 @@ template <class RandomIt> inline void sort(RandomIt first, RandomIt last)
     sort(first, last, [](const auto &a, const auto &b) { return a < b; });
 }
 
+template <class RandomIt, class T, class Compare>
+RandomIt
+upper_bound(RandomIt first, RandomIt last, const T &value, Compare comp)
+{
+    RandomIt it;
+    auto count = last - first;
+    while (count > 0)
+    {
+        auto step = count / 2;
+        it        = first + step;
+        if (!comp(value, *it))
+        {
+            first = ++it;
+            count -= step + 1;
+        }
+        else
+        {
+            count = step;
+        }
+    }
+    return first;
+}
+
+template <class RandomIt, class T, class Compare>
+RandomIt
+lower_bound(RandomIt first, RandomIt last, const T &value, Compare comp)
+{
+    RandomIt it;
+    auto count = last - first;
+    while (count > 0)
+    {
+        auto step = count / 2;
+        it        = first + step;
+        if (comp(*it, value))
+        {
+            first = ++it;
+            count -= step + 1;
+        }
+        else
+        {
+            count = step;
+        }
+    }
+    return first;
+}
+
 template <bool B, class T = void> struct enable_if
 {
 };

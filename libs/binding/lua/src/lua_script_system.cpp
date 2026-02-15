@@ -50,17 +50,18 @@ bool lua_script_system::initialize()
 
     // Register factories
     if (object::s_factory)
-        object::s_factory->add(lua_script_instance::TYPE.name(),
-                               object::factory_delegate::from_method<
-                                   lua_script_system,
-                                   &lua_script_system::create_instance>(this));
+    {
+        object::factory_info info;
+        info.factory = object::factory_delegate::
+            from_method<lua_script_system, &lua_script_system::create_instance>(
+                this);
+        info.factory_xml = object::factory_delegate_xml::from_method<
+            lua_script_system,
+            &lua_script_system::create_instance_xml>(this);
+        info.type = &lua_script_instance::TYPE;
 
-    if (object::s_factory_xml)
-        object::s_factory_xml->add(
-            lua_script_instance::TYPE.name(),
-            object::factory_delegate_xml::from_method<
-                lua_script_system,
-                &lua_script_system::create_instance_xml>(this));
+        object::s_factory->add_or_set(lua_script_instance::TYPE.name(), info);
+    }
 
     return true;
 }
@@ -100,7 +101,7 @@ script_instance *lua_script_system::load_script(const char *filepath,
         return nullptr;
 
     vector<uint8_t> buf = m_fs.read_all_bytes(filepath);
-    if (!buf.empty())
+    if (buf.empty())
     {
         report(report_type::error, "Failed to load script file: %s", filepath);
         return nullptr;

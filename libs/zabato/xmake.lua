@@ -3,11 +3,12 @@ target("zabato")
     set_kind("shared")
     add_includedirs("include", {public = true})
     add_files("src/*.cpp")
+    add_files("src/physics/*.cpp")
     add_deps("berg", "cstd")
     add_packages("tinyxml2")
 
     if is_kind("shared") or is_kind("static") or is_kind("binary") then
-        if is_plat("windows") and is_toolset("msvc") then
+        if is_plat("windows") then
             add_cxxflags("/GR-")
         else
             add_cxxflags("-fno-rtti")

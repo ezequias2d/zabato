@@ -213,6 +213,16 @@ public:
         return resource.value;
     }
 
+    bool operator==(const resource_ref &other) const
+    {
+        return m_path == other.m_path;
+    }
+
+    bool operator!=(const resource_ref &other) const
+    {
+        return !(*this == other);
+    }
+
 private:
     string m_path;
     resource_manager *m_manager = nullptr;

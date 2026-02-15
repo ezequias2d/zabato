@@ -1,16 +1,23 @@
 #include "lua_value.hpp"
 
 #include <zabato/game_message.hpp>
-#include <zabato/lua/script_system.hpp>
 #include <zabato/lua/script_instance.hpp>
+#include <zabato/lua/script_system.hpp>
 #include <zabato/serializer.hpp>
+#include <zabato/spatial.hpp>
 #include <zabato/xml_serializer.hpp>
 
 namespace zabato
 {
 
 const rtti lua_script_instance::TYPE("zabato.lua.script",
-                                     &script_instance::TYPE);
+                                     &script_instance::TYPE,
+                                     lua_script_instance::reflect);
+
+void lua_script_instance::reflect(reflection &r)
+{
+    script_instance::reflect(r);
+}
 
 lua_script_instance::lua_script_instance(lua_State *L)
     : script_instance(nullptr), m_script_path(), m_L(L), m_env_ref(LUA_NOREF)
@@ -34,6 +41,34 @@ lua_script_instance::~lua_script_instance()
         luaL_unref(m_L, LUA_REGISTRYINDEX, m_env_ref);
     }
 }
+
+void lua_script_instance::initialize(const controller::context &ctx)
+{
+    
+    if (m_env_ref != LUA_NOREF && m_L && m_object)
+    {
+        lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_env_ref);
+
+        // Inject 'object'
+        push_value_to_lua(m_L, value(m_object));
+        lua_setfield(m_L, -2, "object");
+
+        // Inject 'world' if available
+        if (m_object->is_derived(spatial::TYPE))
+        {
+            auto *sp = static_cast<spatial *>(m_object);
+            if (auto *w = sp->get_world())
+            {
+                push_value_to_lua(m_L, value(w));
+                lua_setfield(m_L, -2, "world");
+            }
+        }
+
+        lua_pop(m_L, 1);
+    }
+}
+
+void lua_script_instance::start() {}
 
 void lua_script_instance::update(real dt)
 {
@@ -223,6 +258,13 @@ void lua_script_instance::load_xml(xml_serializer &serializer,
                     string uuid_str = id().to_string();
                     lua_pushlstring(m_L, uuid_str.c_str(), uuid_str.length());
                     lua_setfield(m_L, -2, "owner_id");
+
+                    // Inject 'object' (the entity this script is attached to)
+                    if (m_object)
+                    {
+                        push_value_to_lua(m_L, value(m_object));
+                        lua_setfield(m_L, -2, "object");
+                    }
 
                     lua_pushlightuserdata(m_L, this);
                     lua_setfield(m_L, -2, "__instance");

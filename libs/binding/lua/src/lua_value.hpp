@@ -414,26 +414,17 @@ public:
         return m_string_cache;
     }
 
-    pointer<object> as_object() const override
+    pointer<base_object> as_object() const override
     {
-        pointer<object> obj = nullptr;
+        pointer<base_object> obj = nullptr;
         push();
         if (lua_isuserdata(L, -1))
         {
-            // Check metatable
-            if (lua_getmetatable(L, -1))
-            {
-                lua_getfield(L, LUA_REGISTRYINDEX, META_OBJECT);
-                if (lua_rawequal(L, -1, -2))
-                {
-                    // It's an object!
-                    pointer<object> *ptr =
-                        static_cast<pointer<object> *>(lua_touserdata(L, -2));
-                    if (ptr && *ptr)
-                        obj = *ptr;
-                }
-                lua_pop(L, 2); // MT and Registry[META]
-            }
+            // It's an object!
+            pointer<base_object> *ptr =
+                static_cast<pointer<base_object> *>(lua_touserdata(L, -1));
+            if (ptr && *ptr)
+                obj = *ptr;
         }
         lua_pop(L, 1);
         return obj;
@@ -578,6 +569,43 @@ public:
             make_shared<lua_value>(L, -1, true)));
         lua_pop(L, 2);
         return res;
+    }
+
+    void set_at(size_t index, const value &v) override
+    {
+        push();
+        if (!lua_istable(L, -1))
+        {
+            lua_pop(L, 1);
+            return;
+        }
+
+        lua_rawseti(L, -2, index + 1);
+        lua_pop(L, 1);
+    }
+
+    void remove_at(size_t index) override
+    {
+        push();
+        if (!lua_istable(L, -1))
+        {
+            lua_pop(L, 1);
+            return;
+        }
+
+        lua_Integer pos  = static_cast<lua_Integer>(index) + 1;
+        lua_Integer size = static_cast<lua_Integer>(lua_rawlen(L, -1));
+
+        for (; pos < size; ++pos)
+        {
+            lua_rawgeti(L, -1, pos + 1);
+            lua_rawseti(L, -2, pos);
+        }
+
+        lua_pushnil(L);
+        lua_rawseti(L, -2, pos);
+
+        lua_pop(L, 1);
     }
 
     size_t length() const override
@@ -1001,11 +1029,11 @@ static void push_value_to_lua(lua_State *L, const value &val)
         break;
     case value_type::OBJECT:
     {
-        pointer<object> obj = val.as_object();
+        pointer<base_object> obj = val.as_object();
         if (obj)
         {
-            void *ud = lua_newuserdata(L, sizeof(pointer<object>));
-            new (ud) pointer<object>(obj);
+            void *ud = lua_newuserdata(L, sizeof(pointer<base_object>));
+            new (ud) pointer<base_object>(obj);
             push_object_metatable(L);
             lua_setmetatable(L, -2);
         }

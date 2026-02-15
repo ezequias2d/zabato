@@ -12,6 +12,7 @@ class lua_script_instance : public script_instance
 {
 public:
     static const rtti TYPE;
+    static void reflect(reflection &r);
     const rtti &type() const override { return TYPE; }
 
     lua_script_instance(const string &path,
@@ -19,9 +20,12 @@ public:
                         lua_State *L,
                         int env_ref);
     lua_script_instance(lua_State *L);
-    ~lua_script_instance() override;
+    virtual ~lua_script_instance();
 
+    void initialize(const controller::context &ctx) override;
+    void start() override;
     void update(real dt) override;
+
     void on_message(const game_message &msg) override;
     void set_property(const char *name, real val) override;
     void on_draw_gizmos(gpu &g, bool selected) override;

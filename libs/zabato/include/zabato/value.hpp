@@ -106,31 +106,33 @@ struct ivalue
     virtual mat4<real> as_mat4() const = 0;
 
 #pragma region Map Access
-    virtual void set(const zabato::value &key, const zabato::value &val) = 0;
-    virtual zabato::value get(const zabato::value &key) const            = 0;
+    virtual void set(const value &key, const value &val) = 0;
+    virtual value get(const value &key) const            = 0;
 #pragma endregion Map Access
 
 #pragma region String Key Convenience
-    virtual void set_field(string_view key, const zabato::value &v) = 0;
-    virtual zabato::value get_field(string_view key) const          = 0;
+    virtual void set_field(string_view key, const value &v) = 0;
+    virtual value get_field(string_view key) const          = 0;
 #pragma endregion String Key Convenience
 
 #pragma region List Access
-    virtual void push(const zabato::value &v)        = 0;
-    virtual zabato::value get_at(size_t index) const = 0;
-    virtual size_t length() const                    = 0;
+    virtual void push(const value &v)                 = 0;
+    virtual value get_at(size_t index) const          = 0;
+    virtual void set_at(size_t index, const value &v) = 0;
+    virtual void remove_at(size_t index)              = 0;
+    virtual size_t length() const                     = 0;
 #pragma endregion List Access
 
 #pragma region Iteration
     virtual shared_ptr<iterator> get_iterator() const = 0;
 #pragma endregion Iteration
 
-    virtual bool operator==(const zabato::value &other) const = 0;
-    virtual bool operator!=(const zabato::value &other) const = 0;
-    virtual bool operator<(const zabato::value &other) const  = 0;
-    virtual bool operator>(const zabato::value &other) const  = 0;
-    virtual bool operator<=(const zabato::value &other) const = 0;
-    virtual bool operator>=(const zabato::value &other) const = 0;
+    virtual bool operator==(const value &other) const = 0;
+    virtual bool operator!=(const value &other) const = 0;
+    virtual bool operator<(const value &other) const  = 0;
+    virtual bool operator>(const value &other) const  = 0;
+    virtual bool operator<=(const value &other) const = 0;
+    virtual bool operator>=(const value &other) const = 0;
 };
 
 struct value
@@ -240,6 +242,18 @@ struct value
         if (impl)
             return impl->get_at(index);
         return value();
+    }
+
+    void set_at(size_t index, const value &v)
+    {
+        if (impl)
+            impl->set_at(index, v);
+    }
+
+    void remove_at(size_t index)
+    {
+        if (impl)
+            impl->remove_at(index);
     }
 
     size_t length() const
@@ -530,6 +544,18 @@ public:
         return value();
     }
 
+    void set_at(size_t index, const value &v) override
+    {
+        if (m_type == value_type::LIST && index < a_val->size())
+            (*a_val)[index] = v;
+    }
+
+    void remove_at(size_t index) override
+    {
+        if (m_type == value_type::LIST && index < a_val->size())
+            a_val->remove_at(index);
+    }
+
     size_t length() const override
     {
         if (m_type == value_type::LIST)
@@ -649,10 +675,10 @@ public:
 
 struct native_map_iterator : public iterator
 {
-    using map_it = hash_map<zabato::value, zabato::value>::iterator;
+    using map_it = hash_map<value, value>::iterator;
     map_it m_it, m_end;
 
-    native_map_iterator(hash_map<zabato::value, zabato::value> &map)
+    native_map_iterator(hash_map<value, value> &map)
         : m_it(map.begin()), m_end(map.end())
     {
     }
@@ -667,31 +693,28 @@ struct native_map_iterator : public iterator
         return false;
     }
 
-    zabato::value get_key() const override
+    value get_key() const override
     {
         if (m_it != m_end)
-            return zabato::value(m_it->key);
-        return zabato::value();
+            return value(m_it->key);
+        return value();
     }
 
-    zabato::value get_value() const override
+    value get_value() const override
     {
         if (m_it != m_end)
             return m_it->value;
-        return zabato::value();
+        return value();
     }
 };
 
 struct native_list_iterator : public iterator
 {
-    using list_it = vector<zabato::value>::const_iterator;
+    using list_it = vector<value>::const_iterator;
     size_t l_idx;
-    const vector<zabato::value> *l_ptr;
+    const vector<value> *l_ptr;
 
-    native_list_iterator(const vector<zabato::value> &list)
-        : l_idx(0), l_ptr(&list)
-    {
-    }
+    native_list_iterator(const vector<value> &list) : l_idx(0), l_ptr(&list) {}
 
     bool next() override
     {
@@ -703,18 +726,18 @@ struct native_list_iterator : public iterator
         return false;
     }
 
-    zabato::value get_key() const override
+    value get_key() const override
     {
         if (l_idx < l_ptr->size())
-            return zabato::value((int64_t)l_idx);
-        return zabato::value();
+            return value((int64_t)l_idx);
+        return value();
     }
 
-    zabato::value get_value() const override
+    value get_value() const override
     {
         if (l_idx < l_ptr->size())
             return (*l_ptr)[l_idx];
-        return zabato::value();
+        return value();
     }
 };
 
@@ -722,7 +745,7 @@ inline shared_ptr<iterator> native_value::get_iterator() const
 {
     if (m_type == value_type::MAP)
         return make_shared<native_map_iterator>(
-            const_cast<hash_map<zabato::value, zabato::value> &>(*t_val));
+            const_cast<hash_map<value, value> &>(*t_val));
     if (m_type == value_type::LIST)
         return make_shared<native_list_iterator>(*a_val);
     return nullptr;
