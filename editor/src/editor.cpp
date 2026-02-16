@@ -1440,16 +1440,25 @@ void editor_app::save_scene(world &world, const string &path)
         doc.Accept(&printer);
         string_view xml = printer.CStr();
         auto fs         = m_res_mgr->get_file_system();
-        if (fs->write_all_text(path, xml))
+        auto res        = fs->get_virtual_path(path);
+        if (!res.has_error())
         {
-            m_console.log_success("Scene saved: " + path);
-            m_asset_db.refresh();
+            if (fs->write_all_text(res.value, xml))
+            {
+                m_console.log_success("Scene saved: " + res.value);
+                m_asset_db.refresh();
+            }
+            else
+            {
+                auto error = "Failed to save scene: " + res.value;
+                m_console.log_error(error);
+                report(report_type::error, "%s", error.c_str());
+            }
         }
         else
         {
-            auto error = "Failed to save scene: " + path;
-            m_console.log_error(error);
-            report(report_type::error, "%s", error.c_str());
+            m_console.log_error(
+                "Selected path is not within the project directory.");
         }
     }
 }
