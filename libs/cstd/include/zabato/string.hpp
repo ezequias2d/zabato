@@ -29,13 +29,16 @@ public:
     static constexpr size_type npos = size_type(-1);
 
     /** @brief Constructs empty string view. */
-    string_view() : m_data(""), m_size(0) {}
+    constexpr string_view() : m_data(""), m_size(0) {}
 
     /** @brief Constructs from C-string. */
     string_view(const char *s) : m_data(s), m_size(strlen(s)) {}
 
     /** @brief Constructs from pointer and length. */
-    string_view(const char *s, size_t count) : m_data(s), m_size(count) {}
+    constexpr string_view(const char *s, size_t count)
+        : m_data(s), m_size(count)
+    {
+    }
 
     template <class Allocator>
     constexpr string_view(const basic_string<Allocator> &str)
@@ -56,7 +59,7 @@ public:
     /** @brief Access char at index. */
     const char &operator[](size_t index) const { return m_data[index]; }
 
-    constexpr bool operator==(const string_view &rhs) const
+    bool operator==(const string_view &rhs) const
     {
         if (size() != rhs.size())
             return false;
@@ -79,6 +82,8 @@ public:
     constexpr void remove_prefix(size_t n)
     {
         assert(n <= m_size);
+        if (n > m_size)
+            n = m_size;
         m_data += n;
         m_size -= n;
     }
@@ -87,6 +92,8 @@ public:
     constexpr void remove_suffix(size_t n)
     {
         assert(n <= m_size);
+        if (n > m_size)
+            n = m_size;
         m_size -= n;
     }
 
@@ -94,10 +101,10 @@ public:
     constexpr void pop_back() { remove_suffix(1); }
 
     /** @brief Removes the first character. */
-    constexpr void pop_front() { remove_prefix(1); }
+    constexpr void pop_front();
 
     /** @brief Returns a substring. */
-    constexpr string_view substr(size_t pos = 0, size_t count = npos) const
+    string_view substr(size_t pos = 0, size_t count = npos) const
     {
         assert(pos <= m_size);
         size_t rcount = min(count, m_size - pos);
@@ -107,41 +114,37 @@ public:
 #pragma region Find
 
     /** @brief Checks if string starts with prefix. */
-    constexpr bool starts_with(string_view sv) const
+    bool starts_with(string_view sv) const
     {
         return size() >= sv.size() && memcmp(data(), sv.data(), sv.size()) == 0;
     }
 
     /** @brief Checks if string starts with char. */
-    constexpr bool starts_with(char c) const
-    {
-        return !empty() && front() == c;
-    }
+    bool starts_with(char c) const { return !empty() && front() == c; }
 
     /** @brief Checks if string ends with suffix. */
-    constexpr bool ends_with(string_view sv) const
+    bool ends_with(string_view sv) const
     {
         return size() >= sv.size() &&
                memcmp(data() + size() - sv.size(), sv.data(), sv.size()) == 0;
     }
 
     /** @brief Checks if string ends with char. */
-    constexpr bool ends_with(char c) const { return !empty() && back() == c; }
+    bool ends_with(char c) const { return !empty() && back() == c; }
 
     /** @brief Finds a substring. */
-    constexpr size_t find(string_view v, size_t pos = 0) const
+    size_t find(string_view sv, size_t pos = 0) const
     {
         if (pos > size())
             return npos;
-        if (v.empty())
+        if (sv.empty())
             return pos;
 
         const char *p      = m_data + pos;
         const char *end    = m_data + m_size;
-        const char *needle = v.data();
-        size_t needle_len  = v.size();
+        const char *needle = sv.data();
+        size_t needle_len  = sv.size();
 
-        // Simple brute force for constexpr compatibility
         while (p + needle_len <= end)
         {
             if (memcmp(p, needle, needle_len) == 0)
@@ -152,7 +155,7 @@ public:
     }
 
     /** @brief Finds a character. */
-    constexpr size_t find(char c, size_t pos = 0) const
+    size_t find(char c, size_t pos = 0) const
     {
         if (pos >= size())
             return npos;
@@ -162,7 +165,7 @@ public:
     }
 
     /** @brief Finds a substring from the end. */
-    constexpr size_t rfind(string_view v, size_t pos = npos) const
+    size_t rfind(string_view v, size_t pos = npos) const
     {
         if (size() < v.size())
             return npos;
@@ -181,7 +184,7 @@ public:
     }
 
     /** @brief Finds a character from the end. */
-    constexpr size_t rfind(char c, size_t pos = npos) const
+    size_t rfind(char c, size_t pos = npos) const
     {
         if (empty())
             return npos;
@@ -197,13 +200,14 @@ public:
 #pragma endregion Find
 
     /** @brief Returns reference to first character. */
-    constexpr const char &front() const
+    const char &front() const
     {
         assert(!empty());
         return m_data[0];
     }
+
     /** @brief Returns reference to last character. */
-    constexpr const char &back() const
+    const char &back() const
     {
         assert(!empty());
         return m_data[m_size - 1];
@@ -670,7 +674,7 @@ public:
         large.data = new_data;
         large.size = current_size;
         // Set capacity using helper to ensure endian-correct flags are 0
-        set_large_capacity(new_cap << 1);
+        set_large_capacity(new_cap);
     }
 
     /** @brief Returns current capacity. */

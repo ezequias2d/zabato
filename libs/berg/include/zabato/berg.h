@@ -4,6 +4,18 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#if defined(_WIN32)
+    #if defined(BERG_EXPORT)
+        #define BERG_API __declspec(dllexport)
+    #elif defined(BERG_STATIC)
+        #define BERG_API
+    #else
+        #define BERG_API __declspec(dllimport)
+    #endif
+#else
+    #define BERG_API __attribute__((visibility("default")))
+#endif
+
 #define BERG_DEFAULT_WINDOW_SIZE ((size_t)4096)
 #define BERG_DEFAULT_LOOKAHEAD_SIZE ((size_t)256)
 
@@ -51,14 +63,14 @@ typedef berg_error_t (*berg_write_callback_t)(const void *buffer,
  * @brief Get default configuration
  * @return Default berg configuration
  */
-berg_config berg_get_default_config(void);
+BERG_API berg_config berg_get_default_config(void);
 
 /**
  * @brief Estimate maximum compressed size for given input size
  * @param input_size Size of input data
  * @return Maximum possible compressed size (worst case)
  */
-size_t berg_estimate_max_compressed_size(size_t input_size);
+BERG_API size_t berg_estimate_max_compressed_size(size_t input_size);
 
 /**
  * @brief Compress data using preallocated output buffer
@@ -70,7 +82,7 @@ size_t berg_estimate_max_compressed_size(size_t input_size);
  * @param config Compression configuration (NULL for default)
  * @return BERG_OK on success, error code on failure
  */
-berg_error_t berg_compress(const void *input,
+BERG_API berg_error_t berg_compress(const void *input,
                            size_t input_size,
                            void *output,
                            size_t output_capacity,
@@ -86,7 +98,7 @@ berg_error_t berg_compress(const void *input,
  * @param decompressed_size Pointer to receive actual decompressed size
  * @return BERG_OK on success, error code on failure
  */
-berg_error_t berg_decompress(const void *compressed,
+BERG_API berg_error_t berg_decompress(const void *compressed,
                              size_t compressed_size,
                              void *output,
                              size_t output_capacity,
@@ -102,7 +114,7 @@ berg_error_t berg_decompress(const void *compressed,
  * @param config Compression configuration (NULL for default)
  * @return BERG_OK on success, error code on failure
  */
-berg_error_t berg_compress_raw(const void *input,
+BERG_API berg_error_t berg_compress_raw(const void *input,
                                size_t input_size,
                                void *output,
                                size_t output_capacity,
@@ -119,7 +131,7 @@ berg_error_t berg_compress_raw(const void *input,
  * @param decompressed_size Pointer to receive actual decompressed size
  * @return BERG_OK on success, error code on failure
  */
-berg_error_t berg_decompress_raw(const void *compressed,
+BERG_API berg_error_t berg_decompress_raw(const void *compressed,
                                  size_t compressed_size,
                                  void *output,
                                  size_t output_capacity,
@@ -137,7 +149,7 @@ berg_error_t berg_decompress_raw(const void *compressed,
  * @param config Compression configuration (NULL for default)
  * @return BERG_OK on success, error code on failure
  */
-berg_error_t berg_compress_raw_stream(const void *input,
+BERG_API berg_error_t berg_compress_raw_stream(const void *input,
                                       size_t input_size,
                                       berg_write_callback_t callback,
                                       void *user_data,
@@ -156,7 +168,7 @@ berg_error_t berg_compress_raw_stream(const void *input,
  * @param buffer_size Size of external buffer in bytes
  * @return BERG_OK on success, error code on failure
  */
-berg_error_t berg_decompress_raw_stream(const void *compressed,
+BERG_API berg_error_t berg_decompress_raw_stream(const void *compressed,
                                         size_t compressed_size,
                                         size_t original_size,
                                         berg_write_callback_t callback,
@@ -164,7 +176,7 @@ berg_error_t berg_decompress_raw_stream(const void *compressed,
                                         void *buffer,
                                         size_t buffer_size);
 
-berg_error_t berg_compress_stream(const void *input,
+BERG_API berg_error_t berg_compress_stream(const void *input,
                                   size_t input_size,
                                   berg_write_callback_t callback,
                                   void *user_data,
@@ -172,7 +184,7 @@ berg_error_t berg_compress_stream(const void *input,
                                   size_t buffer_size,
                                   const berg_config *config);
 
-berg_error_t berg_decompress_stream(const void *compressed,
+BERG_API berg_error_t berg_decompress_stream(const void *compressed,
                                     size_t compressed_size,
                                     berg_write_callback_t callback,
                                     void *user_data,

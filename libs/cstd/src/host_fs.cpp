@@ -2,11 +2,41 @@
 
 #include <filesystem>
 #include <stdio.h>
+#include <string>
 
 namespace std_fs = std::filesystem;
 
 namespace zabato::fs
 {
+
+#if defined(_WIN32)
+#include <windows.h>
+static string to_utf8(const wchar_t *wstr)
+{
+    if (!wstr)
+        return "";
+    int size = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, NULL, NULL);
+    if (size <= 0)
+        return "";
+    string result;
+    result.resize(size - 1);
+    WideCharToMultiByte(CP_UTF8, 0, wstr, -1, result.data(), size, NULL, NULL);
+    return result;
+}
+
+static std::wstring to_utf16(const char *str)
+{
+    if (!str)
+        return L"";
+    int size = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
+    if (size <= 0)
+        return L"";
+    std::wstring result;
+    result.resize(size - 1);
+    MultiByteToWideChar(CP_UTF8, 0, str, -1, result.data(), size);
+    return result;
+}
+#endif
 
 class host_file : public file
 {
@@ -86,7 +116,11 @@ struct host_fs_internal
 
 static std_fs::path to_path(const string_view &sv)
 {
+#if defined(_WIN32)
+    return std_fs::path(to_utf16(string(sv).c_str())).make_preferred();
+#else
     return std_fs::path(std::string(sv.data(), sv.length())).make_preferred();
+#endif
 }
 
 result<host_fs *> host_fs::create(string_view root_path)
@@ -148,7 +182,11 @@ vector<file_info> host_fs::ls(string_view path)
     for (const auto &entry : std_fs::directory_iterator(target))
     {
         file_info fi;
+#if defined(_WIN32)
+        fi.name = to_utf8(entry.path().filename().c_str());
+#else
         fi.name = entry.path().filename().string().c_str();
+#endif
 
         std::error_code ec;
         if (entry.is_directory())
@@ -180,7 +218,11 @@ file_info host_fs::get_info(string_view path)
     if (!safe || !std_fs::exists(target))
         return fi;
 
+#if defined(_WIN32)
+    fi.name = to_utf8(target.filename().c_str());
+#else
     fi.name = target.filename().string().c_str();
+#endif
 
     std::error_code ec;
     if (std_fs::is_directory(target))
@@ -323,7 +365,13 @@ file *host_fs::open(string_view path, open_mode mode)
     else
         mode_str = "rb";
 
-    FILE *f = fopen(target.c_str(), mode_str);
+#if defined(_WIN32)
+    std::wstring wtarget = target.wstring();
+    std::wstring wmode   = to_utf16(mode_str);
+    FILE *f              = _wfopen(wtarget.c_str(), wmode.c_str());
+#else
+    FILE *f = fopen(target.string().c_str(), mode_str);
+#endif
     if (!f)
         return nullptr;
 
@@ -336,7 +384,11 @@ result<string> host_fs::get_native_path(string_view path)
     auto [safe, target] = resolve_safe(impl->root, path);
     if (!safe)
         return report_error(error_code::invalid_path);
+#if defined(_WIN32)
+    return to_utf8(target.c_str());
+#else
     return string{target.string().c_str()};
+#endif
 }
 
 result<string> host_fs::get_virtual_path(string_view native_path)

@@ -1,5 +1,5 @@
 target("zabato_assimp")
-    set_kind("shared")
+    set_kind("static")
     set_languages("c++23")
     add_files("src/*.cpp")
     add_includedirs("include", {public = true})
