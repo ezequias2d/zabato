@@ -1,9 +1,107 @@
 #include <zabato/animator.hpp>
 #include <zabato/game_message.hpp>
+#include <zabato/node.hpp>
+#include <zabato/resource.hpp>
+#include <zabato/script.hpp>
+#include <zabato/spatial.hpp>
 #include <zabato/symbol.hpp>
 
 namespace zabato
 {
+
+const rtti
+    animator::TYPE("zabato.animator", &controller::TYPE, animator::reflect);
+
+static void
+w_play_animation(script_system *sys, script_instance *inst, script_args *args)
+{
+    if (args->count() < 2)
+        return;
+
+    auto self = args->get_value(0).as_object();
+    if (!self || !self->is_derived(animator::TYPE))
+        return;
+
+    auto *ctrl = static_cast<animator *>(self.get());
+
+    value v_anim = args->get_value(1);
+    resource_ref anim_ref;
+
+    if (v_anim.is_string())
+    {
+        anim_ref =
+            resource_ref(v_anim.as_string(), ctrl->animation_ref().manager());
+    }
+
+    // Arg 2: Loop boolean
+    bool loop = false;
+    if (args->count() >= 3)
+        loop = args->get_value(2).as_bool();
+
+    // Root: Use the node attached to the animator
+    spatial *root = nullptr;
+    if (ctrl->get_object() && ctrl->get_object()->is_derived(spatial::TYPE))
+        root = static_cast<spatial *>(ctrl->get_object());
+
+    ctrl->play_animation(anim_ref, root, loop);
+}
+
+static void
+w_bind_node(script_system *sys, script_instance *inst, script_args *args)
+{
+    if (args->count() < 3)
+        return;
+    auto self = args->get_value(0).as_object();
+    if (!self || !self->is_derived(animator::TYPE))
+        return;
+    auto *ctrl = static_cast<animator *>(self.get());
+
+    // Arg 1: Bone name
+    string bone_name = string(args->get_value(1).as_string());
+
+    // Arg 2: Node
+    spatial *node = nullptr;
+    value v_node  = args->get_value(2);
+    if (v_node.is_object())
+        node = c_dynamic_cast<spatial>(v_node.as_object().get());
+
+    if (node)
+        ctrl->bind_node(bone_name.c_str(), node);
+}
+
+static void
+w_bind_property(script_system *sys, script_instance *inst, script_args *args)
+{
+    if (args->count() < 4)
+        return;
+    auto self = args->get_value(0).as_object();
+    if (!self || !self->is_derived(animator::TYPE))
+        return;
+    auto *ctrl = static_cast<animator *>(self.get());
+
+    // Arg 1: Track name
+    string track = string(args->get_value(1).as_string());
+
+    // Arg 2: Target controller
+    controller *target = nullptr;
+    value v_target     = args->get_value(2);
+    if (v_target.is_object())
+        target = c_dynamic_cast<controller>(v_target.as_object().get());
+
+    // Arg 3: Property name
+    string prop = string(args->get_value(3).as_string());
+
+    if (target)
+        ctrl->bind_property(track.c_str(), target, prop.c_str());
+}
+
+void animator::reflect(reflection &r)
+{
+    controller::reflect(r);
+    r.add_method("play_animation", w_play_animation);
+    r.add_method("bind_node", w_bind_node);
+    r.add_method("bind_property", w_bind_property);
+}
 
 static void recursive_bind(animator *animator, spatial *root)
 {
@@ -20,14 +118,16 @@ static void recursive_bind(animator *animator, spatial *root)
     }
 }
 
-void animator::play_animation(animation *anim, spatial *root, bool loop)
+void animator::play_animation(const resource_ref &anim_ref,
+                              spatial *root,
+                              bool loop)
 {
-    m_current_animation = anim;
-    m_loop              = loop;
-    m_current_time      = real(0);
+    m_current_animation_ref = anim_ref;
+    m_loop                  = loop;
+    m_current_time          = real(0);
     m_bound_nodes.clear();
 
-    if (!anim || !root)
+    if (!anim_ref.path().empty() && !root)
         return;
 
     recursive_bind(this, root);
@@ -44,7 +144,6 @@ void animator::bind_node(const char *bone_name, spatial *node)
         m_bound_nodes.push_back({(uint16_t)index, node});
     }
 }
-const rtti animator::TYPE = rtti("animator", &controller::TYPE);
 
 void animator::bind_property(const char *track_name,
                              controller *target,

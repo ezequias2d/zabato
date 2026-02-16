@@ -26,6 +26,7 @@ private:
     bool is_file(string_view path) override;
     bool is_read_only(string_view path) override;
     result<string> get_native_path(string_view path) override;
+    result<string> get_virtual_path(string_view native_path) override;
 
 private:
     void *m_data;

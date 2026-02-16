@@ -1,8 +1,8 @@
 #pragma once
 
-#include "zabato/delegate.hpp"
 #include <stdio.h>
 #include <time.h>
+#include <zabato/delegate.hpp>
 #include <zabato/spin_lock.hpp>
 #include <zabato/string.hpp>
 #include <zabato/vector.hpp>

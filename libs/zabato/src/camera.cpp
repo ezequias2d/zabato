@@ -1,4 +1,4 @@
-#include "zabato/base_object.hpp"
+#include <zabato/base_object.hpp>
 #include <zabato/camera.hpp>
 #include <zabato/math.hpp>
 #include <zabato/reflection.hpp>

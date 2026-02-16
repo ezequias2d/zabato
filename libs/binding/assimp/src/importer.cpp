@@ -1,6 +1,6 @@
-#include "zabato/shared_ptr.hpp"
 #include <zabato/assimp/importer.hpp>
 #include <zabato/mesh.hpp>
+#include <zabato/shared_ptr.hpp>
 
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>

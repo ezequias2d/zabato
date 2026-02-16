@@ -1934,6 +1934,10 @@ void rigid_body_creation_config::reflect(reflection &r)
                    rigid_body_creation_config_get_friction,
                    rigid_body_creation_config_set_friction);
 
+    r.add_property("restitution",
+                   rigid_body_creation_config_get_restitution,
+                   rigid_body_creation_config_set_restitution);
+
     r.add_property("linear_damping",
                    rigid_body_creation_config_get_linear_damping,
                    rigid_body_creation_config_set_linear_damping);

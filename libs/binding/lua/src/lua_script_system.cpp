@@ -366,11 +366,9 @@ bool lua_script_system::compile_zshader(const string_view &source,
         return false;
     }
 
-    lua_pop(m_L, 1);
-
     string effective_backend = backend;
     if (effective_backend.empty())
-        effective_backend = "glsl";
+        effective_backend = "glsl120";
 
     out_result.name = chunk_name;
 
@@ -396,10 +394,35 @@ bool lua_script_system::compile_zshader(const string_view &source,
         lua_pushnil(m_L);
         while (lua_next(m_L, -2) != 0)
         {
-            if (lua_isstring(m_L, -2) && lua_isstring(m_L, -1))
+            if (lua_isstring(m_L, -2))
             {
-                out_result.uniforms.push_back(
-                    {lua_tostring(m_L, -2), lua_tostring(m_L, -1)});
+                zshader_uniform_info info;
+                info.name = lua_tostring(m_L, -2);
+
+                if (lua_isstring(m_L, -1))
+                {
+                    info.type = lua_tostring(m_L, -1);
+                }
+                else if (lua_istable(m_L, -1))
+                {
+                    lua_getfield(m_L, -1, "type");
+                    if (lua_isstring(m_L, -1))
+                        info.type = lua_tostring(m_L, -1);
+                    lua_pop(m_L, 1);
+
+                    lua_getfield(m_L, -1, "hint");
+                    if (lua_isstring(m_L, -1))
+                        info.hint = lua_tostring(m_L, -1);
+                    lua_pop(m_L, 1);
+
+                    lua_getfield(m_L, -1, "default");
+                    if (!lua_isnil(m_L, -1))
+                        info.default_value = to_value(-1);
+                    lua_pop(m_L, 1);
+                }
+
+                if (!info.type.empty())
+                    out_result.uniforms.push_back(info);
             }
             lua_pop(m_L, 1);
         }

@@ -48,9 +48,9 @@ return {
         for i = 0, 7 do
              local light = uniforms.LightSource[i]
              
-             local L = Var("L", "vec3", vec3(0.0))
-             local atten = Var("atten", "float", one)
-             local dist = Var("dist", "float", zero)
+             local L = Var("L_" .. i, "vec3", vec3(0.0))
+             local atten = Var("atten_" .. i, "float", one)
+             local dist = Var("dist_" .. i, "float", zero)
              
              local lightPos = light.position.xyz
              

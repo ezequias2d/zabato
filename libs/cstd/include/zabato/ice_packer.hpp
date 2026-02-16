@@ -1,7 +1,7 @@
 #pragma once
 
-#include "zabato/ice.hpp"
-#include "zabato/stream.hpp"
+#include <zabato/ice.hpp>
+#include <zabato/stream.hpp>
 
 namespace zabato::fs
 {

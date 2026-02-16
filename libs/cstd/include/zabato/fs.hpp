@@ -196,6 +196,16 @@ public:
         return report_error(error_code::not_supported);
     }
 
+    /**
+     * @brief Gets the virtual path for a given native path.
+     * @param native_path The native path.
+     * @return The virtual path if supported, or an error.
+     */
+    virtual result<string> get_virtual_path(string_view native_path)
+    {
+        return report_error(error_code::not_supported);
+    }
+
     string read_all_text(string_view path)
     {
         auto file = open(path, open_mode::read);
@@ -550,6 +560,47 @@ public:
         if (!fs)
             return report_error(error_code::file_not_found);
         return fs->get_native_path(relative_path);
+    }
+
+    result<string> get_virtual_path(string_view native_path) override
+    {
+        for (const auto &mount : m_mounts)
+        {
+            if (mount.fs)
+            {
+                auto res = mount.fs->get_virtual_path(native_path);
+                if (!res.has_error())
+                {
+                    string relative = res.value;
+                    string mp       = mount.path;
+
+                    if (mp == "/")
+                    {
+                        if (relative.starts_with("/"))
+                            return relative;
+                        string res = "/";
+                        res.append(relative);
+                        return res;
+                    }
+
+                    if (relative.empty())
+                        return mp;
+
+                    if (relative.starts_with("/"))
+                    {
+                        string res = mp;
+                        res.append(relative);
+                        return res;
+                    }
+
+                    string res = mp;
+                    res.append("/");
+                    res.append(relative);
+                    return res;
+                }
+            }
+        }
+        return report_error(error_code::file_not_found);
     }
 
 private:

@@ -129,10 +129,11 @@ private:
     void update_node(spatial *node, real dt);
     void process_messages();
 
-    pointer<spatial> m_root;
-    pointer<camera> m_active_camera;
     vector<model *> m_models;
     vector<light *> m_lights;
+
+    pointer<spatial> m_root;
+    pointer<camera> m_active_camera;
 
     controller *m_controller_head;
 

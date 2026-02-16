@@ -24,7 +24,11 @@ public:
         return m_shader.get<shader_asset>();
     }
 
-    void set_shader_path(string_view path) { m_shader.set_path(path); }
+    void set_shader_path(string_view path)
+    {
+        m_shader.set_path(path);
+        m_parameters.clear();
+    }
     string_view get_shader_path() const { return m_shader.path(); }
 
     void set_script_system(script_system *system) { m_script_system = system; }

@@ -4,6 +4,7 @@
 #include <zabato/allocator.hpp>
 #include <zabato/endian.hpp>
 #include <zabato/utils.hpp>
+#include <zabato/vector.hpp>
 
 #include <assert.h>
 #include <stddef.h>
@@ -1022,6 +1023,24 @@ private:
             return small[LAST_BYTE_IDX] >> 1;
         else
             return small[LAST_BYTE_IDX] & (~BE_SMALL_FLAG);
+    }
+
+    /** @brief Return a list of strings split by a delimiter. */
+    vector<basic_string<Allocator>> split(char delimiter) const
+    {
+        vector<basic_string<Allocator>> result;
+        size_t current = 0;
+        size_t next    = find(delimiter);
+
+        while (next != npos)
+        {
+            result.push_back(substr(current, next - current));
+            current = next + 1;
+            next    = find(delimiter, current);
+        }
+
+        result.push_back(substr(current));
+        return result;
     }
 
     void set_large_capacity(size_t raw_cap_bytes)

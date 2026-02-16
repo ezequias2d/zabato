@@ -1,5 +1,6 @@
 #include "lua_value.hpp"
 
+#include <zabato/error.hpp>
 #include <zabato/game_message.hpp>
 #include <zabato/lua/script_instance.hpp>
 #include <zabato/lua/script_system.hpp>
@@ -44,7 +45,7 @@ lua_script_instance::~lua_script_instance()
 
 void lua_script_instance::initialize(const controller::context &ctx)
 {
-    
+
     if (m_env_ref != LUA_NOREF && m_L && m_object)
     {
         lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_env_ref);
@@ -273,8 +274,9 @@ void lua_script_instance::load_xml(xml_serializer &serializer,
             }
             else
             {
-                std::cout << "Script XML Compile Error: "
-                          << lua_tostring(m_L, -1) << std::endl;
+                report(report_type::error,
+                       "Script XML Compile Error: %s",
+                       lua_tostring(m_L, -1));
                 lua_pop(m_L, 1);
             }
         }
@@ -450,15 +452,17 @@ void lua_script_instance::load(serializer &stream, serializer_link *link)
             // Run chunk
             if (lua_pcall(m_L, 0, 0, 0) != LUA_OK)
             {
-                std::cout << "Script Runtime Error: " << lua_tostring(m_L, -1)
-                          << std::endl;
+                report(report_type::error,
+                       "Script Runtime Error: %s",
+                       lua_tostring(m_L, -1));
                 lua_pop(m_L, 1);
             }
         }
         else
         {
-            std::cout << "Script Compile Error: " << lua_tostring(m_L, -1)
-                      << std::endl;
+            report(report_type::error,
+                   "Script Compile Error: %s",
+                   lua_tostring(m_L, -1));
             lua_pop(m_L, 1);
         }
     }

@@ -1,4 +1,4 @@
-#include "zabato/color.hpp"
+#include <zabato/color.hpp>
 #include <zabato/light.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/script.hpp>

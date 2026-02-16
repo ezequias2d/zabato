@@ -27,7 +27,7 @@ public:
 
     virtual void destroy()         = 0;
     virtual void attach(shader *s) = 0;
-    virtual void link()            = 0;
+    virtual bool link()            = 0;
 
     // Uniform location query could be useful, or handled entirely by
     // gpu::set_uniform implementation mapping strings

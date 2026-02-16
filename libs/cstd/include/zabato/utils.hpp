@@ -311,4 +311,17 @@ template <class T> struct enable_if<true, T>
 template <bool B, class T = void>
 using enable_if_t = typename enable_if<B, T>::type;
 
+template <class InputIt, class T>
+InputIt find(InputIt first, InputIt last, const T &value)
+{
+    for (; first != last; ++first)
+    {
+        if (*first == value)
+        {
+            return first;
+        }
+    }
+    return last;
+}
+
 } // namespace zabato

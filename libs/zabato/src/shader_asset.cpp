@@ -64,7 +64,16 @@ bool shader_asset::compile(script_system &ss,
             return false;
         }
 
-        m_program->link();
+        if (!m_program->link())
+        {
+            m_program = nullptr;
+            vs->destroy();
+            fs->destroy();
+            return false;
+        }
+
+        vs->destroy();
+        fs->destroy();
     }
 
     return true;

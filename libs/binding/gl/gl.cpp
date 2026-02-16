@@ -1,4 +1,5 @@
-#include <iostream>
+#include <cstring>
+#include <zabato/error.hpp>
 #include <zabato/gl.hpp>
 #include <zabato/gpu.hpp>
 #include <zabato/shader.hpp>
@@ -8,6 +9,72 @@
 namespace zabato
 {
 #ifndef __EMSCRIPTEN__
+
+static const char *to_source_string(GLenum source)
+{
+    switch (source)
+    {
+    case GL_DEBUG_SOURCE_API:
+        return "API";
+    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+        return "Window System";
+    case GL_DEBUG_SOURCE_SHADER_COMPILER:
+        return "Shader Compiler";
+    case GL_DEBUG_SOURCE_THIRD_PARTY:
+        return "Third Party";
+    case GL_DEBUG_SOURCE_APPLICATION:
+        return "Application";
+    case GL_DEBUG_SOURCE_OTHER:
+        return "Other";
+    default:
+        return "Unknown";
+    }
+}
+
+static const char *to_type_string(GLenum type)
+{
+    switch (type)
+    {
+    case GL_DEBUG_TYPE_ERROR:
+        return "Error";
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+        return "Deprecated Behaviour";
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+        return "Undefined Behaviour";
+    case GL_DEBUG_TYPE_PORTABILITY:
+        return "Portability";
+    case GL_DEBUG_TYPE_PERFORMANCE:
+        return "Performance";
+    case GL_DEBUG_TYPE_MARKER:
+        return "Marker";
+    case GL_DEBUG_TYPE_PUSH_GROUP:
+        return "Push Group";
+    case GL_DEBUG_TYPE_POP_GROUP:
+        return "Pop Group";
+    case GL_DEBUG_TYPE_OTHER:
+        return "Other";
+    default:
+        return "Unknown";
+    }
+}
+
+static const char *to_severity_string(GLenum severity)
+{
+    switch (severity)
+    {
+    case GL_DEBUG_SEVERITY_HIGH:
+        return "High";
+    case GL_DEBUG_SEVERITY_MEDIUM:
+        return "Medium";
+    case GL_DEBUG_SEVERITY_LOW:
+        return "Low";
+    case GL_DEBUG_SEVERITY_NOTIFICATION:
+        return "Notification";
+    default:
+        return "Unknown";
+    }
+}
+
 void GLAPIENTRY gl_message_callback(GLenum source,
                                     GLenum type,
                                     GLuint id,
@@ -16,17 +83,34 @@ void GLAPIENTRY gl_message_callback(GLenum source,
                                     const GLchar *message,
                                     const void *userParam)
 {
-    (void)source;
-    (void)id;
-    (void)length;
-    (void)userParam;
-    if (severity == GL_DEBUG_SEVERITY_NOTIFICATION)
-        return;
+    report_type log_type;
+    if (type == GL_DEBUG_TYPE_ERROR)
+        log_type = report_type::error;
+    else if (type == GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR ||
+             type == GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR ||
+             type == GL_DEBUG_TYPE_PORTABILITY ||
+             type == GL_DEBUG_TYPE_PERFORMANCE)
+        log_type = report_type::warning;
+    else if (severity == GL_DEBUG_SEVERITY_NOTIFICATION)
+        log_type = report_type::trace;
+    else
+        log_type = report_type::trace;
 
-    std::cerr << "GL CALLBACK: "
-              << (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "")
-              << " type = 0x" << std::hex << type << ", severity = 0x"
-              << severity << ", message = " << message << std::endl;
+    const char *_source   = to_source_string(source);
+    const char *_type     = to_type_string(type);
+    const char *_severity = to_severity_string(severity);
+
+    report(log_type,
+           "OpenGL Debug (ID: 0x%x)\n"
+           "    - Message:  %s\n"
+           "    - Source:   %s\n"
+           "    - Type:     %s\n"
+           "    - Severity: %s",
+           id,
+           message,
+           _source,
+           _type,
+           _severity);
 }
 #endif // __EMSCRIPTEN__
 
@@ -170,9 +254,11 @@ void GlTexture::load(uint16_t width,
     {
         if (data_size < expected_size)
         {
-            std::cerr << "Error loading texture: provided data size ("
-                      << data_size << ") is less than expected size ("
-                      << expected_size << ")." << std::endl;
+            report(report_type::error,
+                   "Error loading texture: provided data size (%zu) is less "
+                   "than expected size (%zu)",
+                   data_size,
+                   expected_size);
             return;
         }
 
@@ -248,8 +334,7 @@ void GlTexture::load(uint16_t width,
             break;
         }
         default:
-            std::cerr << "Unknown texture format: " << (int)m_format
-                      << std::endl;
+            report(report_type::error, "Unknown texture format: %d", m_format);
             return;
         }
     }
@@ -366,7 +451,9 @@ void GlFramebuffer::update()
 
     if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     {
-        std::cerr << "Error: Framebuffer is not complete!" << std::endl;
+        report(report_type::error,
+               "Framebuffer (%p, GL %d) is not complete!",
+               m_handle);
     }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -377,7 +464,7 @@ GlDisplayList::GlDisplayList()
     m_handle = glGenLists(1);
     if (m_handle == 0)
     {
-        std::cerr << "Failed to generate display list!" << std::endl;
+        report(report_type::error, "Failed to generate display list!");
     }
 }
 
@@ -700,8 +787,10 @@ GlShader::GlShader(shader_type type, const string &source) : m_type(type)
     {
         char infoLog[512];
         glGetShaderInfoLog(m_handle, 512, nullptr, infoLog);
-        std::cout << "Shader Compile Error: " << infoLog << "\nSource:\n"
-                  << source.c_str() << std::endl;
+        report(report_type::error,
+               "Shader Compile Error: %s\nSource:%s\n",
+               infoLog,
+               source.c_str());
     }
 }
 GlShader::~GlShader() { destroy(); }
@@ -722,6 +811,7 @@ void GlProgram::destroy()
     {
         glDeleteProgram(m_handle);
         m_handle = 0;
+        m_uniform_cache.clear();
     }
 }
 
@@ -731,7 +821,7 @@ void GlProgram::attach(shader *s)
         glAttachShader(m_handle, static_cast<GlShader *>(s)->get_handle());
 }
 
-void GlProgram::link()
+bool GlProgram::link()
 {
     if (m_handle)
     {
@@ -742,14 +832,25 @@ void GlProgram::link()
         {
             char infoLog[512];
             glGetProgramInfoLog(m_handle, 512, nullptr, infoLog);
-            std::cout << "Program Link Error: " << infoLog << std::endl;
+            report(report_type::error, "Program Link Error: %s", infoLog);
+            m_uniform_cache.clear();
+            return false;
         }
+        m_uniform_cache.clear();
+        return true;
     }
+    return false;
 }
 
 GLint GlProgram::get_uniform_location(const string &name)
 {
-    return glGetUniformLocation(m_handle, name.c_str());
+    auto it = m_uniform_cache.find(name);
+    if (it != m_uniform_cache.end())
+        return it->value;
+
+    GLint loc = glGetUniformLocation(m_handle, name.c_str());
+    m_uniform_cache.add(name, loc); // Assuming add method
+    return loc;
 }
 
 shader *GlGpu::create_shader(shader_type type, const string &source)
@@ -765,7 +866,7 @@ program *GlGpu::create_program(class shader *vertex_shader,
         p->attach(vertex_shader);
     if (fragment_shader)
         p->attach(fragment_shader);
-    p->link();
+
     return p;
 }
 
@@ -1142,30 +1243,34 @@ void GlGpu::set_polygon_offset(bool enabled, real factor, real units)
 
 gpu *init_gpu()
 {
-    std::cout << "Initializing GPU..." << std::endl;
+    report(report_type::info, "Initializing GPU...");
 
 #ifndef __EMSCRIPTEN__
     // GLAD is only needed for desktop OpenGL
     // Emscripten provides GL functions directly through emulation
     if (!gladLoadGLLoader((GLADloadproc)get_proc_address))
     {
-        std::cout << "gladLoadGLLoader failed, trying gladLoadGL..."
-                  << std::endl;
+        report(report_type::info,
+               "gladLoadGLLoader failed, trying gladLoadGL...");
         if (!gladLoadGL())
         {
-            std::cerr << "Failed to load GL functions!" << std::endl;
+            report(report_type::error, "Failed to load GL functions!");
             return nullptr;
         }
     }
-    std::cout << "GL functions loaded successfully" << std::endl;
+    report(report_type::info, "GL functions loaded successfully");
 #else
-    std::cout << "Emscripten: initialize_gl4es()" << std::endl;
+    report(report_type::info, "Emscripten: initialize_gl4es()");
     initialize_gl4es();
 #endif
 
-    std::cout << "GL Version: " << glGetString(GL_VERSION) << std::endl;
-    std::cout << "GL Vendor: " << glGetString(GL_VENDOR) << std::endl;
-    std::cout << "GL Renderer: " << glGetString(GL_RENDERER) << std::endl;
+    report(report_type::info,
+           "GL Version: %s\n"
+           "GL Vendor: %s"
+           "GL Renderer: %s",
+           glGetString(GL_VERSION),
+           glGetString(GL_VENDOR),
+           glGetString(GL_RENDERER));
 
 #ifndef NDEBUG
 #ifndef __EMSCRIPTEN__

@@ -19,7 +19,10 @@ void jolt_rigid_body_controller::reflect(reflection &r)
 }
 
 // Default constructor for serialization
-jolt_rigid_body_controller::jolt_rigid_body_controller() : m_world(nullptr) {}
+jolt_rigid_body_controller::jolt_rigid_body_controller()
+    : m_body_id(JPH::BodyID()), m_world(nullptr)
+{
+}
 
 jolt_rigid_body_controller::jolt_rigid_body_controller(
     JPH::BodyID id,

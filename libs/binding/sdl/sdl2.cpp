@@ -1,10 +1,10 @@
 #include "SDL_gamecontroller.h"
 #include "sdl2_keymap.hpp"
-#include "zabato/window.hpp"
 #include <SDL2/SDL.h>
-#include <iostream>
+#include <zabato/error.hpp>
 #include <zabato/hash_map.hpp>
 #include <zabato/sdl2.hpp>
+#include <zabato/window.hpp>
 
 namespace zabato
 {
@@ -157,7 +157,8 @@ Sdl2Window::Sdl2Window(int x,
     m_handle = SDL_CreateWindow(title, win_x, win_y, width, height, sdl_flags);
     if (!m_handle)
     {
-        std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
+        report(
+            report_type::error, "SDL_CreateWindow Error: %s", SDL_GetError());
         exit(EXIT_FAILURE);
     }
 
@@ -165,8 +166,9 @@ Sdl2Window::Sdl2Window(int x,
     m_context = SDL_GL_CreateContext(m_handle);
     if (!m_context)
     {
-        std::cerr << "SDL_GL_CreateContext Error: " << SDL_GetError()
-                  << std::endl;
+        report(report_type::error,
+               "SDL_GL_CreateContext Error: %s",
+               SDL_GetError());
         SDL_DestroyWindow(m_handle);
         exit(EXIT_FAILURE);
     }
@@ -605,7 +607,7 @@ bool init_window_system()
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK |
                  SDL_INIT_GAMECONTROLLER) != 0)
     {
-        std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
+        report(report_type::error, "SDL_Init Error: %s", SDL_GetError());
         return false;
     }
 

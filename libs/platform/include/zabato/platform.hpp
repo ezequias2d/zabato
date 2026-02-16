@@ -1,8 +1,7 @@
 #pragma once
 
-#include "zabato/delegate.hpp"
-#include "zabato/vector.hpp"
 #include <zabato/string.hpp>
+#include <zabato/vector.hpp>
 
 namespace zabato::platform
 {

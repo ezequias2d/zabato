@@ -1,5 +1,6 @@
 #pragma once
 #include <zabato/gpu.hpp>
+#include <zabato/hash_map.hpp>
 #include <zabato/resource.hpp>
 #include <zabato/shader.hpp>
 #include <zabato/vector.hpp>
@@ -39,15 +40,14 @@ public:
 
     void destroy() override;
     void attach(shader *s) override;
-    void link() override;
+    bool link() override;
     GLuint get_handle() const { return m_handle; }
 
     GLint get_uniform_location(const string &name);
 
 private:
     GLuint m_handle = 0;
-    // TODO: Cache for uniform locations to avoid glGetUniformLocation every
-    // frame.
+    hash_map<string, GLint> m_uniform_cache;
 };
 
 class GlTexture : public texture

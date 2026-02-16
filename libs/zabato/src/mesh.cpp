@@ -1,3 +1,4 @@
+#include <zabato/error.hpp>
 #include <zabato/mesh.hpp>
 
 namespace zabato
@@ -145,8 +146,8 @@ void mesh::calculate_tangents()
 {
     if ((m_flags & mesh_flags::tangent) == mesh_flags::none)
     {
-        std::cerr << "calculate_tangents called on mesh without tangent flag!"
-                  << std::endl;
+        report(report_type::error,
+               "calculate_tangents called on mesh without tangent flag!");
         return;
     }
 

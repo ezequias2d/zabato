@@ -10,7 +10,6 @@
 #include <zabato/string.hpp>
 #include <zabato/vector.hpp>
 
-#include <iostream>
 #include <math.h>
 #include <stdint.h>
 #include <zabato/be.hpp>
@@ -252,10 +251,10 @@ public:
         // Verify this is the chunk we expect
         if (berg_header.original_chunk_id != expected_original_id)
         {
-            std::cout << "Expected chunk ID: "
-                      << expected_original_id.to_string().c_str()
-                      << " but got: " << berg_header.original_chunk_id
-                      << std::endl;
+            report(report_type::error,
+                   "Expected chunk ID: %s but got: %s",
+                   expected_original_id.to_string().c_str(),
+                   berg_header.original_chunk_id.to_string().c_str());
             return report_error(error_code::chunk_broken, BERG_CHUNK_ID);
         }
 
@@ -286,9 +285,10 @@ public:
         // Verify decompressed size matches expected
         if (out_data.size() != berg_header.original_size)
         {
-            std::cout << "Decompressed size: " << out_data.size()
-                      << " but expected: " << berg_header.original_size
-                      << std::endl;
+            report(report_type::error,
+                   "Decompressed size: %zu but expected: %zu",
+                   out_data.size(),
+                   berg_header.original_size);
             return report_error(error_code::chunk_broken, BERG_CHUNK_ID);
         }
 

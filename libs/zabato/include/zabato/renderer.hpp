@@ -1,6 +1,7 @@
 #pragma once
 
-#include "zabato/model.hpp"
+#include <zabato/model.hpp>
+
 namespace zabato
 {
 class spatial;

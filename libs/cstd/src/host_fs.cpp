@@ -339,4 +339,30 @@ result<string> host_fs::get_native_path(string_view path)
     return string{target.string().c_str()};
 }
 
+result<string> host_fs::get_virtual_path(string_view native_path)
+{
+    auto impl = static_cast<host_fs_internal *>(m_data);
+
+    std::error_code ec;
+    auto p = std_fs::absolute(to_path(native_path), ec);
+    if (ec)
+        return report_error(error_code::invalid_path);
+
+    auto rel = std_fs::relative(p, impl->root, ec);
+
+    // If error, or empty, it's not in this FS
+    if (ec || rel.empty())
+        return report_error(error_code::file_not_found);
+
+    // If relative path starts with "..", it's outside the root
+    if (rel.begin() != rel.end() && *rel.begin() == "..")
+        return report_error(error_code::file_not_found);
+
+    // If result is ".", it means it IS the root.
+    if (rel == ".")
+        return string("");
+
+    return string(rel.generic_string().c_str());
+}
+
 } // namespace zabato::fs

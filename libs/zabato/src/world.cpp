@@ -18,7 +18,7 @@ world::world()
 {
 }
 
-world::~world() {}
+world::~world() { clean(); }
 
 void world::set_active_camera(camera *cam) { m_active_camera = cam; }
 
@@ -53,7 +53,7 @@ void world::clean()
 
 void world::register_model(model *mod)
 {
-    if (std::find(m_models.begin(), m_models.end(), mod) == m_models.end())
+    if (find(m_models.begin(), m_models.end(), mod) == m_models.end())
     {
         m_models.push_back(mod);
     }
@@ -63,7 +63,7 @@ void world::unregister_model(model *mod) { m_models.remove(mod); }
 
 void world::register_light(light *l)
 {
-    if (std::find(m_lights.begin(), m_lights.end(), l) == m_lights.end())
+    if (find(m_lights.begin(), m_lights.end(), l) == m_lights.end())
     {
         m_lights.push_back(l);
     }

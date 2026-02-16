@@ -25,14 +25,22 @@ using script_value = value;
  * @struct zshader_compilation_result
  * @brief Results from compiling a ZShader script (GLSL code + Reflection).
  */
+struct zshader_uniform_info
+{
+    string name;
+    string type;
+    value default_value;
+    string hint;
+};
+
 struct zshader_compilation_result
 {
     string glsl_vertex;
     string glsl_fragment;
     string name;
 
-    // Discovered Uniforms (Name -> Type)
-    vector<tuple<string, string>> uniforms;
+    // Discovered Uniforms
+    vector<zshader_uniform_info> uniforms;
     vector<tuple<string, string>> attributes;
 };
 

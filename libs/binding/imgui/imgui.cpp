@@ -1,4 +1,5 @@
-#include "imgui_internal.h"
+#include <imgui_internal.h>
+#include <zabato/error.hpp>
 #include <zabato/fs.hpp>
 #include <zabato/gpu.hpp>
 #include <zabato/imgui.hpp>
@@ -345,7 +346,7 @@ void init(window *win, fs::file_system &fs)
                         fs::open_mode::read);
     if (!file)
     {
-        std::cout << "Failed to load font" << std::endl;
+        report(report_type::error, "Failed to load font");
         return;
     }
 
@@ -410,8 +411,8 @@ void new_frame()
     {
         if (!g_gpu)
         {
-            std::cerr << "[ImGui] Error: GPU is null during texture creation!"
-                      << std::endl;
+            report(report_type::error,
+                   "[ImGui] Error: GPU is null during texture creation!");
         }
         else
         {
@@ -440,8 +441,9 @@ void new_frame()
                 g_gpu->create_texture(width, height, color_format::rgba4444);
             if (g_font_texture)
             {
-                std::cout << "[ImGui] Texture created: " << g_font_texture
-                          << std::endl;
+                report(report_type::info,
+                       "[ImGui] Texture created: %p",
+                       g_font_texture);
                 g_font_texture->load(width,
                                      height,
                                      color_format::rgba4444,
@@ -451,8 +453,8 @@ void new_frame()
             }
             else
             {
-                std::cerr << "[ImGui] Error: Failed to create texture object!"
-                          << std::endl;
+                report(report_type::error,
+                       "[ImGui] Error: Failed to create texture object!");
             }
         }
     }

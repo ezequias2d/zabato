@@ -43,6 +43,8 @@ local function print_expr(node)
         return print_expr(node.object) .. "." .. node.member
     elseif node.type == "unary_op" then
         return node.op .. print_expr(node.operand)
+    elseif node.type == "swizzle" then
+        return print_expr(node.vec) .. "." .. node.components
     end
     return tostring(node)
 end
@@ -81,7 +83,8 @@ function Transpiler.transpile(ast)
         for k,v in pairs(ast.uniforms or {}) do 
             local map_name = SYMBOL_MAP[k]
             if not k:find("^gl_") and not map_name then 
-                table.insert(d, "uniform " .. map_type(v) .. " " .. k .. ";") 
+                local type_name = type(v) == "table" and v.type or v
+                table.insert(d, "uniform " .. map_type(type_name) .. " " .. k .. ";") 
             end
         end
         if allow_attributes then
