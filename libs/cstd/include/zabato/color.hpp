@@ -52,7 +52,14 @@ struct color
     }
 
     /** @brief Returns a mutable reference to the color as a vec4. */
-    constexpr vec4<real> as_vec4() const { return vec4<real>(r, g, b, a); }
+    constexpr vec4<real> as_vec4() const {
+        vec4<real> result;
+        result.x = r;
+        result.y = g;
+        result.z = b;
+        result.w = a;
+        return result;
+    }
 
     /** @brief Returns a mutable pointer to the underlying component array. */
     constexpr real *as_array() { return &r; }
@@ -236,7 +243,7 @@ struct color4444
      * object.
      * @param c The source color object.
      */
-    constexpr explicit color4444(const color &c)
+    explicit color4444(const color &c)
     {
         color8888 c8888(c);
         uint8_t r8 = (c8888.value >> 0) & 0xFF, g8 = (c8888.value >> 8) & 0xFF,

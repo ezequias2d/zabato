@@ -85,15 +85,15 @@ struct float_policy
         return a / b;
     }
     static constexpr storage_type neg(storage_type a) { return -a; }
-    static constexpr storage_type mod(storage_type a, storage_type b)
+    static storage_type mod(storage_type a, storage_type b)
     {
         return fmodf(a, b);
     }
-    static constexpr storage_type abs(storage_type a) { return fabsf(a); }
-    static constexpr storage_type sqrt(storage_type a) { return sqrtf(a); }
-    static constexpr storage_type exp(storage_type a) { return expf(a); }
-    static constexpr storage_type log(storage_type a) { return logf(a); }
-    static constexpr storage_type pow(storage_type base, storage_type exp)
+    static storage_type abs(storage_type a) { return fabsf(a); }
+    static storage_type sqrt(storage_type a) { return sqrtf(a); }
+    static storage_type exp(storage_type a) { return expf(a); }
+    static storage_type log(storage_type a) { return logf(a); }
+    static storage_type pow(storage_type base, storage_type exp)
     {
         return powf(base, exp);
     }
@@ -105,19 +105,19 @@ struct float_policy
     {
         return a > b ? a : b;
     }
-    static constexpr storage_type floor(storage_type a) { return floorf(a); }
-    static constexpr storage_type ceil(storage_type a) { return ceilf(a); }
-    static constexpr storage_type round(storage_type a) { return roundf(a); }
-    static constexpr storage_type sin(storage_type a) { return sinf(a); }
-    static constexpr storage_type cos(storage_type a) { return cosf(a); }
-    static constexpr storage_type acos(storage_type a) { return acosf(a); }
-    static constexpr storage_type asin(storage_type a) { return asinf(a); }
-    static constexpr storage_type atan(storage_type a) { return atanf(a); }
-    static constexpr storage_type atan2(storage_type y, storage_type x)
+    static storage_type floor(storage_type a) { return floorf(a); }
+    static storage_type ceil(storage_type a) { return ceilf(a); }
+    static storage_type round(storage_type a) { return roundf(a); }
+    static storage_type sin(storage_type a) { return sinf(a); }
+    static storage_type cos(storage_type a) { return cosf(a); }
+    static storage_type acos(storage_type a) { return acosf(a); }
+    static storage_type asin(storage_type a) { return asinf(a); }
+    static storage_type atan(storage_type a) { return atanf(a); }
+    static storage_type atan2(storage_type y, storage_type x)
     {
         return atan2f(y, x);
     }
-    static constexpr storage_type tan(storage_type a) { return tanf(a); }
+    static storage_type tan(storage_type a) { return tanf(a); }
     static tuple<storage_type, storage_type> sincos(storage_type a)
     {
         return {sinf(a), cosf(a)};
@@ -327,7 +327,20 @@ template <int FractionalBits> struct fixed_point_policy
             return MIN;
 
         // Find E such that x = M * 2^E, with M in [1, 2)
+#if defined(__GNUC__) || defined(__clang__)
         int32_t exponent = (31 - __builtin_clz(x)) - FractionalBits;
+#elif defined(_MSC_VER)
+        unsigned long index;
+        _BitScanReverse(&index, x);
+        int32_t exponent = (31 - index) - FractionalBits;
+#else
+        int32_t exponent = 0;
+        while (x >= from_int(2))
+        {
+            x >>= 1;
+            exponent++;
+        }
+#endif
         storage_type mantissa =
             (exponent >= 0) ? (x >> exponent) : (x << -exponent);
 

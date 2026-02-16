@@ -1,10 +1,10 @@
 target("zabato")
     set_languages("c++23")
-    set_kind("shared")
+    set_kind("static")
     add_includedirs("include", {public = true})
     add_files("src/*.cpp")
     add_files("src/physics/*.cpp")
-    add_deps("berg", "cstd")
+    add_deps("libberg", "cstd")
     add_packages("tinyxml2")
 
     if is_kind("shared") or is_kind("static") or is_kind("binary") then

@@ -5,7 +5,7 @@
 
 namespace zabato
 {
-class reflection;
+struct reflection;
 
 /**
  * @brief Run-Time Type Information (RTTI) system for the Cryolite engine.
