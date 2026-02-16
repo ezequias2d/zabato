@@ -1,11 +1,12 @@
-#include "../../../ext/qu3e/demo/stb_image.h"
 #include <editor/editor_resources.hpp>
+#include <stdio.h>
 
 #include <zabato/error.hpp>
 #include <zabato/gpu.hpp>
 #include <zabato/hash_map.hpp>
 #include <zabato/imgui.hpp>
 #include <zabato/shape.hpp>
+#include <zabato/stb/image_utils.hpp>
 #include <zabato/vector.hpp>
 
 namespace zabato::editor
@@ -16,7 +17,7 @@ struct pending_icon_data
     int id;
     int width;
     int height;
-    unsigned char *pixels;
+    vector<uint8_t> pixels;
 };
 
 static hash_map<editor_icon, uint32_t> g_icon_map;
@@ -41,10 +42,9 @@ static void fill_atlas(unsigned char *pixels, int w, int h, void *user_data)
 
                     if (atlas_x < w && atlas_y < h)
                     {
-                        const unsigned char *src =
-                            icon.pixels + (y * icon.width + x) * 4;
-                        unsigned char *dst =
-                            pixels + (atlas_y * w + atlas_x) * 4;
+                        const uint8_t *src =
+                            icon.pixels.data() + (y * icon.width + x) * 4;
+                        uint8_t *dst = pixels + (atlas_y * w + atlas_x) * 4;
 
                         dst[0] = src[0];
                         dst[1] = src[1];
@@ -54,7 +54,6 @@ static void fill_atlas(unsigned char *pixels, int w, int h, void *user_data)
                 }
             }
         }
-        stbi_image_free(icon.pixels);
     }
     g_pending_icons.clear();
 }
@@ -113,9 +112,22 @@ void editor_resources::install_custom_icons()
     {
         if (!def.file)
             continue;
-        int w, h, c;
-        unsigned char *px = stbi_load(def.file, &w, &h, &c, 4);
-        if (px)
+
+        FILE *file = fopen(def.file, "rb");
+        fseek(file, 0, SEEK_END);
+        size_t size = ftell(file);
+        fseek(file, 0, SEEK_SET);
+
+        vector<uint8_t> data;
+        data.resize(size);
+        size_t readed = fread(data.data(), 1, data.size(), file);
+        assert(readed == size);
+        fclose(file);
+
+        int w, h;
+        stb::comp c;
+        vector<uint8_t> px = stb::load_image_from_memory(data, w, h, c, 4);
+        if (!px.empty())
         {
             float font_size = io.Fonts->Fonts[0]->LegacySize;
             if (font_size <= 0.0f)
@@ -129,7 +141,7 @@ void editor_resources::install_custom_icons()
                                                    w + 4.0f,
                                                    ImVec2(0, offset_y));
 
-            g_pending_icons.push_back({id, w, h, px});
+            g_pending_icons.push_back({id, w, h, move(px)});
             g_icon_map.add(def.id, current_codepoint);
             current_codepoint++;
         }
