@@ -2,7 +2,6 @@
 
 #include <zabato/reflection.hpp>
 #include <zabato/resource.hpp>
-#include <stddef.h>
 #include <zabato/animation.hpp>
 #include <zabato/controller.hpp>
 #include <zabato/error.hpp>

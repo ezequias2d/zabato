@@ -23,7 +23,7 @@
 
 #include <zabato/jolt/jolt_character_controller.hpp>
 #include <zabato/jolt/jolt_rigid_body_controller.hpp>
-#include <zabato/jolt/jolt_vehicle_controller.hpp>
+// #include <zabato/jolt/jolt_vehicle_controller.hpp>
 #include <zabato/jolt_physics_world.hpp>
 
 namespace zabato::editor
@@ -200,8 +200,8 @@ editor_app::editor_app(zabato::console &console)
         .template operator()<physics::jolt::jolt_rigid_body_controller>();
     register_with_prefab
         .template operator()<physics::jolt::jolt_character_controller>();
-    register_with_prefab
-        .template operator()<physics::jolt::jolt_vehicle_controller>();
+    // register_with_prefab
+    //     .template operator()<physics::jolt::jolt_vehicle_controller>();
 }
 
 editor_app::~editor_app() {}

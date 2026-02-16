@@ -6,7 +6,7 @@
 
 #include <zabato/jolt/jolt_character_controller.hpp>
 #include <zabato/jolt/jolt_rigid_body_controller.hpp>
-#include <zabato/jolt/jolt_vehicle_controller.hpp>
+// #include <zabato/jolt/jolt_vehicle_controller.hpp>
 
 namespace zabato::physics::jolt
 {
@@ -229,11 +229,13 @@ void jolt_physics_world::add_controller(physics::physics_controller *controller)
         c->initialize_with_world(this);
         register_character(c);
     }
+    /*
     else if (auto *v = c_dynamic_cast<jolt_vehicle_controller>(controller))
     {
         v->initialize_with_world(this);
         register_vehicle(v);
     }
+    */
 }
 
 void jolt_physics_world::remove_controller(
@@ -252,11 +254,13 @@ void jolt_physics_world::remove_controller(
         // c->destroy(); // TODO: Implement destroy on character
         unregister_character(c);
     }
+    /*
     else if (auto *v = c_dynamic_cast<jolt_vehicle_controller>(controller))
     {
         // v->destroy(); // TODO: Implement destroy on vehicle
         unregister_vehicle(v);
     }
+    */
 }
 
 bool jolt_physics_world::raycast(const ray3<real> &ray,
@@ -304,6 +308,7 @@ pointer<physics::character_controller> jolt_physics_world::create_character(
     return ctrl;
 }
 
+/*
 pointer<physics::vehicle_controller> jolt_physics_world::create_vehicle(
     const physics::vehicle_creation_config &settings)
 {
@@ -312,6 +317,7 @@ pointer<physics::vehicle_controller> jolt_physics_world::create_vehicle(
     ctrl->initialize_with_world(this);
     return ctrl;
 }
+*/
 
 void jolt_physics_world::OnBodyActivated(const JPH::BodyID &inBodyID,
                                          JPH::uint64 inBodyUserData)
@@ -415,6 +421,7 @@ void jolt_physics_world::unregister_rigid_body(jolt_rigid_body_controller *c)
         m_rigid_bodies.erase(it);
 }
 
+/*
 void jolt_physics_world::register_vehicle(jolt_vehicle_controller *c)
 {
     m_vehicles.push_back(c);
@@ -426,5 +433,6 @@ void jolt_physics_world::unregister_vehicle(jolt_vehicle_controller *c)
     if (it != m_vehicles.end())
         m_vehicles.erase(it);
 }
+*/
 
 } // namespace zabato::physics::jolt

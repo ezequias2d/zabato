@@ -31,8 +31,9 @@ public:
     pointer<physics::character_controller> create_character(
         const physics::character_creation_config &settings) override;
 
-    pointer<physics::vehicle_controller>
-    create_vehicle(const physics::vehicle_creation_config &settings) override;
+    // pointer<physics::vehicle_controller>
+    // create_vehicle(const physics::vehicle_creation_config &settings)
+    // override;
 
     pointer<physics::rigid_body_controller> create_rigid_body(
         const physics::rigid_body_creation_config &settings) override;
@@ -76,8 +77,8 @@ public:
     void register_rigid_body(class jolt_rigid_body_controller *c);
     void unregister_rigid_body(class jolt_rigid_body_controller *c);
 
-    void register_vehicle(class jolt_vehicle_controller *c);
-    void unregister_vehicle(class jolt_vehicle_controller *c);
+    // void register_vehicle(class jolt_vehicle_controller *c);
+    // void unregister_vehicle(class jolt_vehicle_controller *c);
 
 private:
     JPH::TempAllocatorImpl *m_temp_allocator;
@@ -94,7 +95,7 @@ private:
 
     std::vector<class jolt_character_controller *> m_characters;
     std::vector<class jolt_rigid_body_controller *> m_rigid_bodies;
-    std::vector<class jolt_vehicle_controller *> m_vehicles;
+    // std::vector<class jolt_vehicle_controller *> m_vehicles;
 };
 
 namespace Layers

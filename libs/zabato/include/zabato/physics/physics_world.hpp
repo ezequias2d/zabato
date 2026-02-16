@@ -7,7 +7,7 @@
 #include <zabato/physics/physics_controller.hpp>
 #include <zabato/physics/rigid_body_controller.hpp>
 #include <zabato/physics/types.hpp>
-#include <zabato/physics/vehicle_controller.hpp>
+// #include <zabato/physics/vehicle_controller.hpp>
 
 namespace zabato::physics
 {
@@ -35,8 +35,8 @@ public:
     virtual pointer<character_controller>
     create_character(const character_creation_config &settings) = 0;
 
-    virtual pointer<vehicle_controller>
-    create_vehicle(const vehicle_creation_config &settings) = 0;
+    // virtual pointer<vehicle_controller>
+    // create_vehicle(const vehicle_creation_config &settings) = 0;
 
     virtual pointer<rigid_body_controller>
     create_rigid_body(const rigid_body_creation_config &settings) = 0;
