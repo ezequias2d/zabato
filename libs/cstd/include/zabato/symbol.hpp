@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 namespace zabato
 {
@@ -51,5 +52,62 @@ const char *get_symbol_name(const symbol *s);
  * @return The 32-bit hash value of the symbol's string.
  */
 uint32_t get_symbol_hash(const symbol *s);
+
+/**
+ * @struct symbol_ref
+ * @brief A wrapper for symbol pointers that handles reference counting.
+ */
+struct symbol_ref
+{
+    symbol *s = nullptr;
+
+    symbol_ref() = default;
+
+    symbol_ref(const char *name) : s(get_symbol(name)) {}
+
+    symbol_ref(symbol *sym) : s(ref_symbol(sym)) {}
+
+    symbol_ref(const symbol_ref &other) : s(ref_symbol(other.s)) {}
+
+    symbol_ref(symbol_ref &&other) noexcept : s(other.s) { other.s = nullptr; }
+
+    ~symbol_ref() { release_symbol(s); }
+
+    symbol_ref &operator=(const symbol_ref &other)
+    {
+        if (this != &other)
+        {
+            release_symbol(s);
+            s = ref_symbol(other.s);
+        }
+        return *this;
+    }
+
+    symbol_ref &operator=(symbol_ref &&other) noexcept
+    {
+        if (this != &other)
+        {
+            release_symbol(s);
+            s       = other.s;
+            other.s = nullptr;
+        }
+        return *this;
+    }
+
+    symbol *get() const { return s; }
+
+    const char *c_str() const { return get_symbol_name(s); }
+
+    bool empty() const { return s == nullptr || get_symbol_name(s)[0] == '\0'; }
+
+    operator const char *() const { return c_str(); }
+
+    operator symbol *() const { return s; }
+
+    bool operator==(const symbol_ref &other) const { return s == other.s; }
+    bool operator!=(const symbol_ref &other) const { return s != other.s; }
+    bool operator==(const char *str) const { return strcmp(c_str(), str) == 0; }
+    bool operator!=(const char *str) const { return strcmp(c_str(), str) != 0; }
+};
 
 } // namespace zabato

@@ -1,0 +1,7 @@
+target("zabato_assimp")
+    set_kind("shared")
+    set_languages("c++23")
+    add_files("src/*.cpp")
+    add_includedirs("include", {public = true})
+    add_deps("zabato")
+    add_packages("assimp", "tinyxml2")

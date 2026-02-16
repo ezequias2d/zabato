@@ -122,6 +122,16 @@ public:
     static const error_code file_not_found;
     /// @brief The path could not be found (-23).
     static const error_code path_not_found;
+    /// @brief The operation is not implemented (-24).
+    static const error_code not_implemented;
+    /// @brief Failed to require zshader (-25).
+    static const error_code failed_to_require_zshader;
+    /// @brief Failed to load zshader (-26).
+    static const error_code failed_to_load_zshader;
+    /// @brief No script system (-27).
+    static const error_code no_script_system;
+    /// @brief Operation not supported (-28).
+    static const error_code not_supported;
     /// @brief An unknown error occurred (-128).
     static const error_code unknown;
 
@@ -155,6 +165,11 @@ constexpr error_code error_code::fail_to_decompress_berg{-20};
 constexpr error_code error_code::invalid_path{-21};
 constexpr error_code error_code::file_not_found{-22};
 constexpr error_code error_code::path_not_found{-23};
+constexpr error_code error_code::not_implemented{-24};
+constexpr error_code error_code::failed_to_require_zshader{-25};
+constexpr error_code error_code::failed_to_load_zshader{-26};
+constexpr error_code error_code::no_script_system{-27};
+constexpr error_code error_code::not_supported{-28};
 constexpr error_code error_code::unknown{-128};
 
 /**
@@ -183,7 +198,7 @@ template <typename T> struct result
 
     result() : error(error_code::ok), value{} {}
     result(const T &val) : error(error_code::ok), value(val) {}
-    result(T &&val) : error(error_code::ok), value(static_cast<T &&>(val)) {}
+    result(T &&val) : error(error_code::ok), value(val) {}
     result(error_code err) : error(err), value{} {}
 
     /** @brief Checks if the result contains an error. */
@@ -274,6 +289,16 @@ inline const char *get_error_message(error_code error)
     case error_code::fail_to_decompress_berg:
         return "Failed to decompress data with berg for chunk ID '%s'(0x%x), "
                "berg code: %d";
+    case error_code::not_implemented:
+        return "Not implemented";
+    case error_code::failed_to_require_zshader:
+        return "Failed to require zshader: %s";
+    case error_code::failed_to_load_zshader:
+        return "Failed to load zshader: %s";
+    case error_code::no_script_system:
+        return "No script system";
+    case error_code::not_supported:
+        return "Operation not supported";
     case error_code::unknown:
         return "Unknown error";
     default:

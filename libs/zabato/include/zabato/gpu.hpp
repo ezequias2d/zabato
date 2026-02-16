@@ -1,10 +1,11 @@
 #pragma once
 
+#include <stdint.h>
 #include <zabato/color.hpp>
+#include <zabato/ice.hpp>
 #include <zabato/math.hpp>
 #include <zabato/real.hpp>
 #include <zabato/resource.hpp>
-#include <stdint.h>
 
 namespace zabato
 {
@@ -18,6 +19,15 @@ enum class primitive_type : uint8_t
     triangles,
     points,
     lines,
+    triangle_fan,
+    triangle_strip,
+};
+
+/** @brief Shader types. */
+enum class shader_type : uint8_t
+{
+    vertex,
+    fragment,
 };
 
 /** @brief The target matrix for transform operations. */
@@ -47,12 +57,39 @@ enum class light_type : uint16_t
 enum class color_format : uint8_t
 {
     undefined,
+    rgba8888,
     rgba5551,
     rgba4444,
     palette16,
     palette64,
     palette128,
     palette256,
+};
+
+/** @brief Depth comparison functions. */
+enum class depth_func : uint8_t
+{
+    never,
+    less,
+    equal,
+    less_equal,
+    greater,
+    not_equal,
+    greater_equal,
+    always,
+};
+
+/** @brief Alpha comparison functions. */
+enum class alpha_func : uint8_t
+{
+    never,
+    less,
+    equal,
+    less_equal,
+    greater,
+    not_equal,
+    greater_equal,
+    always,
 };
 
 /** @brief Blending factors for source and destination. */
@@ -69,6 +106,14 @@ enum class blend_factor : uint8_t
     dst_color,
     one_minus_dst_color,
     src_alpha_saturate,
+};
+
+/** @brief Polygon rasterization modes. */
+enum class polygon_mode : uint8_t
+{
+    point,
+    line,
+    fill,
 };
 
 static inline const char *color_format_name(color_format format)
@@ -92,15 +137,50 @@ static inline const char *color_format_name(color_format format)
     }
 }
 
+/** @brief Face culling modes. */
+enum class cull_face_mode : uint8_t
+{
+    back,
+    front,
+    front_and_back,
+};
+
 #pragma endregion
 
 #pragma region Data Structs
 
 /**
- * @struct light
+ * @struct render_state
+ * @brief Encapsulates the entire render state for a pass.
+ */
+struct render_state
+{
+    bool depth_test          = true;
+    depth_func depth_compare = depth_func::less;
+    bool depth_write         = true;
+
+    bool blend             = false;
+    blend_factor blend_src = blend_factor::one;
+    blend_factor blend_dst = blend_factor::zero;
+
+    bool alpha_test          = false;
+    alpha_func alpha_compare = alpha_func::always;
+    real alpha_ref           = 0;
+
+    bool cull_face           = true;
+    cull_face_mode cull_mode = cull_face_mode::back;
+
+    polygon_mode poly_mode  = polygon_mode::fill;
+    bool poly_offset        = false;
+    real poly_offset_factor = 0;
+    real poly_offset_units  = 0;
+};
+
+/**
+ * @struct light_data
  * @brief Describes a light source for the lighting system.
  */
-struct light
+struct light_data
 {
     light_type type;
     color5551 ambient;
@@ -113,20 +193,6 @@ struct light
     real constant_attenuation;
     real linear_attenuation;
     real quadratic_attenuation;
-};
-
-/**
- * @struct material
- * @brief Describes the surface properties of an object for lighting.
- */
-struct material
-{
-    class texture *texture = nullptr;
-    color5551 ambient;
-    color5551 diffuse;
-    color5551 specular;
-    color5551 emission;
-    real shininess;
 };
 
 #pragma endregion
@@ -142,6 +208,9 @@ struct material
 class texture : public resource
 {
 public:
+    static const rtti TYPE;
+    const rtti &type() const override { return TYPE; }
+
     static constexpr chunk_id CHUNK_ID = chunk_id("TEXD");
 
     virtual ~texture() = default;
@@ -161,7 +230,8 @@ public:
                       uint16_t height,
                       color_format format,
                       size_t data_size,
-                      const void *data) = 0;
+                      const void *data,
+                      uint8_t face = 0) = 0;
 
     /**
      * @brief Copies the texture's pixel data out to a buffer.
@@ -216,6 +286,39 @@ public:
 
 #pragma endregion
 
+#pragma region Framebuffers
+
+/**
+ * @class framebuffer
+ * @brief An abstract handle to a GPU framebuffer object (FBO).
+ *
+ * Framebuffers allow rendering to a texture instead of the default window
+ * surface.
+ */
+class framebuffer : public resource
+{
+public:
+    static constexpr chunk_id CHUNK_ID = chunk_id("FRAM");
+
+    virtual ~framebuffer() = default;
+
+    /** @brief Deletes the framebuffer and releases its resources. */
+    virtual void destroy() = 0;
+
+    /** @brief Gets the texture attached to this framebuffer. */
+    virtual texture *get_texture() const = 0;
+
+    /** @brief Resizes the framebuffer and its attachments. */
+    virtual void resize(uint16_t width, uint16_t height) = 0;
+
+    /** @brief Gets the current size. */
+    virtual vec2<uint16_t> get_size() const = 0;
+};
+
+#pragma endregion
+
+#pragma endregion
+
 #pragma region GPU Interface
 
 /**
@@ -244,7 +347,11 @@ public:
     virtual void tex_coord(const vec2<real> &uv)                 = 0;
     virtual void tex_coord(real u, real v)                       = 0;
     virtual void clear(const struct color &c, real depth)        = 0;
+    virtual void clear_depth(real depth)                         = 0;
     virtual void viewport(int width, int height)                 = 0;
+
+    virtual void push_state() = 0;
+    virtual void pop_state()  = 0;
 
 #pragma endregion
 
@@ -267,6 +374,7 @@ public:
     virtual void scale(real x, real y, real z)                  = 0;
     virtual void load_identity()                                = 0;
     virtual void load_matrix(const mat4<real> &m)               = 0;
+    virtual void mult_matrix(const mat4<real> &m)               = 0;
     virtual void push_matrix()                                  = 0;
     virtual void pop_matrix()                                   = 0;
 
@@ -274,10 +382,9 @@ public:
 
 #pragma region Lighting
 
-    virtual void set_shade_model(shade_model model) = 0;
-    virtual void enable_lighting(bool enabled)      = 0;
-    virtual void set_light(int id, const light *l)  = 0;
-    virtual void set_material(const material *m)    = 0;
+    virtual void set_shade_model(shade_model model)     = 0;
+    virtual void enable_lighting(bool enabled)          = 0;
+    virtual void set_light(int id, const light_data *l) = 0;
 
 #pragma endregion
 
@@ -285,8 +392,26 @@ public:
 
     virtual texture *
     create_texture(uint16_t width, uint16_t height, color_format format) = 0;
+    virtual texture *create_cubemap(uint16_t size, color_format format)  = 0;
+    virtual void set_active_texture(int unit)                            = 0;
+    virtual void enable_texture(bool enabled)                            = 0;
     virtual void bind_texture(texture *tex)                              = 0;
     virtual void unbind_texture()                                        = 0;
+
+#pragma endregion
+
+#pragma region Framebuffers
+
+    virtual framebuffer *create_framebuffer(uint16_t width,
+                                            uint16_t height) = 0;
+    virtual void bind_framebuffer(framebuffer *fb)           = 0;
+    virtual void unbind_framebuffer()                        = 0;
+    virtual void read_pixels(int x,
+                             int y,
+                             int width,
+                             int height,
+                             color_format format,
+                             void *pixels)                   = 0;
 
 #pragma endregion
 
@@ -309,12 +434,45 @@ public:
 #pragma endregion
 
     // New methods for ImGui support
-    virtual void enable_depth_test(bool enabled) = 0;
-    virtual void enable_blend(bool enabled) = 0;
-    virtual void set_blend_func(blend_factor src, blend_factor dst) = 0;
-    virtual void enable_scissor_test(bool enabled) = 0;
-    virtual void set_scissor(int x, int y, int width, int height) = 0;
-    virtual void set_viewport_rect(int x, int y, int width, int height) = 0;
+    virtual void enable_depth_test(bool enabled)                           = 0;
+    virtual void set_depth_func(depth_func func)                           = 0;
+    virtual void set_depth_write(bool enabled)                             = 0;
+    virtual void enable_alpha_test(bool enabled)                           = 0;
+    virtual void set_alpha_func(alpha_func func, real ref)                 = 0;
+    virtual void enable_blend(bool enabled)                                = 0;
+    virtual void set_blend_func(blend_factor src, blend_factor dst)        = 0;
+    virtual void enable_scissor_test(bool enabled)                         = 0;
+    virtual void set_scissor(int x, int y, int width, int height)          = 0;
+    virtual void set_viewport_rect(int x, int y, int width, int height)    = 0;
+    virtual void set_polygon_mode(polygon_mode mode)                       = 0;
+    virtual void set_polygon_offset(bool enabled, real factor, real units) = 0;
+
+    virtual void set_render_state(const render_state &state) = 0;
+
+    // Shader Interface
+    virtual class shader *create_shader(shader_type type,
+                                        const string &source)            = 0;
+    virtual class program *create_program(class shader *vertex_shader,
+                                          class shader *fragment_shader) = 0;
+    virtual void use_program(class program *prog)                        = 0;
+
+    // Uniform setters (basic subset)
+    virtual void
+    set_uniform(class program *prog, const string &name, int val) = 0;
+    virtual void
+    set_uniform(class program *prog, const string &name, real val) = 0;
+    virtual void set_uniform(class program *prog,
+                             const string &name,
+                             const vec2<real> &val)                = 0;
+    virtual void set_uniform(class program *prog,
+                             const string &name,
+                             const vec3<real> &val)                = 0;
+    virtual void set_uniform(class program *prog,
+                             const string &name,
+                             const vec4<real> &val)                = 0;
+    virtual void set_uniform(class program *prog,
+                             const string &name,
+                             const mat4<real> &val)                = 0;
 };
 
 #pragma region Global API Functions

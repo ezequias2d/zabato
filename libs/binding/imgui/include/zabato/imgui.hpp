@@ -15,7 +15,7 @@ namespace zabato::imgui
  * @param win Pointer to the application window where input events will be
  * captured.
  */
-void init(window *win);
+void init(window *win, fs::file_system &fs);
 
 /**
  * @brief Shuts down the ImGui binding.
@@ -44,5 +44,63 @@ void new_frame();
  * `ImGui::GetDrawData()`.
  */
 void render_draw_data(struct ImDrawData *draw_data);
+
+/**
+ * @brief Structure representing a custom settings handler for ImGui.
+ *
+ * This structure abstracts the ImGuiSettingsHandler, allowing users to register
+ * custom handlers for saving and loading settings from the .ini file without
+ * including imgui_internal.h.
+ */
+struct settings_handler
+{
+    const char *type_name;
+    uint32_t type_hash;
+    void *user_data;
+
+    void *(*read_open_fn)(void *user_data, const char *name);
+    void (*read_line_fn)(void *user_data, void *entry, const char *line);
+    void (*write_all_fn)(void *user_data, struct ImGuiTextBuffer *buf);
+};
+
+/**
+ * @brief Registers a custom settings handler.
+ *
+ * @param handler The settings handler to register.
+ */
+void add_settings_handler(const settings_handler &handler);
+
+/**
+ * @brief Computes a hash for the given string, compatible with ImGui's hashing.
+ *
+ * @param str The string to hash.
+ * @return uint32_t The computed hash.
+ */
+uint32_t hash_string(const char *str);
+
+/**
+ * @brief Callback function type for custom atlas packing.
+ *
+ * @param pixels The RGBA32 pixel buffer of the font atlas.
+ * @param width The width of the atlas.
+ * @param height The height of the atlas.
+ * @param user_data User-provided data pointer.
+ */
+using atlas_pack_callback = void (*)(unsigned char *pixels,
+                                     int width,
+                                     int height,
+                                     void *user_data);
+
+/**
+ * @brief Sets the callback for custom atlas packing.
+ *
+ * This callback is invoked immediately after the font atlas is built but before
+ * it is uploaded to the GPU. This allows for writing custom glyph data (e.g.
+ * icons) directly into the atlas.
+ *
+ * @param cb The callback function.
+ * @param user_data Data to pass to the callback.
+ */
+void set_atlas_pack_callback(atlas_pack_callback cb, void *user_data);
 
 } // namespace zabato::imgui

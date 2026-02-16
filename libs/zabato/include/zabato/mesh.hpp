@@ -1,7 +1,8 @@
 #pragma once
 
 #include <zabato/allocator.hpp>
-#include <zabato/animator.hpp>
+#include <zabato/spatial.hpp>
+
 #include <zabato/color.hpp>
 #include <zabato/error.hpp>
 #include <zabato/gpu.hpp>
@@ -15,8 +16,6 @@
 
 namespace zabato
 {
-class animation;
-class animator;
 class mesh;
 
 /**
@@ -25,11 +24,12 @@ class mesh;
  */
 enum class mesh_flags : uint8_t
 {
-    none   = 0,      ///< No flags set.
-    normal = 1 << 0, ///< Vertex has a normal vector.
-    color  = 1 << 1, ///< Vertex has a color attribute.
-    tex    = 1 << 2, ///< Vertex has a texture coordinate.
-    bone   = 1 << 3, ///< Vertex has bone weights and indices.
+    none    = 0,      ///< No flags set.
+    normal  = 1 << 0, ///< Vertex has a normal vector.
+    color   = 1 << 1, ///< Vertex has a color attribute.
+    tex     = 1 << 2, ///< Vertex has a texture coordinate.
+    bone    = 1 << 3, ///< Vertex has bone weights and indices.
+    tangent = 1 << 4, ///< Vertex has a tangent vector.
 };
 
 inline mesh_flags operator|(mesh_flags a, mesh_flags b)
@@ -105,14 +105,18 @@ using position_t   = vec3<real>;
 using normal_t     = vec3<real>;
 using color_t      = color;
 using texcoord_t   = vec2<real>;
+using tangent_t    = vec3<real>;
 using boneweight_t = bone_weight[4];
 
 class mesh : public resource
 {
 public:
+    static const rtti TYPE;
+    virtual const rtti &type() const override { return TYPE; }
+
     static constexpr chunk_id CHUNK_ID = chunk_id("MESH");
 
-    inline mesh() : m_vertex_count(0) {};
+    inline mesh() : m_vertex_count(0), m_primitive_count(0) {};
     inline ~mesh() {};
 
     void init(mesh_flags flags, primitive_type type)
@@ -125,7 +129,19 @@ public:
 
     constexpr size_t get_index_count_per_primitive() const
     {
-        return static_cast<size_t>(m_type) + 1;
+        switch (m_type)
+        {
+        case primitive_type::quads:
+            return 4;
+        case primitive_type::triangles:
+            return 3;
+        case primitive_type::lines:
+            return 2;
+        case primitive_type::points:
+            return 1;
+        default:
+            return 0;
+        }
     }
 
     constexpr primitive_type get_primitive_type() const { return m_type; }
@@ -206,7 +222,9 @@ public:
 
         const uint16_t *index_ptr =
             m_indices.data() + index * get_index_count_per_primitive();
-        memcpy(&prim, index_ptr, sizeof(triangle_primitive));
+        prim.v0 = index_ptr[0];
+        prim.v1 = index_ptr[1];
+        prim.v2 = index_ptr[2];
     }
 
     void set_primitive(uint16_t index, const triangle_primitive &prim)
@@ -218,7 +236,9 @@ public:
 
         uint16_t *index_ptr =
             m_indices.data() + index * get_index_count_per_primitive();
-        memcpy(index_ptr, &prim, sizeof(triangle_primitive));
+        index_ptr[0] = prim.v0;
+        index_ptr[1] = prim.v1;
+        index_ptr[2] = prim.v2;
     }
 
     void get_primitive(uint16_t index, quad_primitive &prim) const
@@ -230,7 +250,10 @@ public:
 
         const uint16_t *index_ptr =
             m_indices.data() + index * get_index_count_per_primitive();
-        memcpy(&prim, index_ptr, sizeof(quad_primitive));
+        prim.v0 = index_ptr[0];
+        prim.v1 = index_ptr[1];
+        prim.v2 = index_ptr[2];
+        prim.v3 = index_ptr[3];
     }
 
     void set_primitive(uint16_t index, const quad_primitive &prim)
@@ -242,7 +265,10 @@ public:
 
         uint16_t *index_ptr =
             m_indices.data() + index * get_index_count_per_primitive();
-        memcpy(index_ptr, &prim, sizeof(quad_primitive));
+        index_ptr[0] = prim.v0;
+        index_ptr[1] = prim.v1;
+        index_ptr[2] = prim.v2;
+        index_ptr[3] = prim.v3;
     }
 
     uint16_t get_bone_count() const { return m_bone_infos.size(); }
@@ -383,11 +409,68 @@ public:
     /**
      * @brief Renders the model using a given GPU context.
      * @param gpu The GPU interface to use for drawing commands.
-     * @param anim An optional animator instance. If provided, the model will be
-     * rendered with skeletal animation. If null, it is rendered in its bind
-     * pose.
+     * @param bones Optional list of bone nodes for skeletal animation.
+     *              If provided, it must match the mesh's bone count and order.
      */
-    void render(gpu &gpu, const animator *anim = nullptr) const;
+    void render(gpu &gpu,
+                const vector<spatial *> &bones = {},
+                const color *override_color    = nullptr) const;
+
+    /**
+     * @brief Calculates tangent vectors for the mesh based on positions and
+     * UVs. This requires the mesh to have `mesh_flags::tangent` set.
+     */
+    void calculate_tangents();
+
+    void set_tangent(uint16_t index, const vec3<real> &tan)
+    {
+        assert((m_flags & mesh_flags::tangent) != mesh_flags::none);
+        uint8_t *vertex_ptr = get_vertex_ptr(index);
+        if (!vertex_ptr)
+            return;
+        vertex_ptr += m_tangent_offset;
+        memcpy(vertex_ptr, &tan, sizeof(tangent_t));
+    }
+
+    void get_tangent(uint16_t index, vec3<real> &tan) const
+    {
+        assert((m_flags & mesh_flags::tangent) != mesh_flags::none);
+        const uint8_t *vertex_ptr = get_vertex_ptr(index);
+        if (!vertex_ptr)
+            return;
+        vertex_ptr += m_tangent_offset;
+        memcpy(&tan, vertex_ptr, sizeof(tangent_t));
+    }
+
+    void get_bounds(vec3<real> &min, vec3<real> &max) const
+    {
+        if (m_vertex_count == 0)
+        {
+            min = max = vec3<real>(0);
+            return;
+        }
+
+        vec3<real> pos;
+        get_position(0, pos);
+        min = max = pos;
+
+        for (uint16_t i = 1; i < m_vertex_count; ++i)
+        {
+            get_position(i, pos);
+            if (pos.x < min.x)
+                min.x = pos.x;
+            if (pos.y < min.y)
+                min.y = pos.y;
+            if (pos.z < min.z)
+                min.z = pos.z;
+            if (pos.x > max.x)
+                max.x = pos.x;
+            if (pos.y > max.y)
+                max.y = pos.y;
+            if (pos.z > max.z)
+                max.z = pos.z;
+        }
+    }
 
 private:
     vector<uint8_t> m_data;
@@ -404,6 +487,7 @@ private:
     size_t m_normal_offset;
     size_t m_color_offset;
     size_t m_texcoord_offset;
+    size_t m_tangent_offset;
     size_t m_boneweight_offset;
 
     uint8_t *get_vertex_ptr(uint16_t index)
@@ -435,15 +519,49 @@ private:
         const bool has_tex   = (flags & mesh_flags::tex) != mesh_flags::none;
         const bool has_bone  = (flags & mesh_flags::bone) != mesh_flags::none;
 
-        m_vertex_size = sizeof(position_t) + (has_normal * sizeof(normal_t)) +
-                        (has_color * sizeof(color_t)) +
-                        (has_tex * sizeof(texcoord_t)) +
-                        (has_bone * sizeof(boneweight_t));
-        m_normal_offset   = 0 + has_normal * sizeof(normal_t);
-        m_color_offset    = m_normal_offset + has_color * sizeof(color_t);
-        m_texcoord_offset = m_color_offset + has_color * sizeof(texcoord_t);
-        m_boneweight_offset =
-            m_texcoord_offset + has_bone * sizeof(boneweight_t);
+        size_t current_offset = sizeof(position_t);
+
+        if (has_normal)
+        {
+            m_normal_offset = current_offset;
+            current_offset += sizeof(normal_t);
+        }
+        else
+            m_normal_offset = 0;
+
+        if (has_color)
+        {
+            m_color_offset = current_offset;
+            current_offset += sizeof(color_t);
+        }
+        else
+            m_color_offset = 0;
+
+        if (has_tex)
+        {
+            m_texcoord_offset = current_offset;
+            current_offset += sizeof(texcoord_t);
+        }
+        else
+            m_texcoord_offset = 0;
+
+        if (has_bone)
+        {
+            m_boneweight_offset = current_offset;
+            current_offset += sizeof(boneweight_t);
+        }
+        else
+            m_boneweight_offset = 0;
+
+        if ((flags & mesh_flags::tangent) != mesh_flags::none)
+        {
+            m_tangent_offset = current_offset;
+            current_offset += sizeof(tangent_t);
+        }
+        else
+            m_tangent_offset = 0;
+
+        m_vertex_size = current_offset;
     }
 
     inline void resize()
@@ -458,7 +576,8 @@ private:
                        bool has_bone,
                        gpu &gpu,
                        size_t index,
-                       const vector<mat4<real>> *final_bone_matrices) const
+                       const vector<mat4<real>> *final_bone_matrices,
+                       const color *override_color = nullptr) const
     {
         if (has_normal)
         {
@@ -467,7 +586,9 @@ private:
             gpu.normal(normal);
         }
 
-        if (has_color)
+        if (override_color)
+            gpu.color(*override_color);
+        else if (has_color)
         {
             color c = {};
             get_color(index, c);

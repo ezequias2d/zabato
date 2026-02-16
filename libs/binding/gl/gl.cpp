@@ -1,10 +1,80 @@
-#include <iostream>
+#include <cstring>
+#include <zabato/error.hpp>
 #include <zabato/gl.hpp>
+#include <zabato/gpu.hpp>
+#include <zabato/shader.hpp>
+#include <zabato/vector.hpp>
 #include <zabato/window.hpp>
 
 namespace zabato
 {
 #ifndef __EMSCRIPTEN__
+
+static const char *to_source_string(GLenum source)
+{
+    switch (source)
+    {
+    case GL_DEBUG_SOURCE_API:
+        return "API";
+    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:
+        return "Window System";
+    case GL_DEBUG_SOURCE_SHADER_COMPILER:
+        return "Shader Compiler";
+    case GL_DEBUG_SOURCE_THIRD_PARTY:
+        return "Third Party";
+    case GL_DEBUG_SOURCE_APPLICATION:
+        return "Application";
+    case GL_DEBUG_SOURCE_OTHER:
+        return "Other";
+    default:
+        return "Unknown";
+    }
+}
+
+static const char *to_type_string(GLenum type)
+{
+    switch (type)
+    {
+    case GL_DEBUG_TYPE_ERROR:
+        return "Error";
+    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+        return "Deprecated Behaviour";
+    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+        return "Undefined Behaviour";
+    case GL_DEBUG_TYPE_PORTABILITY:
+        return "Portability";
+    case GL_DEBUG_TYPE_PERFORMANCE:
+        return "Performance";
+    case GL_DEBUG_TYPE_MARKER:
+        return "Marker";
+    case GL_DEBUG_TYPE_PUSH_GROUP:
+        return "Push Group";
+    case GL_DEBUG_TYPE_POP_GROUP:
+        return "Pop Group";
+    case GL_DEBUG_TYPE_OTHER:
+        return "Other";
+    default:
+        return "Unknown";
+    }
+}
+
+static const char *to_severity_string(GLenum severity)
+{
+    switch (severity)
+    {
+    case GL_DEBUG_SEVERITY_HIGH:
+        return "High";
+    case GL_DEBUG_SEVERITY_MEDIUM:
+        return "Medium";
+    case GL_DEBUG_SEVERITY_LOW:
+        return "Low";
+    case GL_DEBUG_SEVERITY_NOTIFICATION:
+        return "Notification";
+    default:
+        return "Unknown";
+    }
+}
+
 void GLAPIENTRY gl_message_callback(GLenum source,
                                     GLenum type,
                                     GLuint id,
@@ -13,17 +83,34 @@ void GLAPIENTRY gl_message_callback(GLenum source,
                                     const GLchar *message,
                                     const void *userParam)
 {
-    (void)source;
-    (void)id;
-    (void)length;
-    (void)userParam;
-    if (severity == GL_DEBUG_SEVERITY_NOTIFICATION)
-        return;
+    report_type log_type;
+    if (type == GL_DEBUG_TYPE_ERROR)
+        log_type = report_type::error;
+    else if (type == GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR ||
+             type == GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR ||
+             type == GL_DEBUG_TYPE_PORTABILITY ||
+             type == GL_DEBUG_TYPE_PERFORMANCE)
+        log_type = report_type::warning;
+    else if (severity == GL_DEBUG_SEVERITY_NOTIFICATION)
+        log_type = report_type::trace;
+    else
+        log_type = report_type::trace;
 
-    std::cerr << "GL CALLBACK: "
-              << (type == GL_DEBUG_TYPE_ERROR ? "** GL ERROR **" : "")
-              << " type = 0x" << std::hex << type << ", severity = 0x"
-              << severity << ", message = " << message << std::endl;
+    const char *_source   = to_source_string(source);
+    const char *_type     = to_type_string(type);
+    const char *_severity = to_severity_string(severity);
+
+    report(log_type,
+           "OpenGL Debug (ID: 0x%x)\n"
+           "    - Message:  %s\n"
+           "    - Source:   %s\n"
+           "    - Type:     %s\n"
+           "    - Severity: %s",
+           id,
+           message,
+           _source,
+           _type,
+           _severity);
 }
 #endif // __EMSCRIPTEN__
 
@@ -39,6 +126,10 @@ GLenum to_gl_primitive_type(primitive_type pt)
         return GL_POINTS;
     case primitive_type::lines:
         return GL_LINES;
+    case primitive_type::triangle_fan:
+        return GL_TRIANGLE_FAN;
+    case primitive_type::triangle_strip:
+        return GL_TRIANGLE_STRIP;
     }
     return 0;
 }
@@ -123,8 +214,11 @@ size_t calculate_texture_data_size(uint16_t width,
     }
 }
 
-GlTexture::GlTexture(uint16_t width, uint16_t height, color_format format)
-    : m_width(width), m_height(height), m_format(format)
+GlTexture::GlTexture(uint16_t width,
+                     uint16_t height,
+                     color_format format,
+                     GLenum target)
+    : m_width(width), m_height(height), m_format(format), m_target(target)
 {
     glGenTextures(1, &m_handle);
 }
@@ -141,92 +235,122 @@ void GlTexture::load(uint16_t width,
                      uint16_t height,
                      color_format format,
                      size_t data_size,
-                     const void *data)
+                     const void *data,
+                     uint8_t face)
 {
+    GLenum target = m_target;
+    if (m_target == GL_TEXTURE_CUBE_MAP)
+        target = GL_TEXTURE_CUBE_MAP_POSITIVE_X + face;
+
+    glBindTexture(m_target, m_handle);
     m_width  = width;
     m_height = height;
     m_format = format;
 
     const size_t expected_size =
         calculate_texture_data_size(width, height, format);
-    if (data_size < expected_size)
-    {
-        std::cerr << "Error loading texture: provided data size (" << data_size
-                  << ") is less than expected size (" << expected_size << ")."
-                  << std::endl;
-        return;
-    }
 
-    const uint8_t *byte_data = static_cast<const uint8_t *>(data);
-    m_pixel_data.assign(byte_data, byte_data + expected_size);
+    if (data != nullptr)
+    {
+        if (data_size < expected_size)
+        {
+            report(report_type::error,
+                   "Error loading texture: provided data size (%zu) is less "
+                   "than expected size (%zu)",
+                   data_size,
+                   expected_size);
+            return;
+        }
+
+        const uint8_t *byte_data = static_cast<const uint8_t *>(data);
+        m_pixel_data.assign(byte_data, byte_data + expected_size);
+    }
+    else
+        m_pixel_data.clear();
 
     vector<uint32_t> buffer;
-    buffer.resize(m_width * m_height);
-    GLint internal_format = GL_RGBA8;
+    GLint internal_fmt = GL_RGBA8;
+    GLenum fmt         = GL_RGBA;
+    GLenum type        = GL_UNSIGNED_BYTE;
 
-    switch (m_format)
-    {
-    case color_format::rgba5551:
-    {
-        internal_format        = GL_RGB5_A1;
-        const uint16_t *pixels = static_cast<const uint16_t *>(data);
-        for (size_t i = 0; i < buffer.size(); ++i)
-        {
-            color color(color5551{pixels[i]});
-            buffer[i] = color8888(color).value;
-        }
-        break;
-    }
-    case color_format::rgba4444:
-    {
-        internal_format        = GL_RGBA4;
-        const uint16_t *pixels = static_cast<const uint16_t *>(data);
-        for (size_t i = 0; i < buffer.size(); ++i)
-        {
-            buffer[i] = color8888(color(color4444{pixels[i]})).value;
-        }
-        break;
-    }
-    case color_format::palette16:
-    case color_format::palette64:
-    case color_format::palette128:
-    case color_format::palette256:
-    {
-        internal_format         = GL_RGBA8;
-        const bool is_nibble    = m_format == color_format::palette16;
-        const size_t pcount     = palette_count(m_format);
-        const uint32_t *palette = static_cast<const uint32_t *>(data);
-        const uint8_t *indices =
-            reinterpret_cast<const uint8_t *>(palette + pcount);
+    if (m_format == color_format::rgba5551)
+        internal_fmt = GL_RGB5_A1;
+    else if (m_format == color_format::rgba4444)
+        internal_fmt = GL_RGBA4;
 
-        for (size_t i = 0; i < buffer.size(); i++)
+    // Only process conversion if data is provided
+    if (data != nullptr)
+    {
+        buffer.resize(m_width * m_height);
+
+        switch (m_format)
         {
-            uint8_t index = is_nibble
-                                ? (indices[i / 2] >> (i % 2 ? 0 : 4)) & 0xF
-                                : indices[i];
-            if (index < pcount)
+        case color_format::rgba5551:
+        {
+            const uint16_t *pixels = static_cast<const uint16_t *>(data);
+            for (size_t i = 0; i < buffer.size(); ++i)
             {
-                buffer[i] = palette[index];
+                color color(color5551{pixels[i]});
+                buffer[i] = color8888(color).value;
             }
+            break;
         }
-        break;
-    }
-    default:
-        return; // Invalid format
+        case color_format::rgba4444:
+        {
+            const uint16_t *pixels = static_cast<const uint16_t *>(data);
+            for (size_t i = 0; i < buffer.size(); ++i)
+            {
+                buffer[i] = color8888(color(color4444{pixels[i]})).value;
+            }
+            break;
+        }
+        case color_format::palette16:
+        case color_format::palette64:
+        case color_format::palette128:
+        case color_format::palette256:
+        {
+            const bool is_nibble    = m_format == color_format::palette16;
+            const size_t pcount     = palette_count(m_format);
+            const uint32_t *palette = static_cast<const uint32_t *>(data);
+            const uint8_t *indices =
+                reinterpret_cast<const uint8_t *>(palette + pcount);
+
+            for (size_t i = 0; i < buffer.size(); i++)
+            {
+                uint8_t index = is_nibble
+                                    ? (indices[i / 2] >> (i % 2 ? 0 : 4)) & 0xF
+                                    : indices[i];
+                if (index < pcount)
+                {
+                    buffer[i] = palette[index];
+                }
+            }
+            break;
+        }
+        case color_format::rgba8888:
+        {
+            const uint32_t *pixels = static_cast<const uint32_t *>(data);
+            std::copy(pixels, pixels + (m_width * m_height), buffer.begin());
+            break;
+        }
+        default:
+            report(report_type::error, "Unknown texture format: %d", m_format);
+            return;
+        }
     }
 
-    glBindTexture(GL_TEXTURE_2D, m_handle);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexImage2D(GL_TEXTURE_2D,
+    glTexParameteri(m_target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(m_target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+    glTexImage2D(target,
                  0,
-                 internal_format,
-                 m_width,
-                 m_height,
+                 internal_fmt,
+                 width,
+                 height,
                  0,
-                 GL_RGBA,
-                 GL_UNSIGNED_BYTE,
-                 buffer.data());
+                 fmt,
+                 type,
+                 (data != nullptr) ? buffer.data() : nullptr);
 }
 
 void GlTexture::copy(uint16_t *width,
@@ -259,12 +383,88 @@ color_format GlTexture::get_format() const { return m_format; }
 
 vec2<uint16_t> GlTexture::get_size() const { return {m_width, m_height}; }
 
+GlFramebuffer::GlFramebuffer(uint16_t width, uint16_t height)
+{
+    m_texture = new GlTexture(
+        width, height, color_format::rgba8888); // Assuming 8888 for FBO
+    m_texture->load(width, height, color_format::rgba8888, 0, nullptr);
+
+    glGenFramebuffers(1, &m_handle);
+    glGenRenderbuffers(1, &m_depth_renderbuffer);
+    update();
+}
+
+GlFramebuffer::~GlFramebuffer()
+{
+    destroy();
+    if (m_texture)
+    {
+        delete m_texture;
+        m_texture = nullptr;
+    }
+}
+
+void GlFramebuffer::destroy()
+{
+    if (m_handle)
+    {
+        glDeleteFramebuffers(1, &m_handle);
+        m_handle = 0;
+    }
+    if (m_depth_renderbuffer)
+    {
+        glDeleteRenderbuffers(1, &m_depth_renderbuffer);
+        m_depth_renderbuffer = 0;
+    }
+}
+
+void GlFramebuffer::resize(uint16_t width, uint16_t height)
+{
+    if (m_texture->get_size().x == width && m_texture->get_size().y == height)
+        return;
+
+    // Resize texture by reloading with null data
+    m_texture->load(width, height, color_format::rgba8888, 0, nullptr);
+    update();
+}
+
+void GlFramebuffer::update()
+{
+    glBindFramebuffer(GL_FRAMEBUFFER, m_handle);
+
+    // Attach texture
+    glFramebufferTexture2D(GL_FRAMEBUFFER,
+                           GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D,
+                           m_texture->get_handle(),
+                           0);
+
+    // Attach depth buffer
+    glBindRenderbuffer(GL_RENDERBUFFER, m_depth_renderbuffer);
+    vec2<uint16_t> size = m_texture->get_size();
+    glRenderbufferStorage(
+        GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, size.x, size.y);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER,
+                              GL_DEPTH_ATTACHMENT,
+                              GL_RENDERBUFFER,
+                              m_depth_renderbuffer);
+
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    {
+        report(report_type::error,
+               "Framebuffer (%p, GL %d) is not complete!",
+               m_handle);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 GlDisplayList::GlDisplayList()
 {
     m_handle = glGenLists(1);
     if (m_handle == 0)
     {
-        std::cerr << "Failed to generate display list!" << std::endl;
+        report(report_type::error, "Failed to generate display list!");
     }
 }
 
@@ -294,7 +494,11 @@ void GlGpu::new_frame()
 }
 
 void GlGpu::begin(primitive_type type) { glBegin(to_gl_primitive_type(type)); }
-void GlGpu::end() { glEnd(); }
+void GlGpu::end()
+{
+    glEnd();
+    m_resources.clear();
+}
 void GlGpu::vertex(const vec3<real> &v)
 {
     glVertex3f(float(v.x), float(v.y), float(v.z));
@@ -335,7 +539,16 @@ void GlGpu::clear(const struct color &c, real depth)
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
 
+void GlGpu::clear_depth(real depth)
+{
+    glClearDepth(float(depth));
+    glClear(GL_DEPTH_BUFFER_BIT);
+}
+
 void GlGpu::viewport(int width, int height) { glViewport(0, 0, width, height); }
+
+void GlGpu::push_state() { glPushAttrib(GL_ALL_ATTRIB_BITS); }
+void GlGpu::pop_state() { glPopAttrib(); }
 void GlGpu::set_matrix_mode(matrix_mode mode)
 {
     glMatrixMode(to_gl_matrix_mode(mode));
@@ -393,6 +606,11 @@ void GlGpu::load_matrix(const mat4<real> &m)
     mat4<float> fm(m);
     glLoadMatrixf(&fm.m00);
 }
+void GlGpu::mult_matrix(const mat4<real> &m)
+{
+    mat4<float> fm(m);
+    glMultMatrixf(&fm.m00);
+}
 void GlGpu::push_matrix() { glPushMatrix(); }
 void GlGpu::pop_matrix() { glPopMatrix(); }
 
@@ -403,11 +621,19 @@ void GlGpu::set_shade_model(shade_model model)
 void GlGpu::enable_lighting(bool enabled)
 {
     if (enabled)
+    {
         glEnable(GL_LIGHTING);
+        glEnable(GL_COLOR_MATERIAL);
+        glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+    }
     else
+    {
         glDisable(GL_LIGHTING);
+        glDisable(GL_COLOR_MATERIAL);
+    }
 }
-void GlGpu::set_light(int id, const light *l)
+
+void GlGpu::set_light(int id, const light_data *l)
 {
     const GLenum light_id = GL_LIGHT0 + id;
     if (!l)
@@ -432,11 +658,34 @@ void GlGpu::set_light(int id, const light *l)
     glLightfv(light_id, GL_DIFFUSE, diffuse);
     glLightfv(light_id, GL_SPECULAR, specular);
 
-    float pos[] = {float(l->position.x),
-                   float(l->position.y),
-                   float(l->position.z),
-                   l->type == light_type::directional ? 0.0f : 1.0f};
-    glLightfv(light_id, GL_POSITION, pos);
+    if (l->type == light_type::directional)
+    {
+        // Directional Light: GL_POSITION needs direction TO light (w=0).
+        // spot_direction is direction OF light. So we use -spot_direction.
+        float pos[] = {float(-l->spot_direction.x),
+                       float(-l->spot_direction.y),
+                       float(-l->spot_direction.z),
+                       0.0f};
+        glLightfv(light_id, GL_POSITION, pos);
+    }
+    else
+    {
+        float pos[] = {float(l->position.x),
+                       float(l->position.y),
+                       float(l->position.z),
+                       1.0f};
+        glLightfv(light_id, GL_POSITION, pos);
+    }
+
+    glLightf(light_id,
+             static_cast<GLenum>(GL_CONSTANT_ATTENUATION),
+             float(l->constant_attenuation));
+    glLightf(light_id,
+             static_cast<GLenum>(GL_LINEAR_ATTENUATION),
+             float(l->linear_attenuation));
+    glLightf(light_id,
+             static_cast<GLenum>(GL_QUADRATIC_ATTENUATION),
+             float(l->quadratic_attenuation));
 
     if (l->type == light_type::spot)
     {
@@ -447,28 +696,333 @@ void GlGpu::set_light(int id, const light *l)
         glLightf(light_id, GL_SPOT_CUTOFF, float(l->spot_cutoff));
         glLightf(light_id, GL_SPOT_EXPONENT, float(l->spot_exponent));
     }
+    else
+    {
+        glLightf(light_id, GL_SPOT_CUTOFF, 180.0f);
+    }
 }
-void GlGpu::set_material(const material *m)
-{ /* ... implementation needed ... */ }
+
+void GlGpu::set_render_state(const render_state &state)
+{
+    if (state.depth_test)
+        glEnable(GL_DEPTH_TEST);
+    else
+        glDisable(GL_DEPTH_TEST);
+    GLenum depth_funcs[] = {GL_NEVER,
+                            GL_LESS,
+                            GL_EQUAL,
+                            GL_LEQUAL,
+                            GL_GREATER,
+                            GL_NOTEQUAL,
+                            GL_GEQUAL,
+                            GL_ALWAYS};
+    glDepthFunc(depth_funcs[static_cast<int>(state.depth_compare)]);
+    glDepthMask(state.depth_write ? GL_TRUE : GL_FALSE);
+
+    if (state.blend)
+        glEnable(GL_BLEND);
+    else
+        glDisable(GL_BLEND);
+    GLenum blend_factors[] = {GL_ZERO,
+                              GL_ONE,
+                              GL_SRC_COLOR,
+                              GL_ONE_MINUS_SRC_COLOR,
+                              GL_SRC_ALPHA,
+                              GL_ONE_MINUS_SRC_ALPHA,
+                              GL_DST_ALPHA,
+                              GL_ONE_MINUS_DST_ALPHA,
+                              GL_DST_COLOR,
+                              GL_ONE_MINUS_DST_COLOR,
+                              GL_SRC_ALPHA_SATURATE};
+    glBlendFunc(blend_factors[static_cast<int>(state.blend_src)],
+                blend_factors[static_cast<int>(state.blend_dst)]);
+
+    if (state.alpha_test)
+        glEnable(GL_ALPHA_TEST);
+    else
+        glDisable(GL_ALPHA_TEST);
+    GLenum alpha_funcs[] = {GL_NEVER,
+                            GL_LESS,
+                            GL_EQUAL,
+                            GL_LEQUAL,
+                            GL_GREATER,
+                            GL_NOTEQUAL,
+                            GL_GEQUAL,
+                            GL_ALWAYS};
+    glAlphaFunc(alpha_funcs[static_cast<int>(state.alpha_compare)],
+                (float)state.alpha_ref);
+
+    if (state.cull_face)
+        glEnable(GL_CULL_FACE);
+    else
+        glDisable(GL_CULL_FACE);
+    if (state.cull_mode == cull_face_mode::back)
+        glCullFace(GL_BACK);
+    else if (state.cull_mode == cull_face_mode::front)
+        glCullFace(GL_FRONT);
+    else
+        glCullFace(GL_FRONT_AND_BACK);
+
+    GLenum poly_modes[] = {GL_POINT, GL_LINE, GL_FILL};
+    glPolygonMode(GL_FRONT_AND_BACK,
+                  poly_modes[static_cast<int>(state.poly_mode)]);
+
+    set_polygon_offset(
+        state.poly_offset, state.poly_offset_factor, state.poly_offset_units);
+}
+
+// Shader Implementation
+GlShader::GlShader(shader_type type, const string &source) : m_type(type)
+{
+    GLenum gl_type =
+        (type == shader_type::vertex) ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER;
+    m_handle        = glCreateShader(gl_type);
+    const char *src = source.c_str();
+    glShaderSource(m_handle, 1, &src, nullptr);
+    glCompileShader(m_handle);
+
+    GLint success;
+    glGetShaderiv(m_handle, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        char infoLog[512];
+        glGetShaderInfoLog(m_handle, 512, nullptr, infoLog);
+        report(report_type::error,
+               "Shader Compile Error: %s\nSource:%s\n",
+               infoLog,
+               source.c_str());
+    }
+}
+GlShader::~GlShader() { destroy(); }
+void GlShader::destroy()
+{
+    if (m_handle)
+    {
+        glDeleteShader(m_handle);
+        m_handle = 0;
+    }
+}
+
+GlProgram::GlProgram() { m_handle = glCreateProgram(); }
+GlProgram::~GlProgram() { destroy(); }
+void GlProgram::destroy()
+{
+    if (m_handle)
+    {
+        glDeleteProgram(m_handle);
+        m_handle = 0;
+        m_uniform_cache.clear();
+    }
+}
+
+void GlProgram::attach(shader *s)
+{
+    if (s && m_handle)
+        glAttachShader(m_handle, static_cast<GlShader *>(s)->get_handle());
+}
+
+bool GlProgram::link()
+{
+    if (m_handle)
+    {
+        glLinkProgram(m_handle);
+        GLint success;
+        glGetProgramiv(m_handle, GL_LINK_STATUS, &success);
+        if (!success)
+        {
+            char infoLog[512];
+            glGetProgramInfoLog(m_handle, 512, nullptr, infoLog);
+            report(report_type::error, "Program Link Error: %s", infoLog);
+            m_uniform_cache.clear();
+            return false;
+        }
+        m_uniform_cache.clear();
+        return true;
+    }
+    return false;
+}
+
+GLint GlProgram::get_uniform_location(const string &name)
+{
+    auto it = m_uniform_cache.find(name);
+    if (it != m_uniform_cache.end())
+        return it->value;
+
+    GLint loc = glGetUniformLocation(m_handle, name.c_str());
+    m_uniform_cache.add(name, loc); // Assuming add method
+    return loc;
+}
+
+shader *GlGpu::create_shader(shader_type type, const string &source)
+{
+    return new GlShader(type, source);
+}
+
+program *GlGpu::create_program(class shader *vertex_shader,
+                               class shader *fragment_shader)
+{
+    auto *p = new GlProgram();
+    if (vertex_shader)
+        p->attach(vertex_shader);
+    if (fragment_shader)
+        p->attach(fragment_shader);
+
+    return p;
+}
+
+void GlGpu::use_program(class program *prog)
+{
+    if (prog)
+        glUseProgram(static_cast<GlProgram *>(prog)->get_handle());
+    else
+        glUseProgram(0);
+}
+
+void GlGpu::set_uniform(class program *prog, const string &name, int val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniform1i(loc, val);
+}
+void GlGpu::set_uniform(class program *prog, const string &name, real val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniform1f(loc, (GLfloat)val);
+}
+void GlGpu::set_uniform(class program *prog,
+                        const string &name,
+                        const vec2<real> &val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniform2f(loc, (GLfloat)val.x, (GLfloat)val.y);
+}
+void GlGpu::set_uniform(class program *prog,
+                        const string &name,
+                        const vec3<real> &val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniform3f(loc, (GLfloat)val.x, (GLfloat)val.y, (GLfloat)val.z);
+}
+void GlGpu::set_uniform(class program *prog,
+                        const string &name,
+                        const vec4<real> &val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniform4f(loc,
+                    (GLfloat)val.x,
+                    (GLfloat)val.y,
+                    (GLfloat)val.z,
+                    (GLfloat)val.w);
+}
+void GlGpu::set_uniform(class program *prog,
+                        const string &name,
+                        const mat4<real> &val)
+{
+    if (!prog)
+        return;
+    GLint loc = static_cast<GlProgram *>(prog)->get_uniform_location(name);
+    if (loc != -1)
+        glUniformMatrix4fv(
+            loc, 1, GL_FALSE, reinterpret_cast<const GLfloat *>(&val.m00));
+}
 
 texture *
 GlGpu::create_texture(uint16_t width, uint16_t height, color_format format)
 {
-    return new GlTexture(width, height, format);
+    return new GlTexture(width, height, format, GL_TEXTURE_2D);
 }
+
+texture *GlGpu::create_cubemap(uint16_t size, color_format format)
+{
+    return new GlTexture(size, size, format, GL_TEXTURE_CUBE_MAP);
+}
+
+void GlGpu::set_active_texture(int unit)
+{
+    glActiveTexture(GL_TEXTURE0 + unit);
+}
+
+void GlGpu::enable_texture(bool enabled)
+{
+    if (enabled)
+        glEnable(GL_TEXTURE_2D);
+    else
+        glDisable(GL_TEXTURE_2D);
+}
+
 void GlGpu::bind_texture(texture *tex)
 {
     if (tex)
     {
-        glBindTexture(GL_TEXTURE_2D,
-                      static_cast<GlTexture *>(tex)->get_handle());
+        GlTexture *gl_tex = static_cast<GlTexture *>(tex);
+        glBindTexture(gl_tex->get_target(), gl_tex->get_handle());
     }
     else
     {
         glBindTexture(GL_TEXTURE_2D, 0);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
     }
 }
-void GlGpu::unbind_texture() { glBindTexture(GL_TEXTURE_2D, 0); }
+void GlGpu::unbind_texture()
+{
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+}
+
+framebuffer *GlGpu::create_framebuffer(uint16_t width, uint16_t height)
+{
+    return new GlFramebuffer(width, height);
+}
+
+void GlGpu::bind_framebuffer(framebuffer *fb)
+{
+    if (fb)
+        glBindFramebuffer(GL_FRAMEBUFFER,
+                          static_cast<GlFramebuffer *>(fb)->get_handle());
+    else
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void GlGpu::unbind_framebuffer() { glBindFramebuffer(GL_FRAMEBUFFER, 0); }
+
+void GlGpu::read_pixels(int x,
+                        int y,
+                        int width,
+                        int height,
+                        color_format format,
+                        void *pixels)
+{
+    GLenum gl_format = GL_RGBA;
+    GLenum gl_type   = GL_UNSIGNED_BYTE;
+
+    switch (format)
+    {
+    case color_format::rgba8888:
+        gl_format = GL_RGBA;
+        gl_type   = GL_UNSIGNED_BYTE;
+        break;
+    default:
+        assert(0 && "Invalid color format");
+        // TODO: support other formats
+        break;
+    }
+
+    glReadPixels(x, y, width, height, gl_format, gl_type, pixels);
+}
 
 display_list *GlGpu::create_display_list() { return new GlDisplayList(); }
 
@@ -542,6 +1096,81 @@ void GlGpu::enable_depth_test(bool enabled)
         glDisable(GL_DEPTH_TEST);
 }
 
+GLenum to_gl_depth_func(depth_func df)
+{
+    switch (df)
+    {
+    case depth_func::never:
+        return GL_NEVER;
+    case depth_func::less:
+        return GL_LESS;
+    case depth_func::equal:
+        return GL_EQUAL;
+    case depth_func::less_equal:
+        return GL_LEQUAL;
+    case depth_func::greater:
+        return GL_GREATER;
+    case depth_func::not_equal:
+        return GL_NOTEQUAL;
+    case depth_func::greater_equal:
+        return GL_GEQUAL;
+    case depth_func::always:
+        return GL_ALWAYS;
+    }
+    return GL_LESS;
+}
+
+void GlGpu::set_depth_func(depth_func func)
+{
+    glDepthFunc(to_gl_depth_func(func));
+}
+
+void GlGpu::set_depth_write(bool enabled)
+{
+    glDepthMask(enabled ? GL_TRUE : GL_FALSE);
+}
+
+void GlGpu::enable_alpha_test(bool enabled)
+{
+    if (enabled)
+        glEnable(GL_ALPHA_TEST);
+    else
+        glDisable(GL_ALPHA_TEST);
+}
+
+void GlGpu::set_alpha_func(alpha_func func, real ref)
+{
+    GLenum gl_func = GL_ALWAYS;
+    switch (func)
+    {
+    case alpha_func::never:
+        gl_func = GL_NEVER;
+        break;
+    case alpha_func::less:
+        gl_func = GL_LESS;
+        break;
+    case alpha_func::equal:
+        gl_func = GL_EQUAL;
+        break;
+    case alpha_func::less_equal:
+        gl_func = GL_LEQUAL;
+        break;
+    case alpha_func::greater:
+        gl_func = GL_GREATER;
+        break;
+    case alpha_func::not_equal:
+        gl_func = GL_NOTEQUAL;
+        break;
+    case alpha_func::greater_equal:
+        gl_func = GL_GEQUAL;
+        break;
+    case alpha_func::always:
+        gl_func = GL_ALWAYS;
+        break;
+    }
+    glAlphaFunc(gl_func, float(ref));
+}
+
 void GlGpu::enable_blend(bool enabled)
 {
     if (enabled)
@@ -576,32 +1205,72 @@ void GlGpu::set_viewport_rect(int x, int y, int width, int height)
     glViewport(x, y, width, height);
 }
 
+GLenum to_gl_polygon_mode(polygon_mode pm)
+{
+    switch (pm)
+    {
+    case polygon_mode::point:
+        return GL_POINT;
+    case polygon_mode::line:
+        return GL_LINE;
+    case polygon_mode::fill:
+        return GL_FILL;
+    }
+    return GL_FILL;
+}
+
+void GlGpu::set_polygon_mode(polygon_mode mode)
+{
+    glPolygonMode(GL_FRONT_AND_BACK, to_gl_polygon_mode(mode));
+}
+
+void GlGpu::set_polygon_offset(bool enabled, real factor, real units)
+{
+    if (enabled)
+    {
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glEnable(GL_POLYGON_OFFSET_LINE);
+        glEnable(GL_POLYGON_OFFSET_POINT);
+        glPolygonOffset(float(factor), float(units));
+    }
+    else
+    {
+        glDisable(GL_POLYGON_OFFSET_FILL);
+        glDisable(GL_POLYGON_OFFSET_LINE);
+        glDisable(GL_POLYGON_OFFSET_POINT);
+    }
+}
+
 gpu *init_gpu()
 {
-    std::cout << "Initializing GPU..." << std::endl;
+    report(report_type::info, "Initializing GPU...");
 
 #ifndef __EMSCRIPTEN__
     // GLAD is only needed for desktop OpenGL
     // Emscripten provides GL functions directly through emulation
     if (!gladLoadGLLoader((GLADloadproc)get_proc_address))
     {
-        std::cout << "gladLoadGLLoader failed, trying gladLoadGL..."
-                  << std::endl;
+        report(report_type::info,
+               "gladLoadGLLoader failed, trying gladLoadGL...");
         if (!gladLoadGL())
         {
-            std::cerr << "Failed to load GL functions!" << std::endl;
+            report(report_type::error, "Failed to load GL functions!");
             return nullptr;
         }
     }
-    std::cout << "GL functions loaded successfully" << std::endl;
+    report(report_type::info, "GL functions loaded successfully");
 #else
-    std::cout << "Emscripten: initialize_gl4es()" << std::endl;
+    report(report_type::info, "Emscripten: initialize_gl4es()");
     initialize_gl4es();
 #endif
 
-    std::cout << "GL Version: " << glGetString(GL_VERSION) << std::endl;
-    std::cout << "GL Vendor: " << glGetString(GL_VENDOR) << std::endl;
-    std::cout << "GL Renderer: " << glGetString(GL_RENDERER) << std::endl;
+    report(report_type::info,
+           "GL Version: %s\n"
+           "GL Vendor: %s"
+           "GL Renderer: %s",
+           glGetString(GL_VERSION),
+           glGetString(GL_VENDOR),
+           glGetString(GL_RENDERER));
 
 #ifndef NDEBUG
 #ifndef __EMSCRIPTEN__

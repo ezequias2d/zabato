@@ -2,6 +2,7 @@
 
 #include <zabato/math.hpp>
 #include <zabato/real.hpp>
+#include <zabato/shape.hpp>
 
 namespace zabato
 {
@@ -9,18 +10,23 @@ namespace zabato
 class transformation
 {
 public:
-    transformation() {}
+    transformation() { make_identity(); }
     ~transformation() {}
 
     static const transformation IDENTITY;
 
-    void set_rotate(const quat<real> &rotate) { m_rotation = rotate; }
+    void set_rotate(const quat<real> &rotate)
+    {
+        m_rotation = rotate;
+        update_identity_flag();
+    }
 
     quat<real> rotate() const { return m_rotation; }
 
     void set_translate(const vec3<real> &translate)
     {
         m_translation = translate;
+        update_identity_flag();
     }
 
     vec3<real> translate() const { return m_translation; }
@@ -29,9 +35,16 @@ public:
     {
         m_scale            = scale;
         m_is_uniform_scale = scale.x == scale.y && scale.y == scale.z;
+        update_identity_flag();
     }
 
     vec3<real> scale() const { return m_scale; }
+
+    vec3<real> right() const { return m_rotation * vec3<real>(1, 0, 0); }
+
+    vec3<real> up() const { return m_rotation * vec3<real>(0, 1, 0); }
+
+    vec3<real> forward() const { return m_rotation * vec3<real>(0, 0, 1); }
 
     real get_min_scale() const
     {
@@ -53,6 +66,7 @@ public:
     {
         m_scale            = vec3<real>(scale);
         m_is_uniform_scale = true;
+        update_identity_flag();
     }
 
     void make_identity()
@@ -204,6 +218,13 @@ public:
                 inv.make_identity();
             }
         }
+    }
+
+    void update_identity_flag()
+    {
+        m_is_identity = (m_translation == vec3<real>(0)) &&
+                        (m_scale == vec3<real>(1)) &&
+                        (m_rotation == quat<real>());
     }
 
 private:

@@ -1,7 +1,11 @@
+#include <zabato/error.hpp>
 #include <zabato/mesh.hpp>
 
 namespace zabato
 {
+
+const rtti mesh::TYPE("zabato.mesh", &resource::TYPE);
+
 /**
  * @brief Renders the model using a given GPU context.
  * @param gpu The GPU interface to use for drawing commands.
@@ -9,21 +13,53 @@ namespace zabato
  * rendered with skeletal animation. If null, it is rendered in its bind
  * pose.
  */
-void mesh::render(gpu &gpu, const animator *anim) const
+void mesh::render(gpu &gpu,
+                  const vector<spatial *> &bones,
+                  const color *override_color) const
 {
     const auto primitive_type = get_primitive_type();
 
     gpu.begin(primitive_type);
 
-    const auto final_bone_matrices =
-        anim ? &anim->get_final_bone_matrices() : nullptr;
+    vector<mat4<real>> final_bone_matrices;
+    if (!bones.empty() && !m_bone_infos.empty())
+    {
+        final_bone_matrices.resize(m_bone_infos.size());
+        size_t bone_count = min(bones.size(), m_bone_infos.size());
+
+        // Compute transforms
+        for (size_t i = 0; i < bone_count; ++i)
+        {
+            spatial *bone = bones[i];
+            if (bone)
+            {
+                // Calculate World Space transform: BoneWorld * Offset
+                transformation bone_world = bone->get_world_transform();
+                mat4<real> m_bone_world =
+                    mat4_translation(bone_world.translate()) *
+                    mat4_from_quat(bone_world.rotate()) *
+                    mat4_scaling(bone_world.scale());
+
+                final_bone_matrices[i] =
+                    m_bone_world * (mat4<real>)m_bone_infos[i].offset_transform;
+            }
+            else
+            {
+                final_bone_matrices[i] = mat4<real>::identity();
+            }
+        }
+    }
 
     const auto primitive_count = get_primitive_count();
     const auto flags           = get_flags();
     const bool has_color  = (flags & mesh_flags::color) != mesh_flags::none;
     const bool has_normal = (flags & mesh_flags::normal) != mesh_flags::none;
     const bool has_tex    = (flags & mesh_flags::tex) != mesh_flags::none;
-    const bool has_bone   = (flags & mesh_flags::bone) != mesh_flags::none;
+
+    // We only enable bone logic if we actually calculated matrices
+    const bool has_bone = !final_bone_matrices.empty();
+    const vector<mat4<real>> *matrices_ptr =
+        final_bone_matrices.empty() ? nullptr : &final_bone_matrices;
 
     switch (primitive_type)
     {
@@ -41,7 +77,8 @@ void mesh::render(gpu &gpu, const animator *anim) const
                        has_bone,
                        gpu,
                        index,
-                       final_bone_matrices);
+                       matrices_ptr,
+                       override_color);
             }
         }
         break;
@@ -59,7 +96,8 @@ void mesh::render(gpu &gpu, const animator *anim) const
                        has_bone,
                        gpu,
                        index,
-                       final_bone_matrices);
+                       matrices_ptr,
+                       override_color);
             }
         }
         break;
@@ -75,7 +113,8 @@ void mesh::render(gpu &gpu, const animator *anim) const
                    has_bone,
                    gpu,
                    index,
-                   final_bone_matrices);
+                   matrices_ptr,
+                   override_color);
         }
     case primitive_type::lines:
         for (size_t i = 0; i < primitive_count; ++i)
@@ -91,11 +130,100 @@ void mesh::render(gpu &gpu, const animator *anim) const
                        has_bone,
                        gpu,
                        index,
-                       final_bone_matrices);
+                       matrices_ptr,
+                       override_color);
             }
         }
+        break;
+    default:
+        assert(0 && "unsupported mesh primitive");
         break;
     }
     gpu.end();
 }
+
+void mesh::calculate_tangents()
+{
+    if ((m_flags & mesh_flags::tangent) == mesh_flags::none)
+    {
+        report(report_type::error,
+               "calculate_tangents called on mesh without tangent flag!");
+        return;
+    }
+
+    vector<vec3<real>> tangents(m_vertex_count);
+
+    auto process_triangle = [&](uint16_t idx0, uint16_t idx1, uint16_t idx2)
+    {
+        vec3<real> pos0, pos1, pos2;
+        vec2<real> uv0, uv1, uv2;
+
+        get_position(idx0, pos0);
+        get_position(idx1, pos1);
+        get_position(idx2, pos2);
+
+        if ((m_flags & mesh_flags::tex) != mesh_flags::none)
+        {
+            get_texcoord(idx0, uv0);
+            get_texcoord(idx1, uv1);
+            get_texcoord(idx2, uv2);
+        }
+
+        vec3<real> edge1    = pos1 - pos0;
+        vec3<real> edge2    = pos2 - pos0;
+        vec2<real> deltaUV1 = uv1 - uv0;
+        vec2<real> deltaUV2 = uv2 - uv0;
+
+        real det = deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y;
+
+        real f = real(1.0f);
+        // Avoid division by zero
+        if (det > real(1e-6f) || det < real(-1e-6f))
+            f = real(1.0f) / det;
+        else
+            f = real(0.0f);
+
+        vec3<real> tangent;
+        tangent.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+        tangent.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+        tangent.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
+        tangents[idx0] += tangent;
+        tangents[idx1] += tangent;
+        tangents[idx2] += tangent;
+    };
+
+    switch (m_type)
+    {
+    case primitive_type::triangles:
+        for (size_t i = 0; i < m_primitive_count; ++i)
+        {
+            triangle_primitive prim;
+            get_primitive(i, prim);
+            process_triangle(prim.v0, prim.v1, prim.v2);
+        }
+        break;
+    case primitive_type::quads:
+        for (size_t i = 0; i < m_primitive_count; ++i)
+        {
+            quad_primitive prim;
+            get_primitive(i, prim);
+            process_triangle(prim.v0, prim.v1, prim.v2);
+            process_triangle(prim.v0, prim.v2, prim.v3);
+        }
+        break;
+    default:
+        break;
+    }
+
+    // Normalize and set
+    for (size_t i = 0; i < m_vertex_count; ++i)
+    {
+        vec3<real> t = tangents[i];
+        if (length_sq(t) > real(1e-6f))
+            t = normalize(t);
+        set_tangent(i, t);
+    }
+}
+
 } // namespace zabato

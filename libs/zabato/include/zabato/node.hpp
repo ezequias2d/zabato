@@ -11,6 +11,7 @@ class node : public spatial
 {
 public:
     static const rtti TYPE;
+    static void reflect(reflection &r);
 
     const rtti &type() const override { return TYPE; }
 
@@ -23,6 +24,8 @@ public:
                           tinyxml2::XMLElement &element) override;
     virtual void link(xml_serializer &serializer,
                       tinyxml2::XMLElement &element) override;
+
+    virtual void on_transform_changed() override;
 
     int quantity() const { return m_children.size(); }
     int attach_child(spatial *child);

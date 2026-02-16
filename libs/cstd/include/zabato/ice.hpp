@@ -10,7 +10,6 @@
 #include <zabato/string.hpp>
 #include <zabato/vector.hpp>
 
-#include <iostream>
 #include <math.h>
 #include <stdint.h>
 #include <zabato/be.hpp>
@@ -252,10 +251,10 @@ public:
         // Verify this is the chunk we expect
         if (berg_header.original_chunk_id != expected_original_id)
         {
-            std::cout << "Expected chunk ID: "
-                      << expected_original_id.to_string().c_str()
-                      << " but got: " << berg_header.original_chunk_id
-                      << std::endl;
+            report(report_type::error,
+                   "Expected chunk ID: %s but got: %s",
+                   expected_original_id.to_string().c_str(),
+                   berg_header.original_chunk_id.to_string().c_str());
             return report_error(error_code::chunk_broken, BERG_CHUNK_ID);
         }
 
@@ -286,9 +285,10 @@ public:
         // Verify decompressed size matches expected
         if (out_data.size() != berg_header.original_size)
         {
-            std::cout << "Decompressed size: " << out_data.size()
-                      << " but expected: " << berg_header.original_size
-                      << std::endl;
+            report(report_type::error,
+                   "Decompressed size: %zu but expected: %zu",
+                   out_data.size(),
+                   berg_header.original_size);
             return report_error(error_code::chunk_broken, BERG_CHUNK_ID);
         }
 
@@ -682,6 +682,27 @@ struct ICE_QUAT_R16 : ICE_VEC3<ICE_R16, ICE_R16, ICE_R16>
         vec3<real> v = vec3<real>(real(x), real(y), real(z));
         real s       = real(2.0) / (real(1.0) + dot(v, v));
         return quat<real>(v * s, s - 1.0);
+    }
+};
+
+template <typename XT, typename YT, typename ZT, typename WT> struct ICE_VEC4
+{
+    XT x;
+    YT y;
+    ZT z;
+    WT w;
+
+    ICE_VEC4() : x(0), y(0), z(0), w(0) {}
+    ICE_VEC4(XT x, YT y, ZT z, WT w) : x(x), y(y), z(z), w(w) {}
+    ICE_VEC4(const vec4<real> &vec)
+        : x(static_cast<XT>(vec.x)), y(static_cast<YT>(vec.y)),
+          z(static_cast<ZT>(vec.z)), w(static_cast<WT>(vec.w))
+    {
+    }
+
+    operator vec4<real>() const
+    {
+        return vec4<real>(real(x), real(y), real(z), real(w));
     }
 };
 

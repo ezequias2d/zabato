@@ -1,0 +1,39 @@
+return {
+    name = "Unlit",
+    
+    uniforms = {
+        u_MainTex = "Texture2D",
+        u_Color = "vec4",
+        u_UseTexture = "bool"
+    },
+    
+    varyings = {
+        v_TexCoord = "vec2",
+        v_Color = "vec4"
+    },
+    
+    vertex = function()
+        local pos = Input.Position()
+        local uv = Input.UV()
+        local col = Input.Color()
+        
+        Output.Position = Matrix.MVP() * pos
+        
+        Varying.v_TexCoord = vec2(uv)
+        Varying.v_Color = col
+    end,
+    
+    fragment = function()
+        local uv = Varying.v_TexCoord
+        local col = Varying.v_Color
+        
+        local tex = uniforms.u_MainTex
+        local tint = uniforms.u_Color
+        local useTex = uniforms.u_UseTexture
+        
+        local texCol = texture_sample(tex, uv)
+        local base = mix(vec4(1,1,1,1), texCol, float(useTex))
+        
+        Output.Color = base * tint * col
+    end
+}

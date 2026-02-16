@@ -1,0 +1,7 @@
+target("zabato_stb")
+    set_kind("static")
+    set_languages("c++23")
+    add_includedirs("include", {public = true})
+    add_files("src/*.cpp")
+    add_deps("zabato")
+    add_packages("stb", "tinyxml2")

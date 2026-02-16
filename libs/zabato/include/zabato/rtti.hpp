@@ -5,6 +5,8 @@
 
 namespace zabato
 {
+class reflection;
+
 /**
  * @brief Run-Time Type Information (RTTI) system for the Cryolite engine.
  *
@@ -15,34 +17,37 @@ namespace zabato
 class rtti
 {
 public:
+    using reflect_cb = void (*)(reflection &);
+
     /**
      * @brief Construct a new RTTI object.
      * @param name The name of the type.
      * @param base_type Pointer to the RTTI of the base class, or nullptr if
      * this is a root class.
+     * @param setup Callback to populate reflection data.
      */
-    rtti(const char *name, const rtti *base_type)
+    rtti(const char *name, const rtti *base_type, reflect_cb setup = nullptr)
+        : m_reflection(nullptr), m_name(name), m_base_type(base_type),
+          m_setup(setup)
     {
-        m_name      = get_symbol(name);
-        m_base_type = base_type;
     }
 
-    ~rtti()
-    {
-        if (m_name)
-            release_symbol(m_name);
-    }
+    rtti(const rtti &)            = delete;
+    rtti &operator=(const rtti &) = delete;
+
+    ~rtti();
 
     /**
      * @brief Get the name of the type.
      * @return The type name.
      */
-    const char *name() const
-    {
-        if (m_name)
-            return get_symbol_name(m_name);
-        return "";
-    }
+    const char *name() const { return m_name.c_str(); }
+
+    /**
+     * @brief Get the base type RTTI.
+     * @return Pointer to base type RTTI or nullptr.
+     */
+    const rtti *base() const { return m_base_type; }
 
     /**
      * @brief Check if this type is exactly the same as another type.
@@ -50,6 +55,9 @@ public:
      * @return true if the types are identical (address comparison).
      */
     bool is_exactly(const rtti &type) const { return &type == this; }
+
+    bool operator==(const rtti &other) const { return this == &other; }
+    bool operator!=(const rtti &other) const { return !(*this == other); }
 
     /**
      * @brief Check if this type is derived from another type.
@@ -68,8 +76,15 @@ public:
         return false;
     }
 
+    reflection &ensure_reflection() const;
+
+    const reflection *get_reflection() const { return m_reflection; }
+
 private:
-    symbol *m_name;
+    symbol_ref m_name;
     const rtti *m_base_type;
+    mutable reflection *m_reflection;
+    reflect_cb m_setup;
 };
+
 } // namespace zabato

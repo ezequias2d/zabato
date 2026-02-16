@@ -1,3 +1,7 @@
 includes("sdl")
 includes("imgui")
 includes("gl")
+includes("lua")
+includes("assimp")
+includes("stb")
+includes("joltphysics")

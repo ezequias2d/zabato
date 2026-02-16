@@ -14,12 +14,12 @@ namespace zabato::fs
 class ice_fs_file : public file
 {
 public:
-    ice_fs_file(file_stream &stream, uint64_t offset, uint64_t size)
+    ice_fs_file(cfile_stream &stream, uint64_t offset, uint64_t size)
         : m_stream(stream), m_start(offset), m_size(size), m_pos(0)
     {
     }
 
-    size_t read(buffer buffer) override
+    size_t read(buffer buffer) override final
     {
         if (m_pos >= m_size)
             return 0;
@@ -34,11 +34,11 @@ public:
         return readed;
     }
 
-    size_t write(const_buffer buffer) override { return 0; }
+    size_t write(const_buffer buffer) override final { return 0; }
 
-    void close() override {}
+    void close() override final {}
 
-    bool seek(int64_t offset, origin origin) override
+    bool seek(int64_t offset, origin origin) override final
     {
         int64_t target_pos = 0;
         switch (origin)
@@ -61,12 +61,16 @@ public:
         return true;
     }
 
-    bool eof() const override { return m_pos >= m_size; }
+    bool eof() const override final { return m_pos >= m_size; }
 
-    uint64_t tell() const override { return m_pos; }
+    uint64_t tell() const override final { return m_pos; }
+
+    void flush() override final {}
+
+    bool is_closed() const override final { return m_stream.is_closed(); }
 
 private:
-    file_stream m_stream;
+    cfile_stream m_stream;
     uint64_t m_start;
     uint64_t m_size;
     uint64_t m_pos;
@@ -86,7 +90,7 @@ bool ice_fs::mount(const char *ice)
     if (!file)
         return false;
 
-    m_stream = file_stream(file);
+    m_stream = cfile_stream(file);
     m_writer = ice_writer(m_stream); // Needed? Only if writing supported later
     m_reader = ice_reader(m_stream);
 
@@ -136,12 +140,7 @@ bool ice_fs::mount(const char *ice)
 
 bool ice_fs::unmount()
 {
-    FILE *file = m_stream.get_file();
-    if (!file)
-        return false;
-
-    fclose(file);
-    m_stream = file_stream(nullptr);
+    m_stream.close();
     m_entries.clear();
     m_strings.clear();
     return true;
@@ -329,11 +328,6 @@ vector<file_info> ice_fs::ls(string_view path)
         size_t slash = relative.find('/');
         if (slash != string_view::npos)
         {
-            // This is a subdirectory or file in subdirectory
-            // But we only want immediate children.
-            // If we found "subdir/deep/file", and input is "", we want
-            // "subdir". Since it's sorted, multiple "subdir/..." come together.
-            // We can deduplicate.
             string subdir_name(relative.substr(0, slash));
 
             if (results.empty() || results.back().name != subdir_name)
@@ -352,6 +346,93 @@ vector<file_info> ice_fs::ls(string_view path)
     }
 
     return results;
+}
+
+file_info ice_fs::get_info(string_view path)
+{
+    file_info fi = {};
+    if (path.empty())
+        return fi;
+
+    string p_str(path);
+    if (p_str.starts_with('/'))
+        p_str = p_str.substr(1);
+    // Remove trailing slash for exact match lookup
+    if (p_str.length() > 1 && p_str.ends_with('/'))
+        p_str.pop_back();
+
+    int64_t idx = find_entry_index(p_str);
+    if (idx != -1)
+    {
+        const auto &entry = m_entries[idx];
+        const char *name  = get_path(entry);
+
+        // Extract basic name from full path
+        string_view full_name(name);
+        size_t slash = full_name.rfind('/');
+        if (slash != string_view::npos)
+            fi.name = string(full_name.substr(slash + 1));
+        else
+            fi.name = string(full_name);
+
+        fi.size         = entry.size;
+        fi.is_dir       = false; // Entries in index are files
+        fi.is_read_only = true;
+    }
+    else
+    {
+        // Check if directory
+        if (is_dir(path))
+        {
+            fi.is_dir       = true;
+            fi.is_read_only = true;
+
+            // Name for directory
+            string_view sv(path);
+            if (sv.ends_with('/'))
+                sv.remove_suffix(1);
+            size_t slash = sv.rfind('/');
+            if (slash != string_view::npos)
+                fi.name = string(sv.substr(slash + 1));
+            else
+                fi.name = string(sv);
+
+            // Calculate size
+            string p_str(path);
+            if (p_str.starts_with('/'))
+                p_str = p_str.substr(1);
+            if (!p_str.empty() && !p_str.ends_with('/'))
+                p_str += '/';
+
+            // Binary search for start
+            int64_t left  = 0;
+            int64_t right = m_entries.size();
+            while (left < right)
+            {
+                int64_t mid          = left + (right - left) / 2;
+                const char *mid_path = get_path(m_entries[mid]);
+                if (strcmp(mid_path, p_str.c_str()) < 0)
+                    left = mid + 1;
+                else
+                    right = mid;
+            }
+
+            fi.size = 0;
+            if (left < (int64_t)m_entries.size())
+            {
+                for (size_t i = left; i < m_entries.size(); ++i)
+                {
+                    const char *entry_path = get_path(m_entries[i]);
+                    if (!p_str.empty() &&
+                        !string_view(entry_path).starts_with(p_str))
+                        break;
+                    fi.size += m_entries[i].size;
+                }
+            }
+        }
+    }
+
+    return fi;
 }
 
 } // namespace zabato::fs

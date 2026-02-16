@@ -1,11 +1,11 @@
 #pragma once
 
+#include <stdint.h>
 #include <zabato/gpu.hpp>
 #include <zabato/list.hpp>
 #include <zabato/math.hpp>
 #include <zabato/real.hpp>
 #include <zabato/vector.hpp>
-#include <stdint.h>
 
 namespace zabato
 {
@@ -123,7 +123,7 @@ private:
     list_node link;
 
 public:
-    using list = list<collision_shape, &collision_shape::link>;
+    using list = zabato::list<collision_shape, &collision_shape::link>;
 };
 
 /** @brief A rectangle collision shape. */

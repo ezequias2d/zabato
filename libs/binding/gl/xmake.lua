@@ -4,6 +4,7 @@ target("zabato_gl")
     add_files("gl.cpp")
     add_includedirs("include", {public = true})
     add_deps("zabato")
+    add_packages("tinyxml2")
     
     if not is_plat("wasm") then
         add_deps("glad")

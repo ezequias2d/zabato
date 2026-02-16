@@ -2,12 +2,14 @@
 
 #include <tinyxml2.h>
 
+#include <zabato/base_object.hpp>
+#include <zabato/delegate.hpp>
 #include <zabato/hash_map.hpp>
-#include <zabato/resource.hpp>
+#include <zabato/pointer.hpp>
 #include <zabato/rtti.hpp>
 #include <zabato/uuid.hpp>
+#include <zabato/value.hpp>
 #include <zabato/vector.hpp>
-#include <zabato/xml_serializer.hpp>
 
 namespace zabato
 {
@@ -18,10 +20,11 @@ class string_tree;
 class world;
 class controller;
 struct symbol;
+class resource_manager;
 
 template <class T> class pointer;
 
-class object
+class object : public base_object
 {
 public:
     object();
@@ -34,42 +37,9 @@ public:
      * @brief Get the Run-Time Type Information (RTTI) for this object.
      * @return The RTTI structure describing this object's type.
      */
-    virtual const rtti &type() const { return TYPE; }
+    virtual const rtti &type() const override { return TYPE; }
 
-    /**
-     * @brief Check if this object is exactly of the specified type.
-     * @param t The type to check against.
-     * @return true if the types match exactly, false otherwise.
-     */
-    bool is_exactly(const rtti &t) const { return type().is_exactly(t); }
-
-    /**
-     * @brief Check if this object is derived from the specified type.
-     * @param t The base type to check against.
-     * @return true if this object is derived from t, false otherwise.
-     */
-    bool is_derived(const rtti &t) const { return type().is_derived(t); }
-
-    /**
-     * @brief Check if this object is exactly the same type as another object.
-     * @param obj The object to compare with.
-     * @return true if both objects have exactly the same type.
-     */
-    bool is_exactly_typeof(const object *obj) const
-    {
-        return obj && is_exactly(obj->type());
-    }
-
-    /**
-     * @brief Check if this object is of a type derived from the other object's
-     * type.
-     * @param obj The potential base object.
-     * @return true if this object is derived from obj's type.
-     */
-    bool is_derived_typeof(const object *obj) const
-    {
-        return obj && is_derived(obj->type());
-    }
+    static void reflect(reflection &r);
 #pragma endregion Type
 
 #pragma region Name
@@ -104,7 +74,7 @@ public:
      * @param name The symbol to search for.
      * @return Pointer to the object if found, nullptr otherwise.
      */
-    virtual object *get_object_by_name(const symbol *name);
+    virtual object *get_object_by_name(const symbol_ref &name);
 
     /**
      * @brief Collect all objects with a specific name.
@@ -119,7 +89,7 @@ public:
      * @param name The symbol to search for.
      * @param objects Vector to populate with found objects.
      */
-    virtual void get_all_objects_by_name(const symbol *name,
+    virtual void get_all_objects_by_name(const symbol_ref &name,
                                          vector<object *> &objects);
 #pragma endregion Name
 
@@ -141,20 +111,77 @@ public:
             return this;
         return nullptr;
     }
+
+    /**
+     * @brief Set the unique ID of this object (updating registry).
+     * @param id The new ID.
+     */
+    void set_id(const uuid &id);
+
+    /**
+     * @brief Create a default instance of an object by type name.
+     * @param type_name The registered factory name.
+     * @param mgr Resource manager required for serializer context.
+     * @return Pointer to the new object, or nullptr.
+     */
+    static object *create_default(const string &type_name,
+                                  resource_manager &mgr);
+
 #pragma endregion ID
 
 #pragma region Streaming
-    typedef object *(*factory_function)(serializer &);
-    typedef object *(*factory_function_xml)(xml_serializer &serializer,
-                                            tinyxml2::XMLElement &element);
+    using factory_delegate = delegate<object *(serializer &)>;
+    using factory_delegate_xml =
+        delegate<object *(xml_serializer &, tinyxml2::XMLElement &)>;
 
     enum
     {
         FACTORY_MAP_SIZE = 256
     };
 
-    static hash_map<string, factory_function> *s_factory;
-    static hash_map<string, factory_function_xml> *s_factory_xml;
+    struct factory_info
+    {
+        factory_delegate factory;
+        factory_delegate_xml factory_xml;
+        const rtti *type = nullptr;
+    };
+
+    static hash_map<string, factory_info> *s_factory;
+
+    /**
+     * @brief Register the factory and type for a class.
+     * @tparam T The class to register.
+     * @return true on success.
+     */
+    template <typename T> static bool register_type()
+    {
+        factory_delegate f;
+        factory_delegate_xml f_xml;
+
+        f = [](serializer &s) -> object *
+        {
+            T *obj = new T();
+            if (obj)
+                obj->load(s, nullptr);
+            return obj;
+        };
+
+        f_xml = [](xml_serializer &s, tinyxml2::XMLElement &e) -> object *
+        {
+            T *obj = new T();
+            if (obj)
+                obj->load_xml(s, e);
+            return obj;
+        };
+
+        return register_factory_type(T::TYPE.name(), &T::TYPE, f, f_xml);
+    }
+
+    static bool register_factory_type(const string &name,
+                                      const rtti *type,
+                                      factory_delegate f,
+                                      factory_delegate_xml f_xml);
+    static const rtti *get_factory_type(const string &name);
 
     /**
      * @brief Register the factory for this class.
@@ -256,28 +283,7 @@ public:
 
 #pragma region Reference Count
     static hash_map<uuid, object *> s_in_use;
-    static void print_in_use(const char *file, const char *acMessage) {}
-
-    /**
-     * @brief Increment the reference count of this object.
-     */
-    virtual void add_ref() { m_uiRefCount++; }
-
-    /**
-     * @brief Get the current reference count.
-     * @return The reference count.
-     */
-    virtual unsigned int ref_count() const { return m_uiRefCount; }
-
-    /**
-     * @brief Decrement the reference count and delete the object if it reaches
-     * zero.
-     */
-    virtual void release()
-    {
-        if (--m_uiRefCount == 0)
-            delete this;
-    }
+    static void print_in_use(const char *file, const char *acMessage);
 #pragma endregion Reference Count
 
 #pragma region Cloning
@@ -337,9 +343,8 @@ public:
 #pragma endregion Controllers
 
 private:
-    symbol *m_name;
+    symbol_ref m_name;
     uuid m_uiID;
-    unsigned int m_uiRefCount;
 
     vector<pointer<controller>> m_controllers;
 };
@@ -357,7 +362,7 @@ private:
  * @return A pointer to the object cast to T*, or nullptr if the cast fails or
  * the input is null.
  */
-template <class T> T *c_dynamic_cast(object *obj)
+template <class T, class U> T *c_dynamic_cast(U *obj)
 {
     return obj && obj->is_derived(T::TYPE) ? (T *)obj : nullptr;
 }
@@ -373,137 +378,9 @@ template <class T> T *c_dynamic_cast(object *obj)
  * @return A const pointer to the object cast to T*, or nullptr if the cast
  * fails or the input is null.
  */
-template <class T> const T *c_dynamic_cast(const object *obj)
+template <class T, class U> const T *c_dynamic_cast(const U *obj)
 {
     return obj && obj->is_derived(T::TYPE) ? (const T *)obj : nullptr;
 }
-
-/**
- * @brief Smart pointer class for automatic reference counting management.
- *
- * This class provides intrusive reference counting semantics for objects
- * derived from `object`. It automatically calls add_ref() when a pointer is
- * attached/copied and release() when the pointer is destroyed or reassigned.
- * This ensures objects are not deleted while valid references exist and are
- * automatically cleaned up when the last reference is dropped.
- *
- * @tparam T The type of object pointed to. Must inherit from `object`.
- */
-template <class T> class pointer
-{
-public:
-    /**
-     * @brief Constructs a smart pointer from a raw pointer.
-     *
-     * Increments the reference count of the target object if it is not null.
-     *
-     * @param ptr The raw pointer to take ownership of. Defaults to nullptr.
-     */
-    pointer(T *ptr = nullptr)
-    {
-        m_object = ptr;
-        if (m_object)
-            m_object->add_ref();
-    }
-
-    /**
-     * @brief Copy constructor.
-     *
-     * Shares ownership of the object pointed to by `ptr`. Increments the
-     * reference count.
-     *
-     * @param ptr The other smart pointer to copy from.
-     */
-    pointer(const pointer &ptr)
-    {
-        m_object = ptr.m_object;
-        if (m_object)
-            m_object->add_ref();
-    }
-
-    /**
-     * @brief Destructor.
-     *
-     * Decrements the reference count of the managed object. If the count
-     * reaches zero, the object automatically deletes itself (via
-     * `object::release`).
-     */
-    ~pointer()
-    {
-        if (m_object)
-            m_object->release();
-    }
-
-    operator T *() const { return m_object; }
-    T &operator*() const { return *m_object; }
-    T *operator->() const { return m_object; }
-
-    /**
-     * @brief Assignment operator from raw pointer.
-     *
-     * Releases the currently held object (if any) and takes shared ownership of
-     * the new object. Handles self-assignment checks implicitly via logic order
-     * or explicit checks.
-     *
-     * @param obj The new raw pointer to manage.
-     * @return Reference to this smart pointer.
-     */
-    pointer &operator=(T *obj)
-    {
-        if (m_object == obj)
-            return *this;
-
-        if (obj)
-            obj->add_ref();
-
-        if (m_object)
-            m_object->release();
-
-        m_object = obj;
-
-        return *this;
-    }
-
-    /**
-     * @brief Assignment operator from another smart pointer.
-     *
-     * Releases the currently held object (if any) and shares ownership of the
-     * object held by `reference`.
-     *
-     * @param reference The other smart pointer to assign from.
-     * @return Reference to this smart pointer.
-     */
-    pointer &operator=(const pointer &reference)
-    {
-        if (m_object == reference.m_object)
-            return *this;
-
-        if (reference.m_object)
-            reference.m_object->add_ref();
-
-        if (m_object)
-            m_object->release();
-
-        m_object = reference.m_object;
-
-        return *this;
-    }
-
-    bool operator==(T *obj) const { return m_object == obj; }
-    bool operator!=(T *obj) const { return m_object != obj; }
-
-    bool operator==(const pointer &reference) const
-    {
-        return m_object == reference.m_object;
-    }
-
-    bool operator!=(const pointer &reference) const
-    {
-        return m_object != reference.m_object;
-    }
-
-protected:
-    T *m_object;
-};
 
 } // namespace zabato

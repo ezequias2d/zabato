@@ -1,8 +1,10 @@
 #pragma once
 
+#include <initializer_list>
 #include <zabato/allocator.hpp>
 #include <zabato/endian.hpp>
 #include <zabato/utils.hpp>
+#include <zabato/vector.hpp>
 
 #include <assert.h>
 #include <stddef.h>
@@ -250,12 +252,6 @@ public:
             allocate_large(len);
             memcpy(large.data, s, len);
             large.data[len] = '\0';
-
-            large.data = static_cast<char *>(m_allocator.allocate(len + 1));
-            memcpy(large.data, s, len);
-            large.data[len] = '\0';
-            large.size      = len;
-            large.capacity  = len << 1;
         }
     }
 
@@ -271,11 +267,9 @@ public:
         }
         else
         {
-            large.data = static_cast<char *>(m_allocator.allocate(len + 1));
+            allocate_large(len);
             memcpy(large.data, s, len);
             large.data[len] = '\0';
-            large.size      = len;
-            large.capacity  = len << 1;
         }
     }
 
@@ -291,11 +285,8 @@ public:
         }
         else
         {
-            size_t size = other.large.size + 1;
-            large.data  = static_cast<char *>(m_allocator.allocate(size));
-            memcpy(large.data, other.large.data, size);
-            large.size     = other.large.size;
-            large.capacity = other.large.capacity;
+            allocate_large(other.large.size);
+            memcpy(large.data, other.large.data, other.large.size + 1);
         }
     }
 
@@ -658,8 +649,16 @@ public:
         if (new_cap <= capacity())
             return;
 
+        // Check for overflow or potential wrap-around
+        if (new_cap == size_t(-1))
+            return;
+
         // Force transition to large
         char *new_data = static_cast<char *>(m_allocator.allocate(new_cap + 1));
+        assert(new_data);
+        if (!new_data)
+            return; // Allocation failed
+
         size_t current_size = size();
         memcpy(new_data, data(), current_size + 1); // +1 for null
 
@@ -802,6 +801,164 @@ public:
         return *this;
     }
 
+    basic_string &replace(size_t pos, size_t len, const basic_string &str)
+    {
+        return replace(pos, len, str.data(), str.size());
+    }
+
+    basic_string &
+    repplace(const_iterator i1, const_iterator i2, const basic_string &str)
+    {
+        return replace(static_cast<size_t>(i1 - begin()),
+                       static_cast<size_t>(i2 - i1),
+                       str.data(),
+                       str.size());
+    }
+
+    basic_string &replace(size_t pos,
+                          size_t len,
+                          const basic_string &str,
+                          size_t subpos,
+                          size_t sublen = npos)
+    {
+        if (subpos > str.size())
+            subpos = str.size();
+
+        size_t rlen = str.size() - subpos;
+        if (sublen < rlen)
+            rlen = sublen;
+
+        return replace(pos, len, str.data() + subpos, rlen);
+    }
+
+    basic_string &replace(size_t pos, size_t len, const char *s)
+    {
+        return replace(pos, len, s, strlen(s));
+    }
+
+    basic_string &replace(size_t pos, size_t len, const char *s, size_t n)
+    {
+        size_t sz = size();
+        assert(pos <= sz);
+
+        // Calculate actual length to remove (clamp to end)
+        size_t remove_len = (pos + len > sz) ? (sz - pos) : len;
+
+        // Check for aliasing: if 's' points inside this string
+        if (s >= begin() && s < end())
+        {
+            basic_string tmp(s, n);
+            return replace(pos, remove_len, tmp.data(), n);
+        }
+
+        size_t new_size = sz - remove_len + n;
+
+        if (new_size > capacity())
+            reserve(new_size);
+
+        char *p = data();
+
+        // Move the tail to the new position
+        // Source: pos + remove_len
+        // Dest: pos + n
+        if (remove_len != n)
+            memmove(p + pos + n, p + pos + remove_len, sz - (pos + remove_len));
+
+        // Insert data into the gap
+        if (n > 0)
+            memcpy(p + pos, s, n);
+
+        if (is_small())
+            set_small_size(new_size);
+        else
+            large.size = new_size;
+
+        p[new_size] = '\0';
+
+        return *this;
+    }
+
+    basic_string &
+    replace(const_iterator i1, const_iterator i2, const char *s, size_t n)
+    {
+        return replace(static_cast<size_t>(i1 - begin()),
+                       static_cast<size_t>(i2 - i1),
+                       s,
+                       n);
+    }
+
+    basic_string &replace(size_t pos, size_t len, size_t n, char c)
+    {
+        size_t sz = size();
+        assert(pos <= sz);
+        size_t remove_len = (pos + len > sz) ? (sz - pos) : len;
+        size_t new_size   = sz - remove_len + n;
+
+        if (new_size > capacity())
+        {
+            reserve(new_size);
+        }
+
+        char *p = data();
+
+        if (remove_len != n)
+        {
+            memmove(p + pos + n, p + pos + remove_len, sz - (pos + remove_len));
+        }
+
+        if (n > 0)
+        {
+            memset(p + pos, c, n);
+        }
+
+        if (is_small())
+            set_small_size(new_size);
+        else
+            large.size = new_size;
+
+        p[new_size] = '\0';
+        return *this;
+    }
+
+    basic_string &
+    replace(const_iterator i1, const_iterator i2, size_t n, char c)
+    {
+        return replace(static_cast<size_t>(i1 - begin()),
+                       static_cast<size_t>(i2 - i1),
+                       n,
+                       c);
+    }
+
+    template <class InputIterator>
+    basic_string &replace(const_iterator i1,
+                          const_iterator i2,
+                          InputIterator first,
+                          InputIterator last)
+    {
+        // Construct a temporary string from the range since we don't know the
+        // size upfront and we need to handle potential aliasing/iterators
+        // safely.
+        basic_string temp;
+        for (auto it = first; it != last; ++it)
+        {
+            temp.push_back(*it);
+        }
+        return replace(static_cast<size_t>(i1 - begin()),
+                       static_cast<size_t>(i2 - i1),
+                       temp.data(),
+                       temp.size());
+    }
+
+    basic_string &replace(const_iterator i1,
+                          const_iterator i2,
+                          std::initializer_list<char> il)
+    {
+        return replace(static_cast<size_t>(i1 - begin()),
+                       static_cast<size_t>(i2 - i1),
+                       il.begin(),
+                       il.size());
+    }
+
 private:
     union
     {
@@ -841,12 +998,12 @@ private:
         if constexpr (is_little_endian)
         {
             // Set high bit to mark as small. Store size in lower bits.
-            small[LAST_BYTE_IDX] = static_cast<char>(LE_SMALL_FLAG | s);
+            small[LAST_BYTE_IDX] = static_cast<char>(LE_SMALL_FLAG | (s << 1));
         }
         else
         {
             // Set low bit to mark as small. Store size in higher bits.
-            small[LAST_BYTE_IDX] = static_cast<char>((s << 1) | BE_SMALL_FLAG);
+            small[LAST_BYTE_IDX] = static_cast<char>(s | BE_SMALL_FLAG);
         }
         small[0] = '\0'; // Safety null for empty strings
     }
@@ -866,6 +1023,24 @@ private:
             return small[LAST_BYTE_IDX] >> 1;
         else
             return small[LAST_BYTE_IDX] & (~BE_SMALL_FLAG);
+    }
+
+    /** @brief Return a list of strings split by a delimiter. */
+    vector<basic_string<Allocator>> split(char delimiter) const
+    {
+        vector<basic_string<Allocator>> result;
+        size_t current = 0;
+        size_t next    = find(delimiter);
+
+        while (next != npos)
+        {
+            result.push_back(substr(current, next - current));
+            current = next + 1;
+            next    = find(delimiter, current);
+        }
+
+        result.push_back(substr(current));
+        return result;
     }
 
     void set_large_capacity(size_t raw_cap_bytes)
@@ -901,6 +1076,9 @@ private:
     {
         size_t clen      = size();
         size_t total_len = clen + len;
+
+        if (total_len < clen)
+            return *this;
 
         if (total_len <= SSO_CAPACITY)
         {
@@ -969,7 +1147,7 @@ constexpr bool operator!=(const basic_string<AllocatorL> &lhs,
 template <class Allocator>
 constexpr bool operator==(const basic_string<Allocator> &lhs, const char *rstr)
 {
-    return strcmp(lhs.c_str(), rstr);
+    return strcmp(lhs.c_str(), rstr) == 0;
 }
 template <class Allocator>
 constexpr bool operator!=(const basic_string<Allocator> &lhs, const char *rstr)
@@ -980,7 +1158,7 @@ constexpr bool operator!=(const basic_string<Allocator> &lhs, const char *rstr)
 template <class Allocator>
 constexpr bool operator==(const char *lstr, const basic_string<Allocator> &rhs)
 {
-    return strcmp(lstr, rhs.c_str());
+    return strcmp(lstr, rhs.c_str()) == 0;
 }
 
 template <class Allocator>
@@ -1008,6 +1186,24 @@ constexpr basic_string<Allocator> operator+(char lhs,
     // Since we don't have a (char) constructor, we make a small temp buffer
     char tmp[2] = {lhs, '\0'};
     basic_string<Allocator> str(tmp);
+    str += rhs;
+    return str;
+}
+
+template <class Allocator>
+constexpr basic_string<Allocator> operator+(const basic_string<Allocator> &lhs,
+                                            const char *rhs)
+{
+    basic_string<Allocator> str = lhs;
+    str += rhs;
+    return str;
+}
+
+template <class Allocator>
+constexpr basic_string<Allocator> operator+(const char *lhs,
+                                            const basic_string<Allocator> &rhs)
+{
+    basic_string<Allocator> str(lhs);
     str += rhs;
     return str;
 }
@@ -1047,6 +1243,36 @@ constexpr auto begin(string_view sv) -> string_view::iterator
 }
 
 constexpr auto end(string_view sv) -> string_view::iterator { return sv.end(); }
+
+template <typename Allocator> struct hash<basic_string<Allocator>>
+{
+    size_t operator()(const basic_string<Allocator> &str) const
+    {
+        size_t length = str.length();
+        uint32_t hash = 2166136261u;
+        for (size_t i = 0; i < length; i++)
+        {
+            hash ^= str[i];
+            hash *= 16777619;
+        }
+        return hash;
+    }
+};
+
+template <> struct hash<string_view>
+{
+    size_t operator()(const string_view &str) const
+    {
+        size_t length = str.length();
+        uint32_t hash = 2166136261u;
+        for (size_t i = 0; i < length; i++)
+        {
+            hash ^= str[i];
+            hash *= 16777619;
+        }
+        return hash;
+    }
+};
 
 using string = basic_string<allocator<char>>;
 

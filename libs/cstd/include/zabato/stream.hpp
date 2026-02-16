@@ -9,6 +9,21 @@
 
 namespace zabato
 {
+
+/**
+ * @enum origin
+ * @brief Specifies the reference point for file seeking.
+ */
+enum class origin
+{
+    /** @brief Beginning of the file. */
+    begin,
+    /** @brief Current position of the file pointer. */
+    current,
+    /** @brief End of the file. */
+    end,
+};
+
 /**
  * @class stream
  * @brief An abstract interface for stream I/O operations.
@@ -24,73 +39,112 @@ public:
     /**
      * @brief Reads a block of data from the stream.
      * @param buffer The destination buffer for the data.
-     * @param size The number of bytes to read.
      * @return The number of bytes actually read.
      */
-    virtual size_t read(buffer &buffer) = 0;
+    virtual size_t read(buffer buffer) = 0;
 
     /**
      * @brief Writes a block of data to the stream.
      * @param buffer The source buffer for the data.
      * @return The number of bytes actually written.
      */
-    virtual size_t write(const buffer &buffer) = 0;
+    virtual size_t write(const_buffer buffer) = 0;
+
+    /**
+     * @brief Moves the file pointer to a specific location.
+     * @param offset The offset in bytes relative to the origin.
+     * @param origin The reference point for the offset.
+     * @return True if the seek was successful, false otherwise.
+     */
+    virtual bool seek(int64_t offset, origin origin) = 0;
 
     /**
      * @brief Skips a number of bytes in the stream.
      * @param offset The number of bytes to skip.
      */
-    virtual void skip(int64_t offset) = 0;
+    virtual void skip(int64_t offset) { seek(offset, origin::current); }
 
     /** @brief Returns true if the stream is at the end. */
     virtual bool eof() const = 0;
 
     /** @brief Resets the stream position to the beginning. */
-    virtual void rewind() = 0;
+    virtual void rewind() { seek(0, origin::begin); }
 
     /** @brief Returns position of stream. */
     virtual size_t tell() const = 0;
 
     /** @brief Sets position of stream. */
-    virtual void pos(int64_t offset) = 0;
+    virtual void pos(int64_t offset) { seek(offset, origin::begin); }
+
+    /** @brief Flushes the stream. */
+    virtual void flush() = 0;
+
+    /** @brief Copies the stream to another stream. */
+    virtual void copy_to(stream *other)
+    {
+        vector<uint8_t> buffer(4096);
+        while (!eof())
+        {
+            size_t bytes_read = read(buffer);
+            other->write({buffer.data(), bytes_read});
+        }
+    }
 };
 
 /**
  * @class file_stream
  * @brief An implementation of stream for standard C FILE pointers.
  */
-class file_stream : public stream
+class cfile_stream : public stream
 {
 public:
-    explicit file_stream(FILE *f) : m_file(f) {}
+    explicit cfile_stream(FILE *f) : m_file(f) {}
 
     FILE *get_file() { return m_file; }
 
-    size_t read(buffer &buffer) override final
+    size_t read(buffer buffer) override final
     {
         return fread(buffer.data(), 1, buffer.size(), m_file);
     }
 
-    size_t write(const buffer &buffer) override final
+    size_t write(const_buffer buffer) override final
     {
         return fwrite(buffer.data(), 1, buffer.size(), m_file);
     }
 
-    void skip(int64_t offset) override final
+    bool seek(int64_t offset, origin origin) override final
     {
-        fseek(m_file, static_cast<long>(offset), SEEK_CUR);
+        int whence = SEEK_SET;
+        switch (origin)
+        {
+        case origin::begin:
+            whence = SEEK_SET;
+            break;
+        case origin::current:
+            whence = SEEK_CUR;
+            break;
+        case origin::end:
+            whence = SEEK_END;
+            break;
+        }
+        return fseek(m_file, static_cast<long>(offset), whence) == 0;
     }
 
     bool eof() const override final { return feof(m_file); }
 
-    void rewind() override final { ::rewind(m_file); }
-
-    void pos(int64_t offset) override final
-    {
-        fseek(m_file, static_cast<long>(offset), SEEK_SET);
-    }
-
     size_t tell() const override final { return ftell(m_file); }
+
+    void flush() override final { fflush(m_file); }
+
+    bool is_closed() const { return m_file == nullptr; }
+
+    void close()
+    {
+        if (m_file == nullptr)
+            return;
+        fclose(m_file);
+        m_file = nullptr;
+    }
 
 private:
     FILE *m_file;
@@ -108,7 +162,7 @@ public:
     {
     }
 
-    size_t read(buffer &buffer) override
+    size_t read(buffer buffer) override
     {
         if (eof())
             return 0;
@@ -121,47 +175,54 @@ public:
         return bytes_to_read;
     }
 
-    size_t write(const buffer &buffer) override final
+    size_t write(const_buffer buffer) override final
     {
         const uint8_t *byte_buffer = buffer.data();
-        for (size_t i = 0; i < buffer.size(); ++i)
-            m_buffer.push_back(byte_buffer[i]);
+        size_t current_size        = m_buffer.size();
+
+        if (m_cursor + buffer.size() > current_size)
+        {
+            m_buffer.resize(m_cursor + buffer.size());
+        }
+
+        memcpy(m_buffer.data() + m_cursor, byte_buffer, buffer.size());
+        m_cursor += buffer.size();
+
         return buffer.size();
     }
 
-    void skip(int64_t offset) override final
+    bool seek(int64_t offset, origin origin) override final
     {
-        if (offset > 0 && m_cursor + offset > m_buffer.size())
+        int64_t new_pos = m_cursor;
+        switch (origin)
         {
-            m_cursor = m_buffer.size();
+        case origin::begin:
+            new_pos = offset;
+            break;
+        case origin::current:
+            new_pos += offset;
+            break;
+        case origin::end:
+            new_pos = m_buffer.size() + offset;
+            break;
         }
-        else if (offset < 0 && m_cursor < static_cast<size_t>(-offset))
-        {
-            m_cursor = 0;
-        }
-        else
-        {
-            m_cursor += offset;
-        }
-    }
 
-    void pos(int64_t offset) override final
-    {
-        if (offset < 0)
-            m_cursor = 0;
-        else if (offset > (int64_t)m_buffer.size())
-            m_cursor = m_buffer.size();
-        else
-            m_cursor = (size_t)offset;
+        if (new_pos < 0)
+            new_pos = 0;
+        else if (new_pos > (int64_t)m_buffer.size())
+            m_buffer.resize(new_pos);
+
+        m_cursor = (size_t)new_pos;
+        return true;
     }
 
     size_t tell() const override final { return m_cursor; }
 
     bool eof() const override final { return m_cursor >= m_buffer.size(); }
-    void rewind() override final { m_cursor = 0; }
     size_t cursor() const { return m_cursor; }
     size_t size() const { return m_buffer.size(); }
     size_t capacity() const { return m_buffer.capacity(); }
+    void flush() override final {}
 
 private:
     vector<uint8_t> &m_buffer;

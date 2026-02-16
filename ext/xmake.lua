@@ -1,5 +1,8 @@
 target("imgui")
     set_kind("static")
     add_files("imgui/*.cpp")
+    add_files("imgui/misc/freetype/*.cpp")
+    add_defines("IMGUI_ENABLE_FREETYPE")
     add_headerfiles("imgui/*.h")
     add_includedirs("imgui", {public = true})
+    add_packages("freetype")

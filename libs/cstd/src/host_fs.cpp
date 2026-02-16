@@ -14,21 +14,21 @@ public:
     host_file(FILE *f) : m_file(f) {}
     ~host_file() override { close(); }
 
-    size_t read(buffer buffer) override
+    size_t read(buffer buffer) override final
     {
         if (!m_file)
             return 0;
         return fread(buffer.data(), 1, buffer.size(), m_file);
     }
 
-    size_t write(const_buffer buffer) override
+    size_t write(const_buffer buffer) override final
     {
         if (!m_file)
             return 0;
         return fwrite(buffer.data(), 1, buffer.size(), m_file);
     }
 
-    void close() override
+    void close() override final
     {
         if (m_file)
         {
@@ -37,7 +37,7 @@ public:
         }
     }
 
-    bool seek(int64_t offset, origin origin) override
+    bool seek(int64_t offset, origin origin) override final
     {
         if (!m_file)
             return false;
@@ -57,19 +57,23 @@ public:
         return fseek(m_file, offset, seek_origin) == 0;
     }
 
-    bool eof() const override
+    bool eof() const override final
     {
         if (!m_file)
             return true;
         return feof(m_file) != 0;
     }
 
-    uint64_t tell() const override
+    size_t tell() const override final
     {
         if (!m_file)
             return 0;
         return ftell(m_file);
     }
+
+    bool is_closed() const override final { return !m_file; }
+
+    void flush() override final { fflush(m_file); }
 
 private:
     FILE *m_file;
@@ -82,7 +86,7 @@ struct host_fs_internal
 
 static std_fs::path to_path(const string_view &sv)
 {
-    return std_fs::path(std::string(sv.data(), sv.length()));
+    return std_fs::path(std::string(sv.data(), sv.length())).make_preferred();
 }
 
 result<host_fs *> host_fs::create(string_view root_path)
@@ -167,6 +171,55 @@ vector<file_info> host_fs::ls(string_view path)
     return results;
 }
 
+file_info host_fs::get_info(string_view path)
+{
+    auto impl = static_cast<host_fs_internal *>(m_data);
+    file_info fi;
+
+    auto [safe, target] = resolve_safe(impl->root, path);
+    if (!safe || !std_fs::exists(target))
+        return fi;
+
+    fi.name = target.filename().string().c_str();
+
+    std::error_code ec;
+    if (std_fs::is_directory(target))
+    {
+        fi.is_dir = true;
+        fi.size   = 0;
+        try
+        {
+            for (const auto &entry : std_fs::recursive_directory_iterator(
+                     target, std_fs::directory_options::skip_permission_denied))
+            {
+                if (entry.is_symlink())
+                    continue;
+
+                if (entry.is_regular_file())
+                {
+                    fi.size += entry.file_size(ec);
+                    if (ec)
+                        ec.clear();
+                }
+            }
+        }
+        catch (...)
+        {
+        }
+    }
+    else
+    {
+        fi.is_dir = false;
+        fi.size   = std_fs::file_size(target, ec);
+    }
+
+    auto perms = std_fs::status(target).permissions();
+    fi.is_read_only =
+        (perms & std_fs::perms::owner_write) == std_fs::perms::none;
+
+    return fi;
+}
+
 bool host_fs::remove(string_view path)
 {
     auto impl           = static_cast<host_fs_internal *>(m_data);
@@ -176,6 +229,20 @@ bool host_fs::remove(string_view path)
 
     std::error_code ec;
     return std_fs::remove_all(target, ec) > 0;
+}
+
+bool host_fs::rename(string_view old_path, string_view new_path)
+{
+    auto impl        = static_cast<host_fs_internal *>(m_data);
+    auto [safe, old] = resolve_safe(impl->root, old_path);
+    auto [safe2, nw] = resolve_safe(impl->root, new_path);
+
+    if (!safe || !safe2)
+        return false;
+
+    std::error_code ec;
+    std_fs::rename(old, nw, ec);
+    return !ec;
 }
 
 bool host_fs::mkdir(string_view path)
@@ -236,36 +303,66 @@ file *host_fs::open(string_view path, open_mode mode)
         return nullptr;
 
     const char *mode_str = "rb";
-    if ((mode & open_mode::write) == open_mode::write)
+    bool read            = (mode & open_mode::read) == open_mode::read;
+    bool write           = (mode & open_mode::write) == open_mode::write;
+    if (write)
     {
-        if ((mode & open_mode::append) == open_mode::append)
-            mode_str = "ab";
-        else if ((mode & open_mode::truncate) == open_mode::truncate)
-            mode_str = "wb";
-        else
-            mode_str = "rb+";
-
         bool create   = (mode & open_mode::create) == open_mode::create;
         bool truncate = (mode & open_mode::truncate) == open_mode::truncate;
         bool append   = (mode & open_mode::append) == open_mode::append;
 
-        if (create && truncate)
-            mode_str = "wb";
-        else if (create && append)
-            mode_str = "ab";
+        if (truncate)
+            mode_str = read ? "wb+" : "wb";
         else if (append)
-            mode_str = "ab";
+            mode_str = read ? "ab+" : "ab";
         else if (create)
-            mode_str = "w+b";
+            mode_str = read ? "wb+" : "ab";
         else
-            mode_str = "r+b";
+            mode_str = "rb+";
     }
+    else
+        mode_str = "rb";
 
     FILE *f = fopen(target.c_str(), mode_str);
     if (!f)
         return nullptr;
 
     return new host_file(f);
+}
+
+result<string> host_fs::get_native_path(string_view path)
+{
+    auto impl           = static_cast<host_fs_internal *>(m_data);
+    auto [safe, target] = resolve_safe(impl->root, path);
+    if (!safe)
+        return report_error(error_code::invalid_path);
+    return string{target.string().c_str()};
+}
+
+result<string> host_fs::get_virtual_path(string_view native_path)
+{
+    auto impl = static_cast<host_fs_internal *>(m_data);
+
+    std::error_code ec;
+    auto p = std_fs::absolute(to_path(native_path), ec);
+    if (ec)
+        return report_error(error_code::invalid_path);
+
+    auto rel = std_fs::relative(p, impl->root, ec);
+
+    // If error, or empty, it's not in this FS
+    if (ec || rel.empty())
+        return report_error(error_code::file_not_found);
+
+    // If relative path starts with "..", it's outside the root
+    if (rel.begin() != rel.end() && *rel.begin() == "..")
+        return report_error(error_code::file_not_found);
+
+    // If result is ".", it means it IS the root.
+    if (rel == ".")
+        return string("");
+
+    return string(rel.generic_string().c_str());
 }
 
 } // namespace zabato::fs

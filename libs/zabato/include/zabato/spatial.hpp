@@ -1,7 +1,9 @@
 #pragma once
 
-#include "object.hpp"
-#include "transformation.hpp"
+#include <zabato/delegate.hpp>
+#include <zabato/event.hpp>
+#include <zabato/object.hpp>
+#include <zabato/transformation.hpp>
 
 namespace zabato
 {
@@ -12,6 +14,11 @@ class spatial : public object
 {
 public:
     static const rtti TYPE;
+    static void reflect(reflection &r);
+    static void get_global_bounds(spatial *root,
+                                  vec3<real> &min_pt,
+                                  vec3<real> &max_pt,
+                                  bool include_fallback_radius = false);
 
     const rtti &type() const override { return TYPE; }
 
@@ -25,47 +32,36 @@ public:
     virtual void link(xml_serializer &serializer,
                       tinyxml2::XMLElement &element) override;
 
-    virtual world *get_world() const override final
+    virtual world *get_world() const override
     {
-        return parent()->get_world();
+        auto p = parent();
+        if (p != nullptr)
+            return p->get_world();
+        return nullptr;
     }
 
     transformation &get_local() { return local; }
-    transformation &get_world_transform()
+    transformation &get_world_transform();
+    const transformation &get_world_transform() const
     {
-        if (is_world_dirty)
-        {
-            spatial *p = parent();
-            if (p)
-                world_transform.product(p->get_world_transform(), local);
-            else
-                world_transform = local;
-            is_world_dirty = false;
-        }
-        return world_transform;
+        return const_cast<spatial *>(this)->get_world_transform();
     }
 
-    void set_local(const transformation &local)
-    {
-        this->local    = local;
-        is_world_dirty = true;
-    }
+    void set_local(const transformation &local);
 
-    void set_world(const transformation &world)
-    {
-        this->world_transform = world;
-        is_world_dirty        = false;
+    void set_world(const transformation &world);
 
-        spatial *p = parent();
-        if (p)
+    virtual void on_transform_changed() {}
+
+    event<> on_dirty;
+
+    void force_dirty()
+    {
+        if (!is_world_dirty)
         {
-            transformation inv_parent;
-            p->get_world_transform().inverse(inv_parent);
-            local.product(inv_parent, world);
-        }
-        else
-        {
-            local = world;
+            is_world_dirty = true;
+            on_transform_changed();
+            on_dirty.invoke();
         }
     }
 
@@ -77,11 +73,14 @@ protected:
     spatial() : m_parent(nullptr), is_world_dirty(false) {}
     spatial *m_parent;
 
-public:
     void set_parent(spatial *parent)
     {
         m_parent       = parent;
         is_world_dirty = true;
+        on_transform_changed();
     }
+
+    friend class node;
+    friend class world;
 };
 } // namespace zabato

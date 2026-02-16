@@ -83,8 +83,8 @@ public:
     void add_text_input_callback(text_input_callback cb) override;
     void remove_text_input_callback(text_input_callback cb) override;
 
-    void add_cursor_pos_callback(cursor_pos_callback cb) override;
-    void remove_cursor_pos_callback(cursor_pos_callback cb) override;
+    void add_cursor_move_callback(cursor_move_callback cb) override;
+    void remove_cursor_move_callback(cursor_move_callback cb) override;
 
     void add_cursor_enter_callback(cursor_enter_callback cb) override;
     void remove_cursor_enter_callback(cursor_enter_callback cb) override;
@@ -112,7 +112,7 @@ private:
 
     vector<key_callback> m_key_cbs;
     vector<text_input_callback> m_text_input_cbs;
-    vector<cursor_pos_callback> m_cursor_pos_cbs;
+    vector<cursor_move_callback> m_cursor_move_cbs;
     vector<cursor_enter_callback> m_cursor_enter_cbs;
     vector<mouse_button_callback> m_mouse_button_cbs;
     vector<scroll_callback> m_scroll_cbs;

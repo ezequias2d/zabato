@@ -78,6 +78,16 @@ public:
      */
     static bool try_parse(string_view sv, uuid &out);
 
+    /**
+     * @brief Returns a nil UUID.
+     * @return A nil UUID.
+     */
+    static uuid null()
+    {
+        const uint8_t null_uuid[16] = {0};
+        return uuid(null_uuid);
+    }
+
 private:
     uint8_t m_data[16];
 };

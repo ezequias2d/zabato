@@ -1,0 +1,21 @@
+return {
+    name = "TestDefaults",
+    
+    uniforms = {
+        u_Color = { type="vec4", hint="color", default=vec4(1, 0, 0, 1) },
+        u_Normal = { type="vec3", hint="normal", default=vec3(0, 1, 0) },
+        u_Roughness = { type="float", default=0.5, hint="range" },
+        u_Steps = { type="int", default=10 },
+        u_Enabled = { type="bool", default=true },
+        u_Offset = { type="vec2", default=vec2(0.1, 0.2) }
+    },
+    
+    vertex = function()
+        local pos = Input.Position()
+        Output.Position = Matrix.MVP() * pos
+    end,
+    
+    fragment = function()
+        Output.Color = uniforms.u_Color
+    end
+}

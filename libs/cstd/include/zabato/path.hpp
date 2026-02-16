@@ -5,7 +5,9 @@
 namespace zabato::fs
 {
 
-constexpr bool is_separator(char c) { return c == '/'; }
+const char PATH_SEP = '/';
+
+constexpr bool is_separator(char c) { return c == PATH_SEP; }
 
 constexpr bool is_absolute(string_view path)
 {
@@ -24,7 +26,7 @@ constexpr string_view filename(string_view path)
     if (path.empty() || is_separator(path.back()))
         return {};
 
-    size_t pos = path.rfind('/');
+    size_t pos = path.rfind(PATH_SEP);
     return (pos == string_view::npos) ? path : path.substr(pos + 1);
 }
 
@@ -46,7 +48,7 @@ constexpr string_view parent_path(string_view path)
         return "/";
 
     string_view stripped = path.substr(0, len);
-    size_t pos           = stripped.rfind('/');
+    size_t pos           = stripped.rfind(PATH_SEP);
 
     if (pos == string_view::npos)
         return "";
@@ -103,15 +105,15 @@ inline string join(string_view a, string_view b)
     if (b.empty())
         return string(a);
 
-    if (b.front() == '/')
+    if (b.front() == PATH_SEP)
         b = b.substr(1);
-    if (a.back() == '/')
+    if (a.back() == PATH_SEP)
         a = a.substr(0, a.size() - 1);
 
     string result;
     result.reserve(a.size() + b.size() + 1);
     result += a;
-    result += '/';
+    result += PATH_SEP;
     result += b;
     return result;
 }
@@ -131,7 +133,7 @@ inline string normalize(string_view path)
 
     bool absolute = is_absolute(path);
     if (absolute)
-        res += '/';
+        res += PATH_SEP;
 
     size_t start = 0;
     while (start < path.size())
@@ -141,7 +143,7 @@ inline string normalize(string_view path)
         if (start >= path.size())
             break;
 
-        size_t end = path.find('/', start);
+        size_t end = path.find(PATH_SEP, start);
         if (end == string_view::npos)
             end = path.size();
 
@@ -157,8 +159,9 @@ inline string normalize(string_view path)
             {
                 if (res.size() > 1)
                 {
-                    size_t last_sep = res.rfind('/');
-                    res.resize((last_sep == 0) ? 1 : last_sep);
+                    size_t last_sep = res.rfind(PATH_SEP);
+                    if (last_sep != string::npos)
+                        res.resize((last_sep == 0) ? 1 : last_sep);
                 }
             }
             else
@@ -171,12 +174,12 @@ inline string normalize(string_view path)
                 if (res.empty() || top_is_parent)
                 {
                     if (!res.empty())
-                        res += '/';
+                        res += PATH_SEP;
                     res += "..";
                 }
                 else
                 {
-                    size_t last_sep = res.rfind('/');
+                    size_t last_sep = res.rfind(PATH_SEP);
                     if (last_sep == string::npos)
                         res.clear();
                     else
@@ -187,7 +190,7 @@ inline string normalize(string_view path)
         else
         {
             if ((absolute && res.size() > 1) || (!absolute && !res.empty()))
-                res += '/';
+                res += PATH_SEP;
             res += token;
         }
     }

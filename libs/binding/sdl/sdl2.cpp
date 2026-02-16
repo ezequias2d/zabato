@@ -1,10 +1,10 @@
 #include "SDL_gamecontroller.h"
 #include "sdl2_keymap.hpp"
-#include "zabato/window.hpp"
 #include <SDL2/SDL.h>
-#include <iostream>
+#include <zabato/error.hpp>
 #include <zabato/hash_map.hpp>
 #include <zabato/sdl2.hpp>
+#include <zabato/window.hpp>
 
 namespace zabato
 {
@@ -157,7 +157,8 @@ Sdl2Window::Sdl2Window(int x,
     m_handle = SDL_CreateWindow(title, win_x, win_y, width, height, sdl_flags);
     if (!m_handle)
     {
-        std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
+        report(
+            report_type::error, "SDL_CreateWindow Error: %s", SDL_GetError());
         exit(EXIT_FAILURE);
     }
 
@@ -165,8 +166,9 @@ Sdl2Window::Sdl2Window(int x,
     m_context = SDL_GL_CreateContext(m_handle);
     if (!m_context)
     {
-        std::cerr << "SDL_GL_CreateContext Error: " << SDL_GetError()
-                  << std::endl;
+        report(report_type::error,
+               "SDL_GL_CreateContext Error: %s",
+               SDL_GetError());
         SDL_DestroyWindow(m_handle);
         exit(EXIT_FAILURE);
     }
@@ -251,10 +253,12 @@ void Sdl2Window::handle_event(SDL_Event *event)
 
     // Mouse Events
     case SDL_MOUSEMOTION:
-        for (auto cb : m_cursor_pos_cbs)
+        for (auto cb : m_cursor_move_cbs)
             cb(this,
                static_cast<real>(event->motion.x),
-               static_cast<real>(event->motion.y));
+               static_cast<real>(event->motion.y),
+               static_cast<real>(event->motion.xrel),
+               static_cast<real>(event->motion.yrel));
         break;
     case SDL_MOUSEBUTTONDOWN:
     case SDL_MOUSEBUTTONUP:
@@ -553,13 +557,13 @@ void Sdl2Window::remove_text_input_callback(text_input_callback cb)
     remove_callback_helper(m_text_input_cbs, cb);
 }
 
-void Sdl2Window::add_cursor_pos_callback(cursor_pos_callback cb)
+void Sdl2Window::add_cursor_move_callback(cursor_move_callback cb)
 {
-    m_cursor_pos_cbs.push_back(cb);
+    m_cursor_move_cbs.push_back(cb);
 }
-void Sdl2Window::remove_cursor_pos_callback(cursor_pos_callback cb)
+void Sdl2Window::remove_cursor_move_callback(cursor_move_callback cb)
 {
-    remove_callback_helper(m_cursor_pos_cbs, cb);
+    remove_callback_helper(m_cursor_move_cbs, cb);
 }
 
 void Sdl2Window::add_cursor_enter_callback(cursor_enter_callback cb)
@@ -603,7 +607,7 @@ bool init_window_system()
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK |
                  SDL_INIT_GAMECONTROLLER) != 0)
     {
-        std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
+        report(report_type::error, "SDL_Init Error: %s", SDL_GetError());
         return false;
     }
 

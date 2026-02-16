@@ -97,6 +97,14 @@ struct color
     static constexpr color yellow() { return color(1, 1, 0); }
     static constexpr color cyan() { return color(0, 1, 1); }
     static constexpr color magenta() { return color(1, 0, 1); }
+    static constexpr color gray() { return color(0.5, 0.5, 0.5); }
+    static constexpr color light_gray() { return color(0.8, 0.8, 0.8); }
+    static constexpr color dark_gray() { return color(0.2, 0.2, 0.2); }
+    static constexpr color orange() { return color(1, 0.5, 0); }
+    static constexpr color rosa_felps()
+    {
+        return color(0.996078431372549, 0.2196078431372549, 0.403921568627451);
+    }
 
     /**
      * @brief Creates a color from a 24-bit hexadecimal value (e.g., 0xFF8000).
@@ -110,6 +118,8 @@ struct color
         real b = real(hex & 0xFF) / real(255.0f);
         return color(r, g, b);
     }
+
+    color alpha(real a) const { return color(r, g, b, a); }
 };
 
 #pragma endregion
