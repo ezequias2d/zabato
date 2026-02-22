@@ -230,23 +230,35 @@ assimp_importer::import(class resource_manager &manager,
             }
         }
 
-        // Now flatten vertex weights to the fixed array of 4
-        assert(amesh->mNumVertices <= 4);
-        for (unsigned int i = 0; i < amesh->mNumVertices && i < 4; i++)
+        for (unsigned int i = 0; i < amesh->mNumVertices; i++)
         {
             bone_weight final_weights[4];
             auto &weights = vertex_weights[i];
 
-            for (int k = 0; k < 4; k++)
+            sort(weights.begin(),
+                 weights.end(),
+                 [](const bone_weight &a, const bone_weight &b)
+                 { return real(a.weight) > real(b.weight); });
+
+            real total_weight = real(0);
+            for (size_t k = 0; k < 4 && k < weights.size(); k++)
+                total_weight += real(weights[k].weight);
+
+            for (size_t k = 0; k < 4; k++)
             {
                 if (k < weights.size())
                 {
                     final_weights[k] = weights[k];
+                    if (total_weight > real(0.0001))
+                    {
+                        final_weights[k].weight = ICE_R16(
+                            real(final_weights[k].weight) / total_weight);
+                    }
                 }
                 else
                 {
                     final_weights[k].bone_id = -1;
-                    final_weights[k].weight  = ICE_R16(0.0);
+                    final_weights[k].weight  = ICE_R16(real(0));
                 }
             }
             res_mesh->set_boneweight(i, final_weights);
