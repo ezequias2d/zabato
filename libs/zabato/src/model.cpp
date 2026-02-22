@@ -158,14 +158,6 @@ void model::bind_skeleton()
     }
 }
 
-void model::set_animator(animator *anim) { add_controller(anim); }
-
-animator *model::get_animator() const
-{
-    pointer<controller> ctrl = get_controller(animator::TYPE);
-    return c_dynamic_cast<animator>(ctrl.get());
-}
-
 void model::on_transform_changed()
 {
     spatial::on_transform_changed();

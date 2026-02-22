@@ -2,6 +2,7 @@
 #include <zabato/gpu.hpp>
 #include <zabato/light.hpp>
 #include <zabato/material.hpp>
+#include <zabato/mesh.hpp>
 #include <zabato/model.hpp>
 #include <zabato/node.hpp>
 #include <zabato/renderer.hpp>

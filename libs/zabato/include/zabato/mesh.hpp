@@ -413,8 +413,8 @@ public:
      *              If provided, it must match the mesh's bone count and order.
      */
     void render(gpu &gpu,
-                const vector<spatial *> &bones = {},
-                const color *override_color    = nullptr) const;
+                const vector<pointer<spatial>> &bones = {},
+                const color *override_color           = nullptr) const;
 
     /**
      * @brief Calculates tangent vectors for the mesh based on positions and

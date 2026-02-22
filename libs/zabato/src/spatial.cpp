@@ -3,6 +3,7 @@
 
 #include <zabato/base_object.hpp>
 #include <zabato/model.hpp>
+#include <zabato/node.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/script.hpp>
 #include <zabato/spatial.hpp>

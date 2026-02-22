@@ -14,7 +14,7 @@ const rtti mesh::TYPE("zabato.mesh", &resource::TYPE);
  * pose.
  */
 void mesh::render(gpu &gpu,
-                  const vector<spatial *> &bones,
+                  const vector<pointer<spatial>> &bones,
                   const color *override_color) const
 {
     const auto primitive_type = get_primitive_type();

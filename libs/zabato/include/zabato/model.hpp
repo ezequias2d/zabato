@@ -1,6 +1,5 @@
 #pragma once
 
-#include <zabato/animator.hpp>
 #include <zabato/bounding_volume.hpp>
 #include <zabato/resource.hpp>
 #include <zabato/spatial.hpp>
@@ -69,19 +68,7 @@ public:
      */
     string_view get_material_path() const;
 
-    /**
-     * @brief Set the animator for this model.
-     * @param anim The animator to set.
-     */
-    void set_animator(animator *anim);
-
     void set_resource_manager(resource_manager *mgr);
-
-    /**
-     * @brief Get the animator.
-     * @return Pointer to the animator.
-     */
-    animator *get_animator() const;
 
     /**
      * @brief Get the world space bounding volume.
@@ -94,7 +81,7 @@ public:
      * @brief Get the list of spatial nodes acting as bones for this model.
      * @return Reference to the vector of bone nodes.
      */
-    const vector<spatial *> &get_bones() const { return m_bones; }
+    const vector<pointer<spatial>> &get_bones() const { return m_bones; }
 
     /**
      * @brief Binds the scene graph nodes to the mesh's skeleton.
@@ -114,7 +101,7 @@ private:
     bounding_volume *m_model_bound;
     bounding_volume *m_world_bound;
     bool m_bound_dirty;
-    vector<spatial *> m_bones;
+    vector<pointer<spatial>> m_bones;
 
     void update_model_bound();
 };

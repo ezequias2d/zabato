@@ -179,16 +179,6 @@ void world::update(real dt)
         curr = next;
     }
 
-    // Update models animators
-    for (auto &mod : m_models)
-    {
-        auto animator = mod->get_animator();
-        if (animator)
-        {
-            animator->update(dt);
-        }
-    }
-
     process_messages();
 }
 
