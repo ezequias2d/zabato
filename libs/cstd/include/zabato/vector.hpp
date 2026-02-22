@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include <zabato/allocator.hpp>
@@ -260,11 +259,7 @@ public:
 
     /** @brief Constructs an empty vector and reserves space for `capacity`
      * elements. */
-    vector(size_t size) : vector()
-    {
-        reserve(size);
-        m_size = size;
-    }
+    vector(size_t size) : vector() { resize(size); }
 
     /** @brief Iterator range constructor */
     template <typename InputIterator>
@@ -425,6 +420,9 @@ public:
             if (!is_pod<T>::value)
                 for (size_t i = m_size; i < new_size; ++i)
                     new (&m_data[i]) T(val);
+            else
+                for (size_t i = m_size; i < new_size; ++i)
+                    m_data[i] = val;
         }
         else if (new_size < m_size)
         {
@@ -471,7 +469,14 @@ public:
         if (m_size >= m_capacity)
             reserve(m_capacity == 0 ? 8 : (m_capacity * 3) / 2);
 
-        new (&m_data[m_size]) T(value);
+        if (!is_pod<T>::value)
+        {
+            new (&m_data[m_size]) T(value);
+        }
+        else
+        {
+            m_data[m_size] = value;
+        }
         ++m_size;
     }
 
@@ -481,7 +486,14 @@ public:
         if (m_size >= m_capacity)
             reserve(m_capacity == 0 ? 8 : m_capacity * 2);
 
-        new (&m_data[m_size]) T(zabato::move(value));
+        if (!is_pod<T>::value)
+        {
+            new (&m_data[m_size]) T(zabato::move(value));
+        }
+        else
+        {
+            m_data[m_size] = zabato::move(value);
+        }
         ++m_size;
     }
 
