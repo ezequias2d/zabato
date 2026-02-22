@@ -114,6 +114,13 @@ void editor_resources::install_custom_icons()
             continue;
 
         FILE *file = fopen(def.file, "rb");
+        if (!file)
+        {
+            report(report_type::error,
+                   "Failed to load icon for atlas (fopen): %s",
+                   def.file);
+            continue;
+        }
         fseek(file, 0, SEEK_END);
         size_t size = ftell(file);
         fseek(file, 0, SEEK_SET);
