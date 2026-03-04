@@ -88,7 +88,8 @@ void model::reflect(reflection &r)
 }
 
 model::model()
-    : m_model_bound(nullptr), m_world_bound(nullptr), m_bound_dirty(true)
+    : m_model_bound(nullptr), m_world_bound(nullptr), m_bound_dirty(true),
+      m_bones()
 {
 }
 
@@ -102,11 +103,7 @@ model::~model()
     delete m_world_bound;
 }
 
-void model::set_mesh(const char *path)
-{
-    m_mesh.set_path(path);
-    bind_skeleton();
-}
+void model::set_mesh(const char *path) { m_mesh.set_path(path); }
 
 void model::set_resource_manager(resource_manager *mgr)
 {
@@ -214,34 +211,19 @@ bounding_volume *model::get_world_bound()
     return m_world_bound;
 }
 
-void model::save(serializer &stream) const
-{
-    spatial::save(stream);
-    stream.write(m_mesh);
-    stream.write(m_material);
-    // TODO: support saving animator (needs animator serialization support)
-}
-
-void model::load(serializer &stream, serializer_link *link)
-{
-    spatial::load(stream, link);
-    stream.read(m_mesh);
-    m_mesh.set_manager(stream.get_manager());
-
-    stream.read(m_material);
-    m_material.set_manager(stream.get_manager());
-
-    update_model_bound();
-    bind_skeleton();
-    // TODO: support loading animator
-}
-
 void model::save_xml(xml_serializer &serializer,
                      tinyxml2::XMLElement &element) const
 {
     spatial::save_xml(serializer, element);
     xml_serializer::write_resource_ref(element, m_mesh);
     xml_serializer::write_resource_ref(element, m_material, "material");
+}
+
+void model::save(serializer &stream) const
+{
+    spatial::save(stream);
+    stream.write(m_mesh);
+    stream.write(m_material);
 }
 
 void model::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &element)
@@ -253,6 +235,19 @@ void model::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &element)
 
     xml_serializer::read_resource_ref(element, m_material, "material");
     m_material.set_manager(serializer.get_manager());
+
+    update_model_bound();
+    bind_skeleton();
+}
+
+void model::load(serializer &stream, serializer_link *link)
+{
+    spatial::load(stream, link);
+    stream.read(m_mesh);
+    m_mesh.set_manager(stream.get_manager());
+
+    stream.read(m_material);
+    m_material.set_manager(stream.get_manager());
 
     update_model_bound();
     bind_skeleton();

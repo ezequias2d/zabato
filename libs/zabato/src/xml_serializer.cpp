@@ -55,7 +55,9 @@ object *xml_serializer::load(fs::file_system &fs, const char *path)
     if (!rootEl)
         return nullptr;
 
-    object *obj = object::factory(*this, *rootEl);
+    object *obj = object::factory(rootEl->Name());
+    obj->load_xml(*this, *rootEl);
+
     if (!obj)
         return nullptr;
 

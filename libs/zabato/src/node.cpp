@@ -1,4 +1,5 @@
 #include <zabato/node.hpp>
+#include <zabato/serializer.hpp>
 #include <zabato/world.hpp>
 #include <zabato/xml_serializer.hpp>
 
@@ -100,6 +101,29 @@ void node::save_xml(xml_serializer &serializer, tinyxml2::XMLElement &el) const
     }
 }
 
+bool node::register_object(serializer &serializer) const
+{
+    if (!object::register_object(serializer))
+        return false;
+
+    for (const auto &child : m_children)
+        if (child && !child->register_object(serializer))
+            return false;
+
+    return true;
+}
+
+void node::save(serializer &serializer) const
+{
+    spatial::save(serializer);
+
+    ice_int32_t child_count = (ice_int32_t)m_children.size();
+    serializer.write(child_count);
+
+    for (const auto &child : m_children)
+        serializer.write((const object *)child);
+}
+
 void node::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &el)
 {
     spatial::load_xml(serializer, el);
@@ -111,15 +135,38 @@ void node::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &el)
         if (name == "transform" || name == "controllers" || name == "ref")
             continue;
 
-        object *obj = object::factory(serializer, *childEl);
+        object *obj = object::factory(name);
         if (obj)
         {
+            obj->load_xml(serializer, *childEl);
             spatial *childSpatial = c_dynamic_cast<spatial>(obj);
             if (childSpatial)
                 attach_child(childSpatial);
             else
                 delete obj;
         }
+    }
+}
+
+void node::load(serializer &serializer, serializer_link *link)
+{
+    spatial::load(serializer, link);
+
+    ice_int32_t child_count = 0;
+    size_t readed           = serializer.read(child_count);
+    assert(readed == sizeof(child_count));
+
+    const int32_t count = child_count;
+    m_children.clear();
+    m_children.resize(count);
+
+    for (int32_t i = 0; i < count; i++)
+    {
+        object *old_child = nullptr;
+        size_t readed     = serializer.read(old_child);
+        assert(readed == sizeof(void *));
+
+        link->add_child_id(old_child);
     }
 }
 
@@ -159,6 +206,18 @@ void node::link(xml_serializer &serializer, tinyxml2::XMLElement &el)
                 }
             }
         }
+    }
+}
+
+void node::link(serializer &serializer, serializer_link *link)
+{
+    spatial::link(serializer, link);
+
+    for (size_t i = 0; i < m_children.size(); i++)
+    {
+        object *old_child = link->get_next_child_id();
+        m_children[i] =
+            c_dynamic_cast<spatial>(serializer.get_from_map(old_child));
     }
 }
 

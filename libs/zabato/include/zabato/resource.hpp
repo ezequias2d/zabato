@@ -17,6 +17,41 @@ public:
     static const rtti TYPE;
     virtual const rtti &type() const { return TYPE; }
 
+    /**
+     * @brief Check if this object is exactly of the specified type.
+     * @param t The type to check against.
+     * @return true if the types match exactly, false otherwise.
+     */
+    bool is_exactly(const rtti &t) const { return type().is_exactly(t); }
+
+    /**
+     * @brief Check if this object is derived from the specified type.
+     * @param t The base type to check against.
+     * @return true if this object is derived from t, false otherwise.
+     */
+    bool is_derived(const rtti &t) const { return type().is_derived(t); }
+
+    /**
+     * @brief Check if this object is exactly the same type as another object.
+     * @param obj The object to compare with.
+     * @return true if both objects have exactly the same type.
+     */
+    bool is_exactly_typeof(const base_object *obj) const
+    {
+        return obj && is_exactly(obj->type());
+    }
+
+    /**
+     * @brief Check if this object is of a type derived from the other object's
+     * type.
+     * @param obj The potential base object.
+     * @return true if this object is derived from obj's type.
+     */
+    bool is_derived_typeof(const base_object *obj) const
+    {
+        return obj && is_derived(obj->type());
+    }
+
     virtual ~resource() = default;
 };
 
@@ -28,75 +63,10 @@ public:
     void set_file_system(fs::file_system *fs) { m_fs = fs; }
     fs::file_system *get_file_system() const { return m_fs; }
 
-    result<shared_ptr<resource>> import_resource(const string &path)
-    {
-        resource_ptr resource;
-        if (m_resources.try_get_value(path, resource))
-            return resource;
+    result<shared_ptr<resource>> import_typed_resource(const string &path,
+                                                       const rtti &type);
 
-        if (!m_fs)
-        {
-            return report_error(error_code::value,
-                                "File system not set in resource_manager");
-        }
-
-        // Check for sidecar XML configuration
-        tinyxml2::XMLDocument doc;
-        const tinyxml2::XMLElement *settings   = nullptr;
-        shared_ptr<importer> specific_importer = nullptr;
-
-        string xml_path = path;
-        size_t last_dot = xml_path.rfind('.');
-        if (last_dot != string::npos)
-        {
-            xml_path = xml_path + ".xml";
-
-            if (m_fs->exists(xml_path))
-            {
-                auto xml = m_fs->read_all_text(xml_path);
-                if (doc.Parse(xml.c_str(), xml.size()) == tinyxml2::XML_SUCCESS)
-                {
-                    auto root = doc.FirstChildElement("import");
-                    if (root)
-                    {
-                        auto importer_elem =
-                            root->FirstChildElement("importer");
-                        if (importer_elem && importer_elem->GetText())
-                        {
-                            specific_importer =
-                                importer_registry::find_importer_by_name(
-                                    importer_elem->GetText());
-                        }
-                        settings = root->FirstChildElement("settings");
-                    }
-                }
-            }
-        }
-
-        auto importer = specific_importer;
-        if (!importer)
-        {
-            if (last_dot != string::npos)
-            {
-                string ext = path.substr(last_dot);
-                importer   = importer_registry::find_importer(ext);
-            }
-        }
-
-        if (importer)
-        {
-            auto res = importer->import(*this, path, settings);
-            if (!res.has_error())
-            {
-                m_resources.add_or_set(path, res.value);
-                return res.value;
-            }
-            return res.error;
-        }
-
-        return report_error(error_code::unable_to_match,
-                            "No importer found for file");
-    }
+    result<shared_ptr<resource>> import_resource(const string &path);
 
     template <typename T> bool is_resource_type(const string &path)
     {
@@ -116,7 +86,7 @@ public:
 
     template <typename T> result<shared_ptr<T>> load(const string &path)
     {
-        auto import_res = import_resource(path);
+        auto import_res = import_typed_resource(path, T::TYPE);
         if (!import_res.has_error())
             return static_pointer_cast<T>(import_res.value);
 

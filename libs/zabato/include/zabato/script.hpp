@@ -228,13 +228,7 @@ public:
      * @brief Factory method for creating script instances from binary
      * serializer.
      */
-    virtual object *create_instance(serializer &s) = 0;
-
-    /**
-     * @brief Factory method for creating script instances from XML serializer.
-     */
-    virtual object *create_instance_xml(xml_serializer &s,
-                                        tinyxml2::XMLElement &el) = 0;
+    virtual object *create_instance() = 0;
 
     /** @brief Register a global C++ function callable from anywhere. */
     virtual void register_global_function(const string_view &name,

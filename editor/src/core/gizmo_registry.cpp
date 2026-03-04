@@ -18,7 +18,7 @@ void gizmo_registry::register_drawer(const rtti &type,
     s_drawers.add_or_set(&type, callback);
 }
 
-void gizmo_registry::draw(const spatial *node, gizmo_context &ctx)
+void gizmo_registry::draw(pointer<spatial> node, gizmo_context &ctx)
 {
     if (!node)
         return;

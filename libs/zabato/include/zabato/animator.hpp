@@ -1,7 +1,5 @@
 #pragma once
 
-#include <zabato/reflection.hpp>
-#include <zabato/resource.hpp>
 #include <zabato/animation.hpp>
 #include <zabato/controller.hpp>
 #include <zabato/error.hpp>
@@ -9,6 +7,8 @@
 #include <zabato/math.hpp>
 #include <zabato/mesh.hpp>
 #include <zabato/node.hpp>
+#include <zabato/reflection.hpp>
+#include <zabato/resource.hpp>
 #include <zabato/spatial.hpp>
 #include <zabato/transformation.hpp>
 
@@ -36,6 +36,8 @@ public:
 
     /** @brief Destroys the animator. */
     virtual ~animator() {}
+
+    void start() override {}
 
     /**
      * @brief Starts playing an animation clip on a scene graph hierarchy.

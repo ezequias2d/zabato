@@ -24,6 +24,9 @@ public:
     virtual void load_xml(xml_serializer &serializer,
                           tinyxml2::XMLElement &element) override;
 
+    virtual void save(serializer &serializer) const override;
+    virtual void load(serializer &serializer, serializer_link *link) override;
+
     virtual void on_transform_changed() override;
 
     /**
@@ -89,10 +92,6 @@ public:
      * names.
      */
     void bind_skeleton();
-
-    // Serialization
-    virtual void save(serializer &stream) const override;
-    virtual void load(serializer &stream, serializer_link *link) override;
 
 private:
     resource_ref m_mesh;

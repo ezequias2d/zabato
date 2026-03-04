@@ -610,7 +610,7 @@ private:
             boneweight_t bone_weights;
             get_boneweight(index, bone_weights);
 
-            size_t bone_count = 0;
+            size_t bone_count = final_bone_matrices->size();
 
             vec3<real> final_position = {0};
             for (auto j = 0; j < 4; ++j)
@@ -626,6 +626,7 @@ private:
                     final_position += transformed_pos.xyz() * bw.weight;
                 }
             }
+            gpu.vertex(final_position);
         }
         else
             gpu.vertex(pos);

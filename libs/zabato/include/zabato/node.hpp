@@ -25,6 +25,11 @@ public:
     virtual void link(xml_serializer &serializer,
                       tinyxml2::XMLElement &element) override;
 
+    virtual bool register_object(serializer &stream) const override;
+    virtual void save(serializer &serializer) const override;
+    virtual void load(serializer &serializer, serializer_link *link) override;
+    virtual void link(serializer &serializer, serializer_link *link) override;
+
     virtual void on_transform_changed() override;
 
     int quantity() const { return m_children.size(); }

@@ -201,7 +201,7 @@ public:
     /** @brief Copy constructor from a shared_ptr of a compatible type. */
     template <typename Y>
     shared_ptr(const shared_ptr<Y> &other)
-        : m_ptr(other.get()), m_cb(other.m_cb)
+        : m_ptr(static_cast<T *>(other.get())), m_cb(other.m_cb)
     {
         if (m_cb)
             m_cb->add_ref();
@@ -218,7 +218,7 @@ public:
     /** @brief Move constructor from a shared_ptr of a compatible type. */
     template <typename Y>
     shared_ptr(shared_ptr<Y> &&other) noexcept
-        : m_ptr(other.get()), m_cb(other.m_cb)
+        : m_ptr(static_cast<T *>(other.get())), m_cb(other.m_cb)
     {
         other.m_ptr = nullptr;
         other.m_cb  = nullptr;
@@ -303,12 +303,61 @@ private:
 
     template <typename T2, typename U>
     friend shared_ptr<T2> static_pointer_cast(const shared_ptr<U> &r);
+
+    template <typename T2, typename U>
+    friend shared_ptr<T2> dynamic_pointer_cast(const shared_ptr<U> &r);
 };
 
+/**
+ * @brief Performs a static cast on a shared_ptr.
+ *
+ * @tparam T The target element type.
+ * @tparam U The source element type.
+ * @param r The shared_ptr to cast.
+ * @return shared_ptr<T> containing the cast pointer.
+ */
 template <typename T, typename U>
 shared_ptr<T> static_pointer_cast(const shared_ptr<U> &r)
 {
-    auto p = static_cast<typename shared_ptr<T>::element_type *>(r.get());
+    auto p = static_cast<T *>(r.get());
+    if (r.m_cb)
+        r.m_cb->add_ref();
+    return shared_ptr<T>(r.m_cb, p);
+}
+
+/**
+ * @brief Performs a dynamic cast on a shared_ptr.
+ *
+ * @tparam T The target element type.
+ * @tparam U The source element type.
+ * @param r The shared_ptr to cast.
+ * @return shared_ptr<T> containing the cast pointer if successful, otherwise
+ * empty.
+ */
+template <typename T, typename U>
+shared_ptr<T> dynamic_pointer_cast(const shared_ptr<U> &r)
+{
+    if (auto p = c_dynamic_cast<T>(r.get()))
+    {
+        if (r.m_cb)
+            r.m_cb->add_ref();
+        return shared_ptr<T>(r.m_cb, p);
+    }
+    return shared_ptr<T>();
+}
+
+/**
+ * @brief Performs a const_pointer_cast on a shared_ptr.
+ *
+ * @tparam T The target element type.
+ * @tparam U The source element type.
+ * @param r The shared_ptr to cast.
+ * @return shared_ptr<T> containing the cast pointer.
+ */
+template <typename T, typename U>
+shared_ptr<T> const_pointer_cast(const shared_ptr<U> &r)
+{
+    auto p = const_cast<T *>(r.get());
     if (r.m_cb)
         r.m_cb->add_ref();
     return shared_ptr<T>(r.m_cb, p);

@@ -18,6 +18,8 @@
 #include <zabato/mesh.hpp>
 #include <zabato/model.hpp>
 #include <zabato/node.hpp>
+#include <zabato/object_importer.hpp>
+#include <zabato/object_resource.hpp>
 #include <zabato/primitives.hpp>
 #include <zabato/renderer.hpp>
 #include <zabato/resource.hpp>
@@ -27,7 +29,6 @@
 #include <editor/core/editor_registry.hpp>
 #include <editor/editor.hpp>
 #include <editor/editor_camera.hpp>
-#include <editor/object_importer.hpp>
 #include <editor/windows/hierarchy.hpp>
 #include <editor/windows/inspector.hpp>
 #include <editor/windows/viewport.hpp>
@@ -52,7 +53,7 @@ int main(int argc, char **argv)
     stb::register_importer();
     material_importer::register_importer();
     shader_importer::register_importer();
-    editor::register_object_importer(res_mgr);
+    register_object_importer(res_mgr);
 
     editor::register_material_inspector();
     editor::register_mesh_inspector();
@@ -66,20 +67,6 @@ int main(int argc, char **argv)
     world.set_physics(phys_world);
     phys_world->set_gravity({real(0), real(-9.81), real(0)});
 
-    node *root = new node();
-    root->set_name("Root");
-    world.set_scene_root(root);
-
-    // Create Camera
-    camera *cam = new camera();
-    cam->set_name("Main Camera");
-    cam->set_perspective(
-        to_rad(real(45)), real(800.0 / 600.0), real(0.1), real(100.0));
-    cam->look_at({real(0), real(0), real(5)},
-                 {real(0), real(0), real(0)},
-                 {real(0), real(1), real(0)});
-    root->attach_child(cam);
-
     // Register Built-in Meshes
     auto cube_mesh   = primitives::create_cube();
     auto sphere_mesh = primitives::create_sphere(1, 6, 11);
@@ -89,17 +76,33 @@ int main(int argc, char **argv)
     res_mgr->add_resource("builtin:sphere", sphere_mesh);
     res_mgr->add_resource("builtin:plane", plane_mesh);
 
-    // Initial Cube Model
-    model *cube = new model();
-    cube->set_name("Cube");
-    transformation t;
-    t.make_identity();
-    t.set_translate({0, 0, 0});
-    cube->set_local(t);
-    cube->set_resource_manager(res_mgr);
-    cube->set_mesh("builtin:cube");
-    root->attach_child(cube);
-    world.register_model(cube);
+    { // Create first scene
+        pointer<node> root = new node();
+        root->set_name("Root");
+        world.set_scene_root(root);
+
+        // Create Camera
+        pointer<camera> cam = new camera();
+        cam->set_name("Main Camera");
+        cam->set_perspective(
+            to_rad(real(45)), real(800.0 / 600.0), real(0.1), real(100.0));
+        cam->look_at({real(0), real(0), real(5)},
+                     {real(0), real(0), real(0)},
+                     {real(0), real(1), real(0)});
+        root->attach_child(cam);
+
+        // Initial Cube Model
+        model *cube = new model();
+        cube->set_name("Cube");
+        transformation t;
+        t.make_identity();
+        t.set_translate({0, 0, 0});
+        cube->set_local(t);
+        cube->set_resource_manager(res_mgr);
+        cube->set_mesh("builtin:cube");
+        root->attach_child(cube);
+        world.register_model(cube);
+    }
 
     zabato::platform::initialize();
 

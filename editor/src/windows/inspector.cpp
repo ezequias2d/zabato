@@ -4,12 +4,14 @@
 #include <zabato/fs.hpp>
 #include <zabato/object.hpp>
 
+#include <zabato/asset_bundle.hpp>
 #include <zabato/controller.hpp>
 #include <zabato/imgui.hpp>
 #include <zabato/math.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/rtti.hpp>
 #include <zabato/script.hpp>
+#include <zabato/shared_ptr.hpp>
 #include <zabato/spatial.hpp>
 #include <zabato/symbol.hpp>
 #include <zabato/transformation.hpp>
@@ -139,10 +141,45 @@ void inspector_window::asset_inspector(real dtime)
     if (m_selected_resource)
     {
         resource_ref ref{m_selected_asset_path, m_app.get_resource_manager()};
-        auto &resource_type   = m_selected_resource->type();
-        auto preview_callback = editor_registry::find_preview(resource_type);
-        if (preview_callback)
-            preview_callback(&ref, m_app, dtime);
+        auto &resource_type = m_selected_resource->type();
+
+        if (resource_type.is_derived(asset_bundle::TYPE))
+        {
+            auto bundle =
+                static_pointer_cast<asset_bundle>(m_selected_resource);
+
+            if (ImGui::TreeNodeEx("Bundle Contents",
+                                  ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                for (const auto &sub : bundle->get_resources())
+                {
+                    if (ImGui::TreeNode(sub.name.c_str()))
+                    {
+                        ImGui::Text("Type: %s", sub.res->type().name());
+
+                        string sub_path =
+                            m_selected_asset_path + "@" + sub.name;
+                        resource_ref sub_ref{sub_path,
+                                             m_app.get_resource_manager()};
+
+                        auto preview_callback =
+                            editor_registry::find_preview(sub.res->type());
+                        if (preview_callback)
+                            preview_callback(&sub_ref, m_app, dtime);
+
+                        ImGui::TreePop();
+                    }
+                }
+                ImGui::TreePop();
+            }
+        }
+        else
+        {
+            auto preview_callback =
+                editor_registry::find_preview(resource_type);
+            if (preview_callback)
+                preview_callback(&ref, m_app, dtime);
+        }
     }
 
     if (m_current_importer)

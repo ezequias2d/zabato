@@ -12,8 +12,8 @@ const rtti serializer_link::TYPE("zabato.serializer_link", &object::TYPE);
  * @brief Construct a new serializer object.
  * Initializes readers and writers to nullptr.
  */
-serializer::serializer(resource_manager &manager)
-    : m_manager(&manager), m_reader(nullptr), m_writer(nullptr)
+serializer::serializer(resource_manager *manager)
+    : m_manager(manager), m_reader(nullptr), m_writer(nullptr)
 {
 }
 
@@ -178,6 +178,8 @@ bool serializer::load(stream &stream)
     m_reader = &reader;
 
     m_unique_map.clear();
+    for (serializer_link *link : m_links)
+        delete link;
     m_links.clear();
 
     string header;
@@ -193,10 +195,15 @@ bool serializer::load(stream &stream)
 
     for (int i = 0; i < count; ++i)
     {
-        object *obj = object::factory(*this);
-        // factory calls Load internally on object
-        // And object::Load populates maps/links via stream calls
-        (void)obj; // Suppress unused var warning if factory result ignored
+        string name = "";
+        read(name);
+
+        object *obj = object::factory(name);
+        assert(obj);
+
+        serializer_link *link = new serializer_link(obj);
+        m_links.push_back(link);
+        obj->load(*this, link);
     }
 
     // Link Phase
@@ -205,9 +212,7 @@ bool serializer::load(stream &stream)
         // Value in map is link*
         serializer_link *link = (serializer_link *)(it->value);
         if (link && link->get_object())
-        {
             link->get_object()->link(*this, link);
-        }
     }
 
     m_reader = nullptr;

@@ -48,7 +48,7 @@ private:
     vec2<real> m_camera_rotation = {0, 0}; // Pitch, Yaw
 
     real m_speed       = 5.0f;
-    real m_sensitivity = 0.1f;
+    real m_sensitivity = 1.0f;
     bool m_is_dragging = false;
     vec2<real> m_last_mouse_pos;
 
@@ -75,11 +75,11 @@ private:
     bool m_is_gizmo_hovered = false;
 
     // Persistent state for gizmo dragging
-    zabato::vec3<zabato::real> m_gizmo_scale;
-    zabato::quat<zabato::real> m_gizmo_rotation;
+    vec3<real> m_gizmo_scale;
+    quat<real> m_gizmo_rotation;
 
-    spatial *m_hovered_icon  = nullptr;
-    real m_hovered_icon_dist = real::max_val();
+    pointer<spatial> m_hovered_icon = nullptr;
+    real m_hovered_icon_dist        = real::max_val();
 
     symbol_ref cmd_instantiate_prefab = "cmd_instantiate_prefab";
     symbol_ref cmd_select             = "cmd_select";

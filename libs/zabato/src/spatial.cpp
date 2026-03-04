@@ -6,6 +6,7 @@
 #include <zabato/node.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/script.hpp>
+#include <zabato/serializer.hpp>
 #include <zabato/spatial.hpp>
 #include <zabato/string.hpp>
 #include <zabato/xml_serializer.hpp>
@@ -102,6 +103,14 @@ void spatial::save_xml(xml_serializer &serializer,
     xml_serializer::write_transform(element, local);
 }
 
+void spatial::save(serializer &serializer) const
+{
+    object::save(serializer);
+    serializer.write(local);
+
+    serializer.write((const object *)m_parent);
+}
+
 void spatial::load_xml(xml_serializer &serializer,
                        tinyxml2::XMLElement &element)
 {
@@ -113,6 +122,16 @@ void spatial::load_xml(xml_serializer &serializer,
         xml_serializer::read_transform_into(element, t);
         set_local(t);
     }
+}
+
+void spatial::load(serializer &serializer, serializer_link *link)
+{
+    object::load(serializer, link);
+    serializer.read(local);
+
+    object *old_parent = nullptr;
+    serializer.read(old_parent);
+    link->add_child_id(old_parent);
 }
 
 void spatial::link(xml_serializer &serializer, tinyxml2::XMLElement &element)
@@ -141,6 +160,18 @@ void spatial::link(xml_serializer &serializer, tinyxml2::XMLElement &element)
             }
         }
     }
+}
+
+void spatial::link(serializer &serializer, serializer_link *link)
+{
+    object::link(serializer, link);
+
+    object *old_parent_id = link->get_next_child_id();
+    if (old_parent_id)
+        m_parent =
+            c_dynamic_cast<spatial>(serializer.get_from_map(old_parent_id));
+    else
+        m_parent = nullptr;
 }
 
 transformation &spatial::get_world_transform()

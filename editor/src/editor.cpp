@@ -4,6 +4,7 @@
 #include <zabato/error.hpp>
 #include <zabato/object.hpp>
 
+#include <zabato/animator.hpp>
 #include <zabato/camera.hpp>
 #include <zabato/controller.hpp>
 #include <zabato/fs.hpp>
@@ -172,36 +173,14 @@ editor_app::editor_app(zabato::console &console)
     object::initialize_factory();
     register_script_importer();
 
-    // Better approach: Template helper
-    auto register_with_prefab = []<typename T>()
-    {
-        object::factory_delegate f = [](serializer &s) -> object *
-        {
-            T *obj = new T();
-            if (obj)
-                obj->load(s, nullptr);
-            return obj;
-        };
+    object::register_type<node>();
+    object::register_type<camera>();
+    object::register_type<model>();
+    object::register_type<light>();
+    object::register_type<animator>();
 
-        object::factory_delegate_xml f_xml =
-            object::factory_delegate_xml::from_function<
-                FactoryHelper::create<T>>();
-
-        object::register_factory_type(T::TYPE.name(), &T::TYPE, f, f_xml);
-    };
-
-    register_with_prefab.template operator()<node>();
-    register_with_prefab.template operator()<camera>();
-    register_with_prefab.template operator()<model>();
-    register_with_prefab.template operator()<light>();
-
-    // Jolt Physics Types
-    register_with_prefab
-        .template operator()<physics::jolt::jolt_rigid_body_controller>();
-    register_with_prefab
-        .template operator()<physics::jolt::jolt_character_controller>();
-    // register_with_prefab
-    //     .template operator()<physics::jolt::jolt_vehicle_controller>();
+    object::register_type<physics::jolt::jolt_rigid_body_controller>();
+    object::register_type<physics::jolt::jolt_character_controller>();
 }
 
 editor_app::~editor_app() {}
@@ -597,17 +576,17 @@ void editor_app::process_messages(world &world)
         // Handle Editor Commands
         if (msg.msg_id == cmd_create_node)
         {
-            m_scene_dirty = true;
-            node *n       = new node();
+            m_scene_dirty   = true;
+            pointer<node> n = new node();
             n->set_name("New Node");
 
             object *parent_obj = nullptr;
             if (msg.receiver_id != uuid::null())
                 object::s_in_use.try_get_value(msg.receiver_id, parent_obj);
 
-            node *parent = parent_obj
-                               ? c_dynamic_cast<node>(parent_obj)
-                               : c_dynamic_cast<node>(world.get_scene_root());
+            pointer<node> parent =
+                parent_obj ? c_dynamic_cast<node>(parent_obj)
+                           : c_dynamic_cast<node>(world.get_scene_root());
             if (parent)
                 parent->attach_child(n);
         }
@@ -704,11 +683,11 @@ void editor_app::process_messages(world &world)
             dispatch_to_windows(game_message(cmd_deselect));
             world.clean();
 
-            node *root = new node();
+            pointer<node> root = new node();
             root->set_name("Root");
             world.set_scene_root(root);
 
-            camera *cam = new camera();
+            pointer<camera> cam = new camera();
             cam->set_name("Main Camera");
             cam->set_perspective(
                 to_rad(real(45)), real(800.0 / 600.0), real(0.1), real(100.0));
@@ -718,7 +697,7 @@ void editor_app::process_messages(world &world)
             root->attach_child(cam);
             world.set_active_camera(cam);
 
-            light *l = new light();
+            pointer<light> l = new light();
             l->set_name("Directional Light");
             light_data d = l->get_data();
             d.type       = light_type::directional;
@@ -758,9 +737,9 @@ void editor_app::process_messages(world &world)
                 xml_serializer s;
                 s.set_manager(m_res_mgr);
                 s.set_remap_ids(true);
-                object *obj =
+                pointer<object> obj =
                     s.load(*m_res_mgr->get_file_system(), path.c_str());
-                spatial *spt = c_dynamic_cast<spatial>(obj);
+                pointer<spatial> spt = c_dynamic_cast<spatial>(obj.get());
                 if (!spt)
                 {
                     m_console.log_error("Cannot instantiate a prefab that do "
@@ -821,7 +800,7 @@ void editor_app::process_messages(world &world)
                         }
                     };
 
-                    if (spatial *s = c_dynamic_cast<spatial>(obj))
+                    if (pointer<spatial> s = c_dynamic_cast<spatial>(obj))
                     {
                         // Unregister recursively
                         unreg(s, unreg);
@@ -829,7 +808,8 @@ void editor_app::process_messages(world &world)
                         // Detach from parent
                         if (s->parent())
                         {
-                            if (node *p = c_dynamic_cast<node>(s->parent()))
+                            if (pointer<node> p =
+                                    c_dynamic_cast<node>(s->parent()))
                             {
                                 p->detach_child(s);
                             }
@@ -851,7 +831,7 @@ void editor_app::add_to_world(world &world, spatial *spatial, uuid to)
     if (to != uuid::null())
         object::s_in_use.try_get_value(to, parent_obj);
 
-    node *parent = nullptr;
+    pointer<node> parent = nullptr;
     while (parent_obj != nullptr && parent == nullptr)
     {
         if (parent_obj->is_derived(node::TYPE))
@@ -1120,6 +1100,7 @@ void editor_app::on_stop(world &world)
 
         world.set_scene_root(nullptr);
         world.set_active_camera(nullptr);
+        world.clean();
 
         if (!m_snapshot_buffer.empty())
         {
@@ -1136,9 +1117,11 @@ void editor_app::on_stop(world &world)
                     tinyxml2::XMLElement *rootEl = doc.RootElement();
                     if (rootEl)
                     {
-                        object *obj = object::factory(s, *rootEl);
+                        string_view name = rootEl->Name();
+                        object *obj      = object::factory(name);
                         if (obj)
                         {
+                            obj->load_xml(s, *rootEl);
                             obj->link(s, *rootEl);
 
                             if (obj->is_derived(spatial::TYPE))
@@ -1512,12 +1495,14 @@ void editor_app::load_scene(world &world, const string &path)
     // Create Root from Doc
     if (rootEl)
     {
-        object *root = object::factory(s, *rootEl);
+        string_view name = rootEl->Name();
+        object *root     = object::factory(name);
         if (root)
         {
+            root->load_xml(s, *rootEl);
             root->link(s, *rootEl);
 
-            spatial *s_root = c_dynamic_cast<spatial>(root);
+            pointer<spatial> s_root = c_dynamic_cast<spatial>(root);
             if (s_root)
             {
                 world.set_scene_root(s_root);
@@ -1580,9 +1565,11 @@ bool editor_app::generate_and_save_thumbnail(const string &path)
         return false;
 
     // Load scene
-    object *root = object::factory(s, *rootEl);
+    string_view name = rootEl->Name();
+    object *root     = object::factory(name);
     if (!root)
         return false;
+    root->load_xml(s, *rootEl);
     root->link(s, *rootEl);
 
     // Create temporary world

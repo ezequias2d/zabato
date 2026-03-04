@@ -83,6 +83,9 @@ public:
     virtual void load_xml(xml_serializer &serializer,
                           tinyxml2::XMLElement &element) override;
 
+    virtual void save(serializer &serializer) const override;
+    virtual void load(serializer &serializer, serializer_link *link) override;
+
     virtual void on_transform_changed() override;
 
 private:

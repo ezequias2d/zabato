@@ -85,7 +85,7 @@ void jolt_rigid_body_controller::create_body()
             // Prefer current object transform if available
             if (m_object)
             {
-                spatial *s = c_dynamic_cast<spatial>(m_object);
+                pointer<spatial> s = c_dynamic_cast<spatial>(m_object);
                 if (s)
                 {
                     transformation t = s->get_world_transform();
@@ -216,13 +216,13 @@ void jolt_rigid_body_controller::start()
     if (m_body_id.IsInvalid())
     {
         // Find world
-        spatial *s = c_dynamic_cast<spatial>(m_object);
-        world *w   = nullptr;
+        pointer<spatial> s = c_dynamic_cast<spatial>(m_object);
+        pointer<world> w   = nullptr;
         while (s)
         {
             if (s->type().is_derived(world::TYPE))
             {
-                w = static_cast<world *>(s);
+                w = static_cast<world *>(s.get());
                 break;
             }
             s = c_dynamic_cast<spatial>(s->parent());

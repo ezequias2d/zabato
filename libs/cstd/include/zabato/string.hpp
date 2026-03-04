@@ -8,6 +8,7 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 #include <type_traits>
 
@@ -1182,10 +1183,17 @@ template <class Allocator>
 constexpr basic_string<Allocator> operator+(char lhs,
                                             const basic_string<Allocator> &rhs)
 {
-    // Need to construct a string from a single char first
-    // Since we don't have a (char) constructor, we make a small temp buffer
-    char tmp[2] = {lhs, '\0'};
-    basic_string<Allocator> str(tmp);
+    basic_string<Allocator> str(1, lhs);
+    str += rhs;
+    return str;
+}
+
+// string + string
+template <class Allocator>
+constexpr basic_string<Allocator> operator+(const basic_string<Allocator> &lhs,
+                                            const basic_string<Allocator> &rhs)
+{
+    basic_string<Allocator> str = lhs;
     str += rhs;
     return str;
 }
@@ -1275,5 +1283,68 @@ template <> struct hash<string_view>
 };
 
 using string = basic_string<allocator<char>>;
+
+inline string to_string(int val)
+{
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%d", val);
+    return string(buf);
+}
+
+inline string to_string(unsigned int val)
+{
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%u", val);
+    return string(buf);
+}
+
+inline string to_string(long val)
+{
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%ld", val);
+    return string(buf);
+}
+
+inline string to_string(unsigned long val)
+{
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%lu", val);
+    return string(buf);
+}
+
+inline string to_string(long long val)
+{
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%lld", val);
+    return string(buf);
+}
+
+inline string to_string(unsigned long long val)
+{
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%llu", val);
+    return string(buf);
+}
+
+inline string to_string(float val)
+{
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%f", val);
+    return string(buf);
+}
+
+inline string to_string(double val)
+{
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%f", val);
+    return string(buf);
+}
+
+inline string to_string(long double val)
+{
+    char buf[64];
+    snprintf(buf, sizeof(buf), "%Lf", val);
+    return string(buf);
+}
 
 } // namespace zabato

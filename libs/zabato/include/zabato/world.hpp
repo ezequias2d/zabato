@@ -1,5 +1,6 @@
 #pragma once
 
+#include <zabato/serializer.hpp>
 #include <zabato/camera.hpp>
 #include <zabato/controller.hpp>
 #include <zabato/game_message.hpp>
@@ -124,6 +125,19 @@ public:
      * @return Pointer to the camera or nullptr if not found.
      */
     camera *find_camera();
+
+    virtual bool register_object(serializer &serializer) const override;
+
+    virtual void save(serializer &serializer) const override;
+    virtual void load(serializer &serializer, serializer_link *link) override;
+    virtual void link(serializer &serializer, serializer_link *link) override;
+
+    virtual void save_xml(xml_serializer &serializer,
+                          tinyxml2::XMLElement &element) const override;
+    virtual void load_xml(xml_serializer &serializer,
+                          tinyxml2::XMLElement &element) override;
+    virtual void link(xml_serializer &serializer,
+                      tinyxml2::XMLElement &element) override;
 
 private:
     void update_node(spatial *node, real dt);

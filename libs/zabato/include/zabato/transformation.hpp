@@ -11,7 +11,6 @@ class transformation
 {
 public:
     transformation() { make_identity(); }
-    ~transformation() {}
 
     static const transformation IDENTITY;
 

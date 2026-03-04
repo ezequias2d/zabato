@@ -10,6 +10,8 @@
 #include <zabato/math.hpp>
 #include <zabato/model.hpp>
 #include <zabato/node.hpp>
+#include <zabato/object.hpp>
+#include <zabato/object_resource.hpp>
 #include <zabato/resource.hpp>
 #include <zabato/spatial.hpp>
 #include <zabato/symbol.hpp>
@@ -213,10 +215,65 @@ void scene_view_window::render(world &w, renderer &r, gpu &g, editor_app &app)
                 return;
             }
 
+            if (rm->is_resource_type<object_resource>(asset_path))
+            {
+                resource_ref res;
+                res.set_path(asset_path);
+                res.set_manager(rm);
+                auto result = res.get<object_resource>();
+                if (result)
+                {
+                    auto obj =
+                        c_dynamic_cast<spatial>(result->get_object().get());
+                    if (!obj)
+                    {
+                        report(
+                            report_type::error,
+                            "Failed to instantiate a non-spatial object (%s).",
+                            obj->type().name());
+                        return;
+                    }
+
+                    auto clone = obj->clone(*rm);
+                    if (!clone)
+                    {
+                        report(report_type::error,
+                               "Failed to clone object (%s).",
+                               obj->type().name());
+                        return;
+                    }
+
+                    auto clone_cast = c_dynamic_cast<spatial>(clone);
+                    if (!clone_cast)
+                    {
+                        report(report_type::error,
+                               "Failed to cast clone to spatial (%s).",
+                               clone->type().name());
+                        return;
+                    }
+
+                    if (auto root = w.get_scene_root())
+                    {
+                        if (auto n = c_dynamic_cast<node>(root))
+                        {
+                            n->attach_child(clone_cast);
+                        }
+                        else
+                        {
+                            report(report_type::error,
+                                   "Failed to attach node to root: %s",
+                                   root);
+                        }
+                    }
+
+                    return;
+                }
+            }
+
             if (rm->is_resource_type<mesh>(asset_path))
             {
                 // Create Model
-                model *mdl = new model();
+                pointer<model> mdl = new model();
                 mdl->set_resource_manager(rm);
                 mdl->set_mesh(asset_path.c_str());
 
@@ -233,7 +290,6 @@ void scene_view_window::render(world &w, renderer &r, gpu &g, editor_app &app)
                     if (auto n = c_dynamic_cast<node>(root))
                     {
                         n->attach_child(mdl);
-                        w.register_model(mdl);
                     }
                     else
                     {
@@ -784,12 +840,12 @@ void scene_view_window::on_overlay_render(world &w,
     {
         auto [picked_model, picked_dist] = pick_object(w, m_latest_ray);
 
-        object *picked_obj = nullptr;
+        pointer<object> picked_obj = nullptr;
 
         // Compare with Icon Hit
         if (m_hovered_icon && m_hovered_icon_dist < picked_dist)
         {
-            picked_obj = c_dynamic_cast<object>(m_hovered_icon);
+            picked_obj = c_dynamic_cast<object>(m_hovered_icon.get());
         }
         else if (picked_model)
         {

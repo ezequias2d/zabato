@@ -110,7 +110,7 @@ static void recursive_bind(animator *animator, spatial *root)
 
     animator->bind_node(root->name(), root);
 
-    node *n = c_dynamic_cast<node>(root);
+    pointer<node> n = c_dynamic_cast<node>(root);
     if (n)
     {
         for (int i = 0; i < n->quantity(); ++i)

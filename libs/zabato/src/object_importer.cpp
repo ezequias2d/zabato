@@ -1,9 +1,9 @@
-#include <editor/object_importer.hpp>
-#include <editor/object_resource.hpp>
+#include <zabato/object_importer.hpp>
+#include <zabato/object_resource.hpp>
 #include <zabato/resource.hpp>
 #include <zabato/xml_serializer.hpp>
 
-namespace zabato::editor
+namespace zabato
 {
 
 void register_object_importer(resource_manager *manager)
@@ -43,14 +43,16 @@ object_importer::import(class resource_manager &manager,
     if (!root)
         return report_error(error_code::value, "No root element");
 
-    object *obj = object::factory(s, *root);
+    object *obj = object::factory(root->Name());
+    obj->load_xml(s, *root);
 
     if (!obj)
         return report_error(error_code::value,
                             "Failed to create object from XML");
 
-    shared_ptr<object_resource> res = make_shared<object_resource>(obj);
+    shared_ptr<object_resource> res = make_shared<object_resource>();
+    res->set_object(obj);
     return static_cast<shared_ptr<resource>>(res);
 }
 
-} // namespace zabato::editor
+} // namespace zabato

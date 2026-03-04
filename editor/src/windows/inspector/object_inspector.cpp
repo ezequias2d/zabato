@@ -1,9 +1,10 @@
 #include <editor/core/editor_registry.hpp>
 #include <editor/editor.hpp>
-#include <editor/object_resource.hpp>
+
 #include <imgui.h>
 #include <zabato/base64.hpp>
 #include <zabato/gpu.hpp>
+#include <zabato/object_resource.hpp>
 #include <zabato/resource.hpp>
 #include <zabato/stb/image_utils.hpp>
 #include <zabato/xml_serializer.hpp>

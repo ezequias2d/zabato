@@ -55,9 +55,6 @@ bool lua_script_system::initialize()
         info.factory = object::factory_delegate::
             from_method<lua_script_system, &lua_script_system::create_instance>(
                 this);
-        info.factory_xml = object::factory_delegate_xml::from_method<
-            lua_script_system,
-            &lua_script_system::create_instance_xml>(this);
         info.type = &lua_script_instance::TYPE;
 
         object::s_factory->add_or_set(lua_script_instance::TYPE.name(), info);
@@ -66,17 +63,9 @@ bool lua_script_system::initialize()
     return true;
 }
 
-object *lua_script_system::create_instance(serializer &s)
+object *lua_script_system::create_instance()
 {
     return new lua_script_instance(m_L);
-}
-
-object *lua_script_system::create_instance_xml(xml_serializer &s,
-                                               tinyxml2::XMLElement &el)
-{
-    auto *inst = new lua_script_instance(m_L);
-    inst->load_xml(s, el);
-    return inst;
 }
 
 void lua_script_system::shutdown()

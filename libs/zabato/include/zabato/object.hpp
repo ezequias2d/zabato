@@ -50,6 +50,12 @@ public:
     void set_name(const char *name);
 
     /**
+     * @brief Set the name of the object.
+     * @param name The new name.
+     */
+    void set_name(string_view name);
+
+    /**
      * @brief Set the name of the object using a symbol.
      * @param name The symbol to set.
      */
@@ -130,9 +136,7 @@ public:
 #pragma endregion ID
 
 #pragma region Streaming
-    using factory_delegate = delegate<object *(serializer &)>;
-    using factory_delegate_xml =
-        delegate<object *(xml_serializer &, tinyxml2::XMLElement &)>;
+    using factory_delegate = delegate<object *()>;
 
     enum
     {
@@ -142,7 +146,6 @@ public:
     struct factory_info
     {
         factory_delegate factory;
-        factory_delegate_xml factory_xml;
         const rtti *type = nullptr;
     };
 
@@ -156,31 +159,15 @@ public:
     template <typename T> static bool register_type()
     {
         factory_delegate f;
-        factory_delegate_xml f_xml;
 
-        f = [](serializer &s) -> object *
-        {
-            T *obj = new T();
-            if (obj)
-                obj->load(s, nullptr);
-            return obj;
-        };
+        f = []() -> object * { return new T(); };
 
-        f_xml = [](xml_serializer &s, tinyxml2::XMLElement &e) -> object *
-        {
-            T *obj = new T();
-            if (obj)
-                obj->load_xml(s, e);
-            return obj;
-        };
-
-        return register_factory_type(T::TYPE.name(), &T::TYPE, f, f_xml);
+        return register_factory_type(T::TYPE.name(), &T::TYPE, f);
     }
 
     static bool register_factory_type(const string &name,
                                       const rtti *type,
-                                      factory_delegate f,
-                                      factory_delegate_xml f_xml);
+                                      factory_delegate f);
     static const rtti *get_factory_type(const string &name);
 
     /**
@@ -210,9 +197,7 @@ public:
      * @return A pointer to the created object, or nullptr if the factory is not
      * initialized or the type is unknown.
      */
-    static object *factory(serializer &stream);
-    static object *factory(xml_serializer &serializer,
-                           tinyxml2::XMLElement &element);
+    static object *factory(string_view name);
 
     /**
      * @brief Load object data from a stream.
