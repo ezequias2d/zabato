@@ -3,12 +3,14 @@
 #include <zabato/delegate.hpp>
 #include <zabato/fs.hpp>
 #include <zabato/hash_map.hpp>
+#include <zabato/object.hpp>
 #include <zabato/resource.hpp>
 #include <zabato/string.hpp>
 #include <zabato/vector.hpp>
 
 namespace zabato::editor
 {
+class editor_app;
 
 enum class asset_type
 {
@@ -36,7 +38,7 @@ public:
     asset_database()  = default;
     ~asset_database() = default;
 
-    void init(resource_manager *rm);
+    void init(resource_manager *rm, editor_app *app);
     void refresh();
 
     const vector<asset_info> &get_assets(asset_type type) const;
@@ -54,6 +56,8 @@ public:
         return res;
     }
 
+    pointer<world> get_world() const;
+
 private:
     void scan_directory(const string &path);
     asset_type determine_type(const string &path);
@@ -62,6 +66,7 @@ private:
     fs::file_system *m_fs  = nullptr;
     vector<asset_info> m_all_assets;
     vector<vector<asset_info>> m_typed_assets;
+    editor_app *m_app = nullptr;
 };
 
 bool draw_asset_selector(const char *label,
@@ -69,4 +74,9 @@ bool draw_asset_selector(const char *label,
                          asset_type type,
                          const asset_database *db,
                          delegate<void(const string &)> on_locate = nullptr);
+
+bool draw_object_selector(const char *label,
+                          pointer<object> &current,
+                          const asset_database *db,
+                          delegate<bool(object *)> filter);
 } // namespace zabato::editor

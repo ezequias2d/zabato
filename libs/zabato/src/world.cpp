@@ -25,11 +25,11 @@ world::world()
 
 world::~world() { clean(); }
 
-void world::set_active_camera(camera *cam) { m_active_camera = cam; }
+void world::set_active_camera(pointer<camera> cam) { m_active_camera = cam; }
 
-camera *world::get_active_camera() const { return m_active_camera; }
+pointer<camera> world::get_active_camera() const { return m_active_camera; }
 
-void world::set_scene_root(spatial *root)
+void world::set_scene_root(pointer<spatial> root)
 {
     if (m_root)
     {
@@ -207,14 +207,14 @@ void world::process_messages()
     }
 }
 
-void world::render(renderer &rnd, camera &cam)
+void world::render(renderer &rnd, pointer<class camera> cam)
 {
     for (auto &l : m_lights)
     {
         rnd.submit(l);
     }
 
-    const frustum &f = cam.get_frustum();
+    const frustum &f = cam->get_frustum();
 
     for (auto &mod : m_models)
     {
@@ -238,20 +238,20 @@ void world::render(renderer &rnd, camera &cam)
     }
 }
 
-static camera *find_camera_recursive(spatial *s)
+static pointer<camera> find_camera_recursive(pointer<spatial> s)
 {
     if (!s)
         return nullptr;
 
     if (s->is_derived(camera::TYPE))
-        return static_cast<camera *>(s);
+        return static_cast<camera *>(s.get());
 
     if (s->is_derived(node::TYPE))
     {
-        pointer<node> n = static_cast<node *>(s);
+        pointer<node> n = static_cast<node *>(s.get());
         for (int i = 0; i < n->quantity(); ++i)
         {
-            camera *c = find_camera_recursive(n->child_at(i));
+            pointer<camera> c = find_camera_recursive(n->child_at(i));
             if (c)
                 return c;
         }
@@ -259,7 +259,7 @@ static camera *find_camera_recursive(spatial *s)
     return nullptr;
 }
 
-camera *world::find_camera()
+pointer<camera> world::find_camera()
 {
     if (m_active_camera)
         return m_active_camera;
@@ -275,7 +275,7 @@ static void world_active_camera_getter(script_system *,
     auto obj = args->get_value(0).as_object();
     world *w = c_dynamic_cast<world>(obj.get());
     if (w)
-        args->push_return(w->get_active_camera());
+        args->push_return(w->get_active_camera().get());
 }
 
 static void world_active_camera_setter(script_system *,

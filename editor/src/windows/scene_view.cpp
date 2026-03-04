@@ -24,6 +24,7 @@ scene_view_window::scene_view_window() : m_viewport("Scene View") {}
 
 void scene_view_window::init(window *win)
 {
+    m_camera = new camera();
     m_viewport.init();
 
     m_window = win;
@@ -58,17 +59,19 @@ void scene_view_window::shutdown()
 
 void scene_view_window::focus(const vec3<real> &center, real radius)
 {
-    real fov  = m_camera.get_fov();
+    real fov  = m_camera->get_fov();
     real dist = radius / sin(fov * 0.5);
     dist *= 1.2f;
 
     if (dist < 0.5f)
         dist = 0.5f;
 
-    vec3<real> forward = (m_camera.get_local().rotate() * vec3<real>(0, 0, -1));
-    m_camera_position  = center - forward * dist;
+    vec3<real> forward =
+        (m_camera->get_local().rotate() * vec3<real>(0, 0, -1));
+    m_camera_position = center - forward * dist;
 
-    m_camera.look_at(m_camera_position, m_camera_position + forward, {0, 1, 0});
+    m_camera->look_at(
+        m_camera_position, m_camera_position + forward, {0, 1, 0});
 }
 
 void scene_view_window::look_along(const vec3<real> &dir)
@@ -87,7 +90,7 @@ void scene_view_window::look_along(const vec3<real> &dir)
 
 void scene_view_window::look_at(const vec3<real> &target)
 {
-    m_camera.look_at(m_camera_position, target, {0, 1, 0});
+    m_camera->look_at(m_camera_position, target, {0, 1, 0});
     vec3<real> dir = target - m_camera_position;
     look_along(dir);
 }
@@ -174,16 +177,16 @@ void scene_view_window::update(real dt)
         }
 
         // Apply transform
-        auto t = m_camera.get_local();
+        auto t = m_camera->get_local();
         t.set_translate(m_camera_position);
-        m_camera.set_local(t);
+        m_camera->set_local(t);
 
-        m_camera.set_perspective(to_rad(real(45)),
-                                 m_viewport.get_size().x /
-                                     m_viewport.get_size().y,
-                                 real(0.1),
-                                 real(100.0));
-        m_camera.look_at(
+        m_camera->set_perspective(to_rad(real(45)),
+                                  m_viewport.get_size().x /
+                                      m_viewport.get_size().y,
+                                  real(0.1),
+                                  real(100.0));
+        m_camera->look_at(
             m_camera_position, m_camera_position + forward, {0, 1, 0});
     }
 }
@@ -254,7 +257,7 @@ void scene_view_window::render(world &w, renderer &r, gpu &g, editor_app &app)
 
                     if (auto root = w.get_scene_root())
                     {
-                        if (auto n = c_dynamic_cast<node>(root))
+                        if (auto n = c_dynamic_cast<node>(root.get()))
                         {
                             n->attach_child(clone_cast);
                         }
@@ -262,7 +265,7 @@ void scene_view_window::render(world &w, renderer &r, gpu &g, editor_app &app)
                         {
                             report(report_type::error,
                                    "Failed to attach node to root: %s",
-                                   root);
+                                   root->name());
                         }
                     }
 
@@ -287,7 +290,7 @@ void scene_view_window::render(world &w, renderer &r, gpu &g, editor_app &app)
                 // Attach to World Root
                 if (auto root = w.get_scene_root())
                 {
-                    if (auto n = c_dynamic_cast<node>(root))
+                    if (auto n = c_dynamic_cast<node>(root.get()))
                     {
                         n->attach_child(mdl);
                     }
@@ -295,13 +298,13 @@ void scene_view_window::render(world &w, renderer &r, gpu &g, editor_app &app)
                     {
                         report(report_type::error,
                                "Failed to attach model to root: %s",
-                               root);
+                               root->name());
                     }
                 }
             }
         });
 
-    m_viewport.render(w, r, &m_camera, g);
+    m_viewport.render(w, r, m_camera, g);
 }
 
 void scene_view_window::on_message(const game_message &msg)

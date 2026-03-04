@@ -33,7 +33,7 @@ public:
     bool is_hovered() const { return m_viewport.is_hovered(); }
     bool is_capturing_input() const { return m_is_dragging; }
 
-    camera &get_camera() { return m_camera; }
+    camera &get_camera() { return *m_camera; }
 
 private:
     void on_scene_render(world &w, camera &cam, gpu &g, editor_app &app);
@@ -43,7 +43,7 @@ private:
     viewport_window m_viewport;
 
 #pragma region Camera
-    camera m_camera;
+    pointer<camera> m_camera;
     vec3<real> m_camera_position = {0, 0, 5};
     vec2<real> m_camera_rotation = {0, 0}; // Pitch, Yaw
 

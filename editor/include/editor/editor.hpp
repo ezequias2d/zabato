@@ -40,9 +40,12 @@ public:
     void init(window *win, resource_manager *res_mgr, gpu *gpu, renderer *rnd);
     void shutdown();
 
-    void update(real delta_time, world &world);
-    void render(world &world, renderer &renderer, gpu &gpu, real dtime);
-    void draw_main_menu(world &world);
+    pointer<world> get_world() const { return m_world; }
+    void set_world(pointer<world> w) { m_world = w; }
+
+    void update(real delta_time);
+    void render(renderer &renderer, gpu &gpu, real dtime);
+    void draw_main_menu();
 
     void send_message(const game_message &msg);
 
@@ -68,22 +71,23 @@ public:
 
 private:
     void setup_dockspace();
-    void process_messages(world &world);
-    void draw_toolbar(world &world);
+    void process_messages();
+    void draw_toolbar();
     void dispatch_to_windows(const game_message &msg);
-    void add_to_world(world &world, spatial *spatial, uuid to);
+    void add_to_world(spatial *spatial, uuid to);
 
-    void check_unsaved_changes(world &world, const game_message &pending_msg);
-    void draw_unsaved_changes_popup(world &world);
+    void check_unsaved_changes(const game_message &pending_msg);
+    void draw_unsaved_changes_popup();
 
-    string get_scene_xml(world &world);
-    bool is_scene_dirty(world &world);
+    string get_scene_xml();
+    bool is_scene_dirty();
 
-    void on_play(world &world);
+    void on_play();
     void on_pause();
-    void on_stop(world &world);
+    void on_stop();
 
     window *m_window = nullptr;
+    pointer<world> m_world;
     console &m_console;
 
     // Windows
@@ -139,8 +143,8 @@ private:
     symbol_ref cmd_open_project_folder = "cmd_open_project_folder";
 
 public:
-    void load_scene(world &world, const string &path);
-    void save_scene(world &world, const string &path);
+    void load_scene(const string &path);
+    void save_scene(const string &path);
     void save_prefab(object *obj, const string &path);
     bool generate_and_save_thumbnail(const string &path);
     void register_prefab_instance(object *obj, const string &path);

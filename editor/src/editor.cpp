@@ -167,7 +167,7 @@ struct FactoryHelper
 
 editor_app::editor_app(zabato::console &console)
     : m_game_view("Game View"), m_console(console), m_console_win(console),
-      m_notifications(console), m_inspector_win(*this)
+      m_notifications(console), m_inspector_win(*this), m_world(nullptr)
 {
     // Ensure factory is initialized
     object::initialize_factory();
@@ -195,7 +195,7 @@ void editor_app::init(window *win,
     m_gpu      = gpu;
     m_renderer = rnd;
 
-    m_asset_db.init(res_mgr);
+    m_asset_db.init(res_mgr, this);
 
     // Init Resources
     res_mgr->set_gpu(gpu);
@@ -216,9 +216,9 @@ void editor_app::shutdown()
     m_resources.shutdown();
 }
 
-void editor_app::update(real delta_time, world &world)
+void editor_app::update(real delta_time)
 {
-    process_messages(world);
+    process_messages();
     m_scene_win.update(delta_time);
     m_notifications.update(delta_time);
 
@@ -274,7 +274,7 @@ void editor_app::update(real delta_time, world &world)
     }
 }
 
-void editor_app::draw_main_menu(world &world)
+void editor_app::draw_main_menu()
 {
     if (ImGui::BeginMainMenuBar())
     {
@@ -285,7 +285,7 @@ void editor_app::draw_main_menu(world &world)
                 game_message msg;
                 msg.msg_id    = cmd_new_scene;
                 msg.sender_id = uuid();
-                check_unsaved_changes(world, msg);
+                check_unsaved_changes(msg);
             }
 
             if (ImGui::MenuItem("Load Scene"))
@@ -310,7 +310,7 @@ void editor_app::draw_main_menu(world &world)
                     msg.msg_id    = cmd_load_scene;
                     msg.sender_id = uuid();
                     msg.data      = value(path);
-                    check_unsaved_changes(world, msg);
+                    check_unsaved_changes(msg);
                 }
             }
 
@@ -404,7 +404,7 @@ void editor_app::draw_main_menu(world &world)
                         msg.msg_id    = cmd_open_project;
                         msg.sender_id = uuid();
                         msg.data      = value(new_path);
-                        check_unsaved_changes(world, msg);
+                        check_unsaved_changes(msg);
                     }
                     else
                     {
@@ -435,7 +435,7 @@ void editor_app::draw_main_menu(world &world)
                     game_message msg;
                     msg.msg_id    = cmd_exit_editor;
                     msg.sender_id = uuid();
-                    check_unsaved_changes(world, msg);
+                    check_unsaved_changes(msg);
                 }
             }
             ImGui::EndMenu();
@@ -524,7 +524,7 @@ void editor_app::draw_main_menu(world &world)
     }
 }
 
-void editor_app::render(world &world, renderer &renderer, gpu &gpu, real dtime)
+void editor_app::render(renderer &renderer, gpu &gpu, real dtime)
 {
     // Intercept Window Close
     if (m_window->should_close() && !m_force_exit)
@@ -533,23 +533,23 @@ void editor_app::render(world &world, renderer &renderer, gpu &gpu, real dtime)
         game_message msg;
         msg.msg_id    = cmd_exit_editor;
         msg.sender_id = uuid();
-        check_unsaved_changes(world, msg);
+        check_unsaved_changes(msg);
     }
 
-    draw_unsaved_changes_popup(world);
+    draw_unsaved_changes_popup();
 
-    draw_main_menu(world);
-    draw_toolbar(world);
+    draw_main_menu();
+    draw_toolbar();
     setup_dockspace();
 
-    m_hierarchy_win.render(world.get_scene_root(), *this);
+    m_hierarchy_win.render(m_world->get_scene_root(), *this);
     m_inspector_win.render(*this, dtime);
     m_asset_browser.render(*this);
     m_console_win.render(*this);
 
-    camera *game_cam = world.find_camera();
-    m_game_view.render(world, renderer, game_cam, gpu);
-    m_scene_win.render(world, renderer, gpu, *this);
+    pointer<camera> game_cam = m_world->find_camera();
+    m_game_view.render(*m_world, renderer, game_cam, gpu);
+    m_scene_win.render(*m_world, renderer, gpu, *this);
 
     m_notifications.render();
 }
@@ -568,7 +568,7 @@ void editor_app::send_message(const game_message &msg)
     m_editor_queue.push(msg);
 }
 
-void editor_app::process_messages(world &world)
+void editor_app::process_messages()
 {
     game_message msg;
     while (m_editor_queue.pop(msg))
@@ -585,22 +585,23 @@ void editor_app::process_messages(world &world)
                 object::s_in_use.try_get_value(msg.receiver_id, parent_obj);
 
             pointer<node> parent =
-                parent_obj ? c_dynamic_cast<node>(parent_obj)
-                           : c_dynamic_cast<node>(world.get_scene_root());
+                parent_obj
+                    ? c_dynamic_cast<node>(parent_obj)
+                    : c_dynamic_cast<node>(m_world->get_scene_root().get());
             if (parent)
                 parent->attach_child(n);
         }
         else if (msg.msg_id == cmd_exit_editor)
         {
             m_scene_dirty          = false;
-            m_last_saved_scene_xml = get_scene_xml(world);
+            m_last_saved_scene_xml = get_scene_xml();
             m_force_exit           = true;
             m_window->set_should_close(true);
         }
         else if (msg.msg_id == cmd_load_scene)
         {
             if (msg.data.type() == value_type::STRING)
-                load_scene(world, msg.data.as_string());
+                load_scene(msg.data.as_string());
         }
         else if (msg.msg_id == cmd_save_scene)
         {
@@ -608,7 +609,7 @@ void editor_app::process_messages(world &world)
                               ? msg.data.as_string()
                               : string_view{m_current_scene_path};
             if (!path.empty())
-                save_scene(world, path);
+                save_scene(path);
         }
         else if (msg.msg_id == cmd_open_project)
         {
@@ -665,8 +666,8 @@ void editor_app::process_messages(world &world)
                 l->set_data(d);
             }
 
-            add_to_world(world, l, msg.receiver_id);
-            world.register_light(l);
+            add_to_world(l, msg.receiver_id);
+            // m_world->register_light(l);
         }
         else if (msg.msg_id == cmd_create_model)
         {
@@ -675,17 +676,17 @@ void editor_app::process_messages(world &world)
             m->set_name("New Model");
             m->set_resource_manager(m_res_mgr);
 
-            add_to_world(world, m, msg.receiver_id);
-            world.register_model(m);
+            add_to_world(m, msg.receiver_id);
+            // world.register_model(m);
         }
         else if (msg.msg_id == cmd_new_scene)
         {
             dispatch_to_windows(game_message(cmd_deselect));
-            world.clean();
+            m_world->clean();
 
             pointer<node> root = new node();
             root->set_name("Root");
-            world.set_scene_root(root);
+            m_world->set_scene_root(root.get());
 
             pointer<camera> cam = new camera();
             cam->set_name("Main Camera");
@@ -695,7 +696,7 @@ void editor_app::process_messages(world &world)
                          {real(0), real(0), real(0)},
                          {real(0), real(1), real(0)});
             root->attach_child(cam);
-            world.set_active_camera(cam);
+            m_world->set_active_camera(cam);
 
             pointer<light> l = new light();
             l->set_name("Directional Light");
@@ -703,17 +704,17 @@ void editor_app::process_messages(world &world)
             d.type       = light_type::directional;
             l->set_data(d);
 
-            camera temp_cam;
-            temp_cam.look_at(
+            pointer<camera> temp_cam = new camera();
+            temp_cam->look_at(
                 vec3<real>(5, 5, 5), vec3<real>(0, 0, 0), vec3<real>(0, 1, 0));
-            l->set_local(temp_cam.get_local());
+            l->set_local(temp_cam->get_local());
             root->attach_child(l);
-            world.register_light(l);
+            m_world->register_light(l);
 
             m_console.log_success("New Scene Created");
             m_current_scene_path   = "";
             m_scene_dirty          = false;
-            m_last_saved_scene_xml = get_scene_xml(world);
+            m_last_saved_scene_xml = get_scene_xml();
 
             // Broadcast scene change
             game_message msg;
@@ -726,7 +727,7 @@ void editor_app::process_messages(world &world)
         {
             if (msg.data.is_string())
             {
-                load_scene(world, msg.data.as_string());
+                load_scene(msg.data.as_string());
             }
         }
         else if (msg.msg_id == cmd_instantiate_prefab)
@@ -747,17 +748,18 @@ void editor_app::process_messages(world &world)
                     continue;
                 }
 
-                add_to_world(world, spt, msg.receiver_id);
+                add_to_world(spt, msg.receiver_id);
                 register_prefab_instance(obj, path);
 
+                /*
                 auto reg_func = [&](spatial *s, auto &&self) -> void
                 {
                     if (!s)
                         return;
                     if (auto m = c_dynamic_cast<model>(s))
-                        world.register_model(m);
+                        m_world->register_model(m);
                     if (auto l = c_dynamic_cast<light>(s))
-                        world.register_light(l);
+                        m_world->register_light(l);
                     if (auto n = c_dynamic_cast<node>(s))
                     {
                         for (int i = 0; i < n->quantity(); ++i)
@@ -765,6 +767,7 @@ void editor_app::process_messages(world &world)
                     }
                 };
                 reg_func(spt, reg_func);
+                */
             }
         }
         else if (msg.msg_id == cmd_delete_object)
@@ -780,18 +783,20 @@ void editor_app::process_messages(world &world)
                     deselect_msg.receiver_id = msg.receiver_id;
                     dispatch_to_windows(deselect_msg);
 
+                    /*
+
                     // Detach and Unregister
                     auto unreg = [&](spatial *s, auto &&self) -> void
                     {
                         if (!s)
                             return;
                         if (auto m = c_dynamic_cast<model>(s))
-                            world.unregister_model(m);
+                            m_world->unregister_model(m);
                         if (auto l = c_dynamic_cast<light>(s))
-                            world.unregister_light(l);
+                            m_world->unregister_light(l);
 
                         // Controllers?
-                        world.unregister_controllers_recursive(s);
+                        m_world->unregister_controllers_recursive(s);
 
                         if (auto n = c_dynamic_cast<node>(s))
                         {
@@ -799,11 +804,12 @@ void editor_app::process_messages(world &world)
                                 self(n->child_at(i), self);
                         }
                     };
+                    */
 
                     if (pointer<spatial> s = c_dynamic_cast<spatial>(obj))
                     {
                         // Unregister recursively
-                        unreg(s, unreg);
+                        // unreg(s, unreg);
 
                         // Detach from parent
                         if (s->parent())
@@ -821,11 +827,11 @@ void editor_app::process_messages(world &world)
         dispatch_to_windows(msg);
 
         // Forward to Game World
-        world.send_message(msg);
+        m_world->send_message(msg);
     }
 }
 
-void editor_app::add_to_world(world &world, spatial *spatial, uuid to)
+void editor_app::add_to_world(spatial *spatial, uuid to)
 {
     object *parent_obj = nullptr;
     if (to != uuid::null())
@@ -841,7 +847,7 @@ void editor_app::add_to_world(world &world, spatial *spatial, uuid to)
     }
 
     if (parent == nullptr)
-        parent = c_dynamic_cast<node>(world.get_scene_root());
+        parent = c_dynamic_cast<node>(m_world->get_scene_root().get());
 
     if (parent)
         parent->attach_child(spatial);
@@ -855,10 +861,9 @@ void editor_app::dispatch_to_windows(const game_message &msg)
     m_asset_browser.on_message(msg);
 }
 
-void editor_app::check_unsaved_changes(world &world,
-                                       const game_message &pending_msg)
+void editor_app::check_unsaved_changes(const game_message &pending_msg)
 {
-    if (is_scene_dirty(world))
+    if (is_scene_dirty())
     {
         m_pending_message       = pending_msg;
         m_has_pending_message   = true;
@@ -868,7 +873,7 @@ void editor_app::check_unsaved_changes(world &world,
         send_message(pending_msg);
 }
 
-void editor_app::draw_unsaved_changes_popup(world &world)
+void editor_app::draw_unsaved_changes_popup()
 {
     if (m_trigger_unsaved_popup)
     {
@@ -892,7 +897,7 @@ void editor_app::draw_unsaved_changes_popup(world &world)
                 // Save Logic
                 if (!m_current_scene_path.empty())
                 {
-                    save_scene(world, m_current_scene_path);
+                    save_scene(m_current_scene_path);
                     send_message(m_pending_message);
                 }
                 else
@@ -915,7 +920,7 @@ void editor_app::draw_unsaved_changes_popup(world &world)
                         default_path, "main.zfile", filters);
                     if (!path.empty())
                     {
-                        save_scene(world, path);
+                        save_scene(path);
                         send_message(m_pending_message);
                     }
                     // Cancelled save -> Do nothing
@@ -976,7 +981,7 @@ void editor_app::set_script_system(script_system *sys)
     }
 }
 
-void editor_app::draw_toolbar(world &world)
+void editor_app::draw_toolbar()
 {
     ImGuiViewport *viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -999,7 +1004,7 @@ void editor_app::draw_toolbar(world &world)
     {
         if (ImGui::Button("Play"))
         {
-            on_play(world);
+            on_play();
         }
     }
     else
@@ -1027,7 +1032,7 @@ void editor_app::draw_toolbar(world &world)
     {
         if (ImGui::Button("Stop"))
         {
-            on_stop(world);
+            on_stop();
         }
     }
 
@@ -1039,22 +1044,22 @@ void editor_app::draw_toolbar(world &world)
     viewport->WorkSize.y -= height;
 }
 
-void editor_app::on_play(world &world)
+void editor_app::on_play()
 {
     if (m_state == editor_state::edit)
     {
         // Snapshot
         m_snapshot_buffer.clear();
 
-        if (world.get_scene_root())
+        if (m_world->get_scene_root())
         {
             xml_serializer s;
 
             auto &doc = s.doc();
             tinyxml2::XMLElement *rootEl =
-                doc.NewElement(world.get_scene_root()->type().name());
+                doc.NewElement(m_world->get_scene_root()->type().name());
             doc.InsertEndChild(rootEl);
-            world.get_scene_root()->save_xml(s, *rootEl);
+            m_world->get_scene_root()->save_xml(s, *rootEl);
 
             tinyxml2::XMLPrinter printer;
             doc.Accept(&printer);
@@ -1080,7 +1085,7 @@ void editor_app::on_pause()
     }
 }
 
-void editor_app::on_stop(world &world)
+void editor_app::on_stop()
 {
     if (m_state == editor_state::edit)
         return;
@@ -1096,11 +1101,11 @@ void editor_app::on_stop(world &world)
             .data        = value(),
         });
 
-        process_messages(world);
+        process_messages();
 
-        world.set_scene_root(nullptr);
-        world.set_active_camera(nullptr);
-        world.clean();
+        m_world->set_scene_root(nullptr);
+        m_world->set_active_camera(nullptr);
+        m_world->clean();
 
         if (!m_snapshot_buffer.empty())
         {
@@ -1125,7 +1130,7 @@ void editor_app::on_stop(world &world)
                             obj->link(s, *rootEl);
 
                             if (obj->is_derived(spatial::TYPE))
-                                world.set_scene_root((spatial *)obj);
+                                m_world->set_scene_root((spatial *)obj);
                             else
                             {
                                 m_console.log_error(
@@ -1154,30 +1159,30 @@ void editor_app::on_stop(world &world)
     m_console.log_info("Stopped");
 }
 
-string editor_app::get_scene_xml(world &world)
+string editor_app::get_scene_xml()
 {
     xml_serializer s;
     s.set_manager(m_res_mgr);
 
     tinyxml2::XMLPrinter printer;
 
-    if (world.get_scene_root())
+    if (m_world->get_scene_root())
     {
         tinyxml2::XMLElement *root =
-            s.doc().NewElement(world.get_scene_root()->type().name());
+            s.doc().NewElement(m_world->get_scene_root()->type().name());
         s.doc().InsertEndChild(root);
-        world.get_scene_root()->save_xml(s, *root);
+        m_world->get_scene_root()->save_xml(s, *root);
     }
 
     s.doc().Accept(&printer);
     return string(printer.CStr());
 }
 
-bool editor_app::is_scene_dirty(world &world)
+bool editor_app::is_scene_dirty()
 {
     if (m_scene_dirty)
         return true;
-    string current_xml = get_scene_xml(world);
+    string current_xml = get_scene_xml();
     return current_xml != m_last_saved_scene_xml;
 }
 
@@ -1223,7 +1228,7 @@ generate_thumbnail(gpu *m_gpu, renderer *m_renderer, world &world, object *root)
                             max_pt != vec3<real>(-1e9, -1e9, -1e9);
 
         // Setup thumbnail camera
-        camera thumb_cam;
+        pointer<camera> thumb_cam = new camera();
 
         if (found_bounds)
         {
@@ -1238,16 +1243,17 @@ generate_thumbnail(gpu *m_gpu, renderer *m_renderer, world &world, object *root)
 
             // Position camera (Isometric-ish view)
             vec3<real> dir = normalize(vec3<real>(0.5f, 0.5f, 1.0f));
-            thumb_cam.look_at(center + dir * dist, center, vec3<real>(0, 1, 0));
-            thumb_cam.set_perspective(fov, 1.0f, 0.1f, dist * 10.0f);
+            thumb_cam->look_at(
+                center + dir * dist, center, vec3<real>(0, 1, 0));
+            thumb_cam->set_perspective(fov, 1.0f, 0.1f, dist * 10.0f);
         }
         else
         {
             // Default
-            thumb_cam.set_perspective(to_rad(real(45)), 1.0f, 0.1f, 100.0f);
-            thumb_cam.look_at({0, 2, 5}, {0, 0, 0}, {0, 1, 0});
+            thumb_cam->set_perspective(to_rad(real(45)), 1.0f, 0.1f, 100.0f);
+            thumb_cam->look_at({0, 2, 5}, {0, 0, 0}, {0, 1, 0});
         }
-        thumb_cam.update_view_from_transform();
+        thumb_cam->update_view_from_transform();
 
         m_renderer->begin(thumb_cam);
         world.render(*m_renderer, thumb_cam);
@@ -1276,7 +1282,7 @@ generate_thumbnail(gpu *m_gpu, renderer *m_renderer, world &world, object *root)
     return "";
 }
 
-void editor_app::save_scene(world &world, const string &path)
+void editor_app::save_scene(const string &path)
 {
     m_current_scene_path = path;
     m_scene_dirty        = false;
@@ -1296,7 +1302,7 @@ void editor_app::save_scene(world &world, const string &path)
 
     auto &doc = s.doc();
     doc.Clear();
-    object *root = world.get_scene_root();
+    object *root = m_world->get_scene_root();
     if (root)
     {
         tinyxml2::XMLElement *rootEl = doc.NewElement(root->type().name());
@@ -1304,7 +1310,7 @@ void editor_app::save_scene(world &world, const string &path)
         root->save_xml(s, *rootEl);
 
         // Capture Thumbnail
-        string base64 = generate_thumbnail(m_gpu, m_renderer, world, root);
+        string base64 = generate_thumbnail(m_gpu, m_renderer, *m_world, root);
         if (!base64.empty())
         {
             tinyxml2::XMLElement *meta  = doc.NewElement("metadata");
@@ -1437,7 +1443,7 @@ void editor_app::save_scene(world &world, const string &path)
     }
 }
 
-void editor_app::load_scene(world &world, const string &path)
+void editor_app::load_scene(const string &path)
 {
     m_current_scene_path = path;
     m_scene_dirty        = false;
@@ -1451,8 +1457,8 @@ void editor_app::load_scene(world &world, const string &path)
         .data        = value(),
     });
 
-    process_messages(world);
-    world.set_scene_root(nullptr);
+    process_messages();
+    m_world->set_scene_root(nullptr);
 
     xml_serializer s;
     auto &doc = s.doc();
@@ -1505,7 +1511,7 @@ void editor_app::load_scene(world &world, const string &path)
             pointer<spatial> s_root = c_dynamic_cast<spatial>(root);
             if (s_root)
             {
-                world.set_scene_root(s_root);
+                m_world->set_scene_root(s_root);
                 m_console.log_success("Scene loaded: " + path);
             }
             else
@@ -1573,21 +1579,21 @@ bool editor_app::generate_and_save_thumbnail(const string &path)
     root->link(s, *rootEl);
 
     // Create temporary world
-    world tmp_world;
+    pointer<world> tmp_world = new world();
     if (root->is_derived(spatial::TYPE))
     {
-        tmp_world.set_scene_root(static_cast<spatial *>(root));
+        tmp_world->set_scene_root(static_cast<spatial *>(root));
     }
 
-    tmp_world.update(0);
+    tmp_world->update(0);
 
-    string b64 = generate_thumbnail(m_gpu, m_renderer, tmp_world, root);
+    string b64 = generate_thumbnail(m_gpu, m_renderer, *tmp_world, root);
 
     // Cleanup
     bool managed = false;
-    if (tmp_world.get_scene_root() == root)
+    if (tmp_world->get_scene_root() == root)
     {
-        tmp_world.set_scene_root(nullptr);
+        tmp_world->set_scene_root(nullptr);
         managed = true;
     }
 

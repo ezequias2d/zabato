@@ -15,7 +15,8 @@ public:
     ~viewport_window();
 
     void init();
-    void render(world &world, renderer &renderer, camera *cam, gpu &gpu);
+    void
+    render(world &world, renderer &renderer, pointer<camera> cam, gpu &gpu);
 
     bool is_focused() const { return m_is_focused; }
     bool is_hovered() const { return m_is_hovered; }

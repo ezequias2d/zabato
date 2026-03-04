@@ -61,10 +61,10 @@ int main(int argc, char **argv)
     editor::register_object_inspector();
 
     console console;
-    world world;
+    pointer<world> world = new class world();
     physics::physics_world *phys_world =
         new physics::jolt::jolt_physics_world();
-    world.set_physics(phys_world);
+    world->set_physics(phys_world);
     phys_world->set_gravity({real(0), real(-9.81), real(0)});
 
     // Register Built-in Meshes
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
     { // Create first scene
         pointer<node> root = new node();
         root->set_name("Root");
-        world.set_scene_root(root);
+        world->set_scene_root(root.get());
 
         // Create Camera
         pointer<camera> cam = new camera();
@@ -101,7 +101,7 @@ int main(int argc, char **argv)
         cube->set_resource_manager(res_mgr);
         cube->set_mesh("builtin:cube");
         root->attach_child(cube);
-        world.register_model(cube);
+        world->register_model(cube);
     }
 
     zabato::platform::initialize();
@@ -168,12 +168,14 @@ int main(int argc, char **argv)
     ctx.logger    = &console;
     ctx.window    = window;
     ctx.scripts   = &lua_sys;
-    world.set_context(ctx);
+    world->set_context(ctx);
 
     editor::editor_app editor(console);
     forward_renderer rnd(*gpu, lua_sys);
     editor.init(window, res_mgr, gpu, &rnd);
     editor.set_script_system(&lua_sys);
+
+    editor.set_world(world);
 
     while (!window->should_close())
     {
@@ -188,10 +190,10 @@ int main(int argc, char **argv)
         imgui::new_frame();
 
         if (editor.should_simulate())
-            world.update(delta_time);
+            world->update(delta_time);
 
-        editor.update(delta_time, world);
-        editor.render(world, rnd, *gpu, delta_time);
+        editor.update(delta_time);
+        editor.render(rnd, *gpu, delta_time);
 
         gpu->new_frame();
         gpu->clear({0.243, 0.1, 0.15, 1.0}, 1.0);
