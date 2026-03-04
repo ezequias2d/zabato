@@ -6,7 +6,12 @@
 #include <zabato/berg.h>
 
 // TODO: support others operation system
+#ifdef _WIN32
+#include <io.h>
+#define access _access
+#else
 #include <unistd.h>
+#endif
 
 typedef struct
 {
@@ -76,7 +81,13 @@ int read_input_to_buffer(const char *filename, ByteBuffer *buffer)
     if (strcmp(filename, "-") == 0) // Read from stdin
     {
         const size_t chunk_size = 8192;
-        uint8_t read_buf[chunk_size];
+        uint8_t *read_buf       = (uint8_t *)malloc(chunk_size);
+        if (!read_buf)
+        {
+            fprintf(stderr, "Error: Failed to allocate memory for stdin data\n");
+            return -1;
+        }
+
         while (true)
         {
             size_t bytes_read = fread(read_buf, 1, chunk_size, stdin);

@@ -1,5 +1,5 @@
-#include <zabato/mesh.hpp>
 #include <zabato/camera.hpp>
+#include <zabato/mesh.hpp>
 #include <zabato/model.hpp>
 #include <zabato/picking.hpp>
 #include <zabato/shape.hpp>

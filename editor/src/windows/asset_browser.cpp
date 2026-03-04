@@ -348,7 +348,11 @@ void asset_browser_window::create_folder(const string &dirname,
         full_path += "/";
         full_path += base;
         full_path += "_";
-        full_path += std::to_string(idx).c_str();
+
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%d", idx);
+        full_path += buffer;
+
         idx++;
     }
 
@@ -388,7 +392,11 @@ void asset_browser_window::create_file(const string &filename,
         full_path += "/";
         full_path += base;
         full_path += "_";
-        full_path += std::to_string(idx).c_str();
+
+        char buffer[32];
+        snprintf(buffer, sizeof(buffer), "%d", idx);
+        full_path += buffer;
+
         full_path += ext;
         idx++;
     }

@@ -7,21 +7,30 @@ namespace zabato::fs
 
 const char PATH_SEP = '/';
 
-constexpr bool is_separator(char c) { return c == PATH_SEP; }
+constexpr bool is_separator(char c) { return c == '/' || c == '\\'; }
 
-constexpr bool is_absolute(string_view path)
+inline bool is_absolute(string_view path)
 {
-    return !path.empty() && is_separator(path[0]);
+    if (path.empty())
+        return false;
+    if (is_separator(path[0]))
+        return true;
+    if (path.size() >= 3 && path[1] == ':' && is_separator(path[2]))
+    {
+        char c = path[0];
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+    }
+    return false;
 }
 
-constexpr bool is_relative(string_view path) { return !is_absolute(path); }
+inline static bool is_relative(string_view path) { return !is_absolute(path); }
 
 /**
  * @brief extracts the filename component from the path.
  * @param path the path to extract from.
  * @return the filename component.
  */
-constexpr string_view filename(string_view path)
+inline static string_view filename(string_view path)
 {
     if (path.empty() || is_separator(path.back()))
         return {};
@@ -35,7 +44,7 @@ constexpr string_view filename(string_view path)
  * @param path the path to extract from.
  * @return the parent path.
  */
-constexpr string_view parent_path(string_view path)
+inline static string_view parent_path(string_view path)
 {
     if (path.empty())
         return {};
@@ -67,7 +76,7 @@ constexpr string_view parent_path(string_view path)
  * @param path the path to extract from.
  * @return the extension starting with dot, or empty if none.
  */
-constexpr string_view extension(string_view path)
+inline static string_view extension(string_view path)
 {
     string_view name = filename(path);
     if (name.empty() || name == "." || name == "..")
@@ -82,7 +91,7 @@ constexpr string_view extension(string_view path)
  * @param path the path to extract from.
  * @return the stem (filename without extension).
  */
-constexpr string_view stem(string_view path)
+inline static string_view stem(string_view path)
 {
     string_view name = filename(path);
     if (name.empty() || name == "." || name == "..")
@@ -98,7 +107,7 @@ constexpr string_view stem(string_view path)
  * @param b the second path.
  * @return the joined path string.
  */
-inline string join(string_view a, string_view b)
+inline static string join(string_view a, string_view b)
 {
     if (a.empty())
         return string(b);
@@ -123,7 +132,7 @@ inline string join(string_view a, string_view b)
  * @param path the path to normalize.
  * @return the normalized path string.
  */
-inline string normalize(string_view path)
+inline static string normalize(string_view path)
 {
     if (path.empty())
         return "";
@@ -132,10 +141,26 @@ inline string normalize(string_view path)
     res.reserve(path.size());
 
     bool absolute = is_absolute(path);
-    if (absolute)
-        res += PATH_SEP;
-
     size_t start = 0;
+
+    // Handle Windows drive letter
+    if (path.size() >= 2 && path[1] == ':')
+    {
+        char c = path[0];
+        if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
+        {
+            res += c;
+            res += ':';
+            start = 2;
+        }
+    }
+
+    if (absolute &&
+        (res.empty() || (start < path.size() && is_separator(path[start]))))
+    {
+        res += PATH_SEP;
+    }
+
     while (start < path.size())
     {
         while (start < path.size() && is_separator(path[start]))
@@ -143,9 +168,9 @@ inline string normalize(string_view path)
         if (start >= path.size())
             break;
 
-        size_t end = path.find(PATH_SEP, start);
-        if (end == string_view::npos)
-            end = path.size();
+        size_t end = start;
+        while (end < path.size() && !is_separator(path[end]))
+            end++;
 
         string_view token = path.substr(start, end - start);
         start             = end;
@@ -157,11 +182,26 @@ inline string normalize(string_view path)
         {
             if (absolute)
             {
-                if (res.size() > 1)
+                // Don't pop past root or drive letter
+                size_t root_limit = (res.size() >= 2 && res[1] == ':') ? 2 : 0;
+                if (res.size() > root_limit + 1)
                 {
                     size_t last_sep = res.rfind(PATH_SEP);
-                    if (last_sep != string::npos)
-                        res.resize((last_sep == 0) ? 1 : last_sep);
+                    if (last_sep != string::npos && last_sep >= root_limit)
+                    {
+                        res.resize((last_sep == root_limit && root_limit == 0)
+                                       ? 1
+                                       : last_sep);
+                    }
+                }
+                else if (res.size() == root_limit + 1 &&
+                         is_separator(res.back()))
+                {
+                    // Already at root, do nothing
+                }
+                else if (res.size() == root_limit)
+                {
+                    // Potential issue, but shouldn't happen with is_absolute
                 }
             }
             else
@@ -189,13 +229,18 @@ inline string normalize(string_view path)
         }
         else
         {
-            if ((absolute && res.size() > 1) || (!absolute && !res.empty()))
+            if (!res.empty() && !is_separator(res.back()))
                 res += PATH_SEP;
             res += token;
         }
     }
 
-    return (res.empty() && !absolute) ? "." : res;
+    if (res.empty())
+    {
+        return absolute ? "/" : ".";
+    }
+
+    return res;
 }
 
 } // namespace zabato::fs

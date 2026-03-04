@@ -4,8 +4,9 @@
 #include <zabato/string.hpp>
 
 #if defined(_WIN32)
-#include <shellapi.h>
 #include <windows.h>
+
+#include <shellapi.h>
 #endif
 
 namespace zabato::platform
@@ -31,10 +32,10 @@ string open_file_dialog(const string &default_path,
 {
     auto nfd_filters      = convert_filters(filters);
     nfdu8char_t *out_path = nullptr;
-    nfdresult_t result    = NFD_OpenDialogN(&out_path,
-                                         nfd_filters.data(),
-                                         nfd_filters.size(),
-                                         default_path.c_str());
+    nfdresult_t result    = NFD_OpenDialogU8(&out_path,
+                                          nfd_filters.data(),
+                                          nfd_filters.size(),
+                                          default_path.c_str());
     if (result == NFD_OKAY)
         return string(out_path);
     return "";
@@ -49,10 +50,10 @@ vector<string> open_files_dialog(const string &default_path,
         default_path.empty() ? nullptr : default_path.c_str();
 
     nfdresult_t result =
-        NFD_OpenDialogMultipleN(&outPathsSet,
-                                nfdFilters.data(),
-                                (unsigned int)nfdFilters.size(),
-                                defPath);
+        NFD_OpenDialogMultipleU8(&outPathsSet,
+                                 nfdFilters.data(),
+                                 (unsigned int)nfdFilters.size(),
+                                 defPath);
 
     vector<string> paths;
     if (result == NFD_OKAY)
@@ -62,9 +63,9 @@ vector<string> open_files_dialog(const string &default_path,
         for (nfdpathsetsize_t i = 0; i < count; ++i)
         {
             nfdu8char_t *outPath;
-            NFD_PathSet_GetPathN(outPathsSet, i, &outPath);
+            NFD_PathSet_GetPathU8(outPathsSet, i, &outPath);
             paths.push_back(outPath);
-            NFD_FreePathN(outPath);
+            NFD_FreePathU8(outPath);
         }
         NFD_PathSet_Free(outPathsSet);
     }
@@ -77,13 +78,13 @@ string open_folder_dialog(const string &default_path)
     const nfdu8char_t *defPath =
         default_path.empty() ? nullptr : default_path.c_str();
 
-    nfdresult_t result = NFD_PickFolderN(&outPath, defPath);
+    nfdresult_t result = NFD_PickFolderU8(&outPath, defPath);
 
     string path = "";
     if (result == NFD_OKAY)
     {
         path = outPath;
-        NFD_FreePathN(outPath);
+        NFD_FreePathU8(outPath);
     }
     return path;
 }
@@ -97,17 +98,17 @@ string save_file_dialog(const string &default_path,
     const nfdu8char_t *defPath =
         default_path.empty() ? nullptr : default_path.c_str();
 
-    nfdresult_t result = NFD_SaveDialogN(&outPath,
-                                         nfd_filters.data(),
-                                         (unsigned int)nfd_filters.size(),
-                                         defPath,
-                                         nullptr);
+    nfdresult_t result = NFD_SaveDialogU8(&outPath,
+                                          nfd_filters.data(),
+                                          (unsigned int)nfd_filters.size(),
+                                          defPath,
+                                          nullptr);
 
     string path = "";
     if (result == NFD_OKAY)
     {
         path = outPath;
-        NFD_FreePathN(outPath);
+        NFD_FreePathU8(outPath);
     }
     return path;
 }
