@@ -45,7 +45,7 @@ void simple_renderer::submit(pointer<model> model)
     if (!mesh)
         return;
 
-    const auto &bones = model->get_bones();
+    const auto &bone_matrices = model->get_bone_matrices();
 
     // Apply Model Transform
     m_gpu.set_matrix_mode(matrix_mode::modelview);
@@ -66,7 +66,7 @@ void simple_renderer::submit(pointer<model> model)
 
     m_gpu.color(1, 1, 1, 1);
 
-    mesh->render(m_gpu, bones);
+    mesh->render(m_gpu, bone_matrices.empty() ? nullptr : &bone_matrices);
 }
 
 void simple_renderer::submit(pointer<class light> light)
@@ -125,8 +125,8 @@ void forward_renderer::submit(pointer<model> model)
     if (!mesh)
         return;
 
-    auto material     = model->get_material();
-    const auto &bones = model->get_bones();
+    auto material             = model->get_material();
+    const auto &bone_matrices = model->get_bone_matrices();
 
     // Calculate ModelView
     m_gpu.set_matrix_mode(matrix_mode::modelview);
@@ -144,7 +144,7 @@ void forward_renderer::submit(pointer<model> model)
         material->apply(m_gpu);
 
         // Draw
-        mesh->render(m_gpu, bones);
+        mesh->render(m_gpu, bone_matrices.empty() ? nullptr : &bone_matrices);
     }
     else
     {
@@ -152,7 +152,7 @@ void forward_renderer::submit(pointer<model> model)
         m_gpu.bind_texture(nullptr);
 
         m_gpu.color(1, 1, 1, 1);
-        mesh->render(m_gpu, bones);
+        mesh->render(m_gpu, bone_matrices.empty() ? nullptr : &bone_matrices);
     }
 }
 

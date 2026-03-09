@@ -1,4 +1,5 @@
 #include "SDL_gamecontroller.h"
+#include "SDL_timer.h"
 #include "sdl2_keymap.hpp"
 #include <SDL2/SDL.h>
 #include <zabato/error.hpp>
@@ -661,7 +662,7 @@ void wait_events()
     }
 }
 
-void wait_events_timeout(double timeout)
+void wait_events_timeout(real timeout)
 {
     SDL_Event event;
     if (SDL_WaitEventTimeout(&event, (int)(timeout * 1000.0)))
@@ -674,6 +675,8 @@ void wait_events_timeout(double timeout)
 }
 
 uint64_t get_time() { return SDL_GetTicks64(); }
+
+void sleep(uint32_t milliseconds) { SDL_Delay(milliseconds); }
 
 const char *get_key_name(key_code key)
 {

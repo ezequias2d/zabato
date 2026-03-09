@@ -12,6 +12,7 @@
 #include <zabato/string.hpp>
 #include <zabato/value.hpp>
 #include <zabato/vector.hpp>
+#include <zabato/world.hpp>
 
 #include <cstring>
 
@@ -160,27 +161,37 @@ static void render_property(value obj,
             handled = true;
         }
 
+        value object_filter = prop.attributes.get_field("object_filter");
+        if (object_filter.is_function())
+        {
+            pointer<object> current =
+                c_dynamic_cast<object>(val.as_object().get());
+
+            if (draw_object_selector(
+                    name.c_str(),
+                    current,
+                    db,
+                    [&](object *o)
+                    {
+                        native_script_args args_filter;
+                        args_filter.push_arg(o);
+                        object_filter.call(nullptr, nullptr, &args_filter);
+                        if (args_filter.m_returns.size() > 0)
+                            return args_filter.m_returns[0].as_bool();
+                        return false;
+                    }))
+            {
+                new_val = value(current.get());
+                changed = true;
+            }
+        }
+
         value asset_type_v = prop.attributes.get_field("asset_type");
         if (asset_type_v.is_string() && db && val.is_string())
         {
             string type_str     = string(asset_type_v.as_string());
             string current_path = string(val.as_string());
-            asset_type type     = asset_type::unknown;
-
-            if (type_str == "script")
-                type = asset_type::script;
-            else if (type_str == "mesh")
-                type = asset_type::mesh;
-            else if (type_str == "texture")
-                type = asset_type::texture;
-            else if (type_str == "audio")
-                type = asset_type::audio;
-            else if (type_str == "scene")
-                type = asset_type::scene;
-            else if (type_str == "shader")
-                type = asset_type::shader;
-            else if (type_str == "material")
-                type = asset_type::material;
+            asset_type type     = string_to_asset_type(type_str);
 
             if (type != asset_type::unknown)
             {

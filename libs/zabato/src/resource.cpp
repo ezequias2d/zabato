@@ -12,9 +12,16 @@ const rtti resource::TYPE("zabato.resource", nullptr);
 result<shared_ptr<resource>>
 resource_manager::import_resource(const string &path)
 {
-    resource_ptr resource;
-    if (m_resources.try_get_value(path, resource))
-        return resource;
+    {
+        resource_ptr resource;
+        if (m_resources.try_get_value(path, resource))
+        {
+            auto locked_res = resource.lock();
+            if (locked_res)
+                return locked_res;
+            m_resources.erase(path);
+        }
+    }
 
     if (!m_fs)
         return report_error(error_code::value,

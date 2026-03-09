@@ -68,19 +68,27 @@ public:
     const char *name() const;
 
     /**
+     * @brief Get the name of the object as a string_view.
+     * @return The object's name as a string_view.
+     */
+    string_view name_view() const;
+
+    virtual object *get_object_by_name(string_view name) const;
+
+    /**
      * @brief search for an object with a specific name within this object's
      * hierarchy.
      * @param name The name to search for.
      * @return Pointer to the object if found, nullptr otherwise.
      */
-    virtual object *get_object_by_name(const char *name);
+    virtual object *get_object_by_name(const char *name) const;
 
     /**
      * @brief search for an object with a specific symbol name.
      * @param name The symbol to search for.
      * @return Pointer to the object if found, nullptr otherwise.
      */
-    virtual object *get_object_by_name(const symbol_ref &name);
+    virtual object *get_object_by_name(const symbol_ref &name) const;
 
     /**
      * @brief Collect all objects with a specific name.
@@ -327,11 +335,39 @@ public:
     }
 #pragma endregion Controllers
 
+#pragma region Tags
+    /**
+     * @brief Add a tag to this object.
+     * @param tag The tag to add.
+     */
+    void add_tag(const symbol_ref &tag);
+
+    /**
+     * @brief Remove a tag from this object.
+     * @param tag The tag to remove.
+     */
+    void remove_tag(const symbol_ref &tag);
+
+    /**
+     * @brief Check if this object has a specific tag.
+     * @param tag The tag to check.
+     * @return true if the object has the tag.
+     */
+    bool has_tag(const symbol_ref &tag) const;
+
+    /**
+     * @brief Get all tags attached to this object.
+     * @return The list of tags.
+     */
+    const vector<symbol_ref> &get_tags() const { return m_tags; }
+#pragma endregion Tags
+
 private:
     symbol_ref m_name;
     uuid m_uiID;
 
     vector<pointer<controller>> m_controllers;
+    vector<symbol_ref> m_tags;
 };
 
 /**

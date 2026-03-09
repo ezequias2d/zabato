@@ -58,7 +58,7 @@ public:
 class resource_manager
 {
 public:
-    using resource_ptr = shared_ptr<resource>;
+    using resource_ptr = weak_ptr<resource>;
 
     void set_file_system(fs::file_system *fs) { m_fs = fs; }
     fs::file_system *get_file_system() const { return m_fs; }
@@ -97,7 +97,12 @@ public:
         {
             resource_ptr resource;
             if (m_resources.try_get_value(path, resource))
-                return static_pointer_cast<T>(resource);
+            {
+                auto locked_res = resource.lock();
+                if (locked_res)
+                    return static_pointer_cast<T>(locked_res);
+                m_resources.erase(path);
+            }
 
             if (!m_fs)
                 return report_error(error_code::value,
@@ -167,7 +172,14 @@ public:
     }
 
     string_view path() const { return m_path; }
-    void set_path(string_view path) { m_path = path; }
+    void set_path(string_view path)
+    {
+        if (path != m_path)
+        {
+            m_path            = path;
+            m_cached_resource = nullptr;
+        }
+    }
     const char *c_path() const { return m_path.c_str(); }
     void set_manager(resource_manager *mgr) { m_manager = mgr; }
     resource_manager *manager() const { return m_manager; }
@@ -177,9 +189,15 @@ public:
         if (!m_manager || m_path.empty())
             return nullptr;
 
+        if (m_cached_resource)
+            return shared_ptr<T>(m_cached_resource);
+
         result<shared_ptr<T>> resource = m_manager->load<T>(m_path);
         if (resource.has_error())
             return nullptr;
+
+        m_cached_resource = resource.value;
+
         return resource.value;
     }
 
@@ -196,6 +214,8 @@ public:
 private:
     string m_path;
     resource_manager *m_manager = nullptr;
+
+    mutable shared_ptr<resource> m_cached_resource;
 };
 
 } // namespace zabato

@@ -21,7 +21,7 @@ public:
         grid
     };
 
-    void init(resource_manager *res_mgr);
+    void init(resource_manager *res_mgr, asset_database *db);
     void render(editor_app &app);
     void refresh();
 
@@ -40,6 +40,7 @@ private:
                                      const string &parent_path = "");
 
     resource_manager *m_res_mgr = nullptr;
+    asset_database *m_db        = nullptr;
     string m_current_path;
     string m_highlight_path;
     vector<fs::file_info> m_entries;

@@ -1,4 +1,5 @@
 #include <zabato/asset_bundle.hpp>
+#include <zabato/ice.hpp>
 #include <zabato/resource.hpp>
 
 namespace zabato
@@ -32,4 +33,10 @@ asset_bundle::get_first_resource_of_type(const rtti &type) const
     return nullptr;
 }
 
+template <>
+result<void> deserialize<asset_bundle>(ice_reader &reader, asset_bundle &obj)
+{
+    // TODO:
+    return {};
+}
 } // namespace zabato

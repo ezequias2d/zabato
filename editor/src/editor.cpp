@@ -195,16 +195,16 @@ void editor_app::init(window *win,
     m_gpu      = gpu;
     m_renderer = rnd;
 
-    m_asset_db.init(res_mgr, this);
-
     // Init Resources
     res_mgr->set_gpu(gpu);
     m_resources.init(res_mgr, gpu);
 
+    m_asset_db.init(res_mgr, this);
+
     // Init Windows
     m_game_view.init();
     m_scene_win.init(win);
-    m_asset_browser.init(res_mgr);
+    m_asset_browser.init(res_mgr, &m_asset_db);
 
     // Game View only needs overlay, scene render is basic game view
     m_initialized = true;

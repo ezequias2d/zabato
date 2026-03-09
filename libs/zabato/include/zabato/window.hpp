@@ -356,6 +356,12 @@ void wait_events_timeout(real timeout);
 uint64_t get_time();
 
 /**
+ * @brief Puts the current thread to sleep.
+ * @param milliseconds The time to sleep in milliseconds.
+ */
+void sleep(uint32_t milliseconds);
+
+/**
  * @brief Gets the string name of a key code.
  * @param key The key code.
  * @return The key name.

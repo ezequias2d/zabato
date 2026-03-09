@@ -56,10 +56,11 @@ public:
  */
 struct file_info
 {
-    string name;       ///< The name of the file/directory.
-    uint64_t size;     ///< The size of the file in bytes.
-    bool is_dir;       ///< True if this is a directory.
-    bool is_read_only; ///< True if the item is read-only.
+    string name;                 ///< The name of the file/directory.
+    uint64_t size;               ///< The size of the file in bytes.
+    uint64_t last_modified_time; ///< The last write/modification time.
+    bool is_dir;                 ///< True if this is a directory.
+    bool is_read_only;           ///< True if the item is read-only.
 };
 
 /**

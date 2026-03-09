@@ -14,41 +14,12 @@ const rtti mesh::TYPE("zabato.mesh", &resource::TYPE);
  * pose.
  */
 void mesh::render(gpu &gpu,
-                  const vector<pointer<spatial>> &bones,
+                  const vector<mat4<real>> *bone_matrices,
                   const color *override_color) const
 {
     const auto primitive_type = get_primitive_type();
 
     gpu.begin(primitive_type);
-
-    vector<mat4<real>> final_bone_matrices;
-    if (!bones.empty() && !m_bone_infos.empty())
-    {
-        final_bone_matrices.resize(m_bone_infos.size());
-        size_t bone_count = min(bones.size(), m_bone_infos.size());
-
-        // Compute transforms
-        for (size_t i = 0; i < bone_count; ++i)
-        {
-            spatial *bone = bones[i];
-            if (bone)
-            {
-                // Calculate World Space transform: BoneWorld * Offset
-                transformation bone_world = bone->get_world_transform();
-                mat4<real> m_bone_world =
-                    mat4_translation(bone_world.translate()) *
-                    mat4_from_quat(bone_world.rotate()) *
-                    mat4_scaling(bone_world.scale());
-
-                final_bone_matrices[i] =
-                    m_bone_world * (mat4<real>)m_bone_infos[i].offset_transform;
-            }
-            else
-            {
-                final_bone_matrices[i] = mat4<real>::identity();
-            }
-        }
-    }
 
     const auto primitive_count = get_primitive_count();
     const auto flags           = get_flags();
@@ -56,10 +27,8 @@ void mesh::render(gpu &gpu,
     const bool has_normal = (flags & mesh_flags::normal) != mesh_flags::none;
     const bool has_tex    = (flags & mesh_flags::tex) != mesh_flags::none;
 
-    // We only enable bone logic if we actually calculated matrices
-    const bool has_bone = !final_bone_matrices.empty();
-    const vector<mat4<real>> *matrices_ptr =
-        final_bone_matrices.empty() ? nullptr : &final_bone_matrices;
+    const bool has_bone = bone_matrices && !bone_matrices->empty();
+    const vector<mat4<real>> *matrices_ptr = bone_matrices;
 
     switch (primitive_type)
     {

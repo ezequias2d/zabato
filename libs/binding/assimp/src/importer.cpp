@@ -1,6 +1,7 @@
 #include <zabato/animation.hpp>
 #include <zabato/asset_bundle.hpp>
 #include <zabato/assimp/importer.hpp>
+#include <zabato/hash_map.hpp>
 #include <zabato/ice.hpp>
 #include <zabato/mesh.hpp>
 #include <zabato/model.hpp>
@@ -70,7 +71,8 @@ static pointer<node> parse_node(aiNode *aiNode,
                                 const aiScene *scene,
                                 pointer<node> parent,
                                 shared_ptr<asset_bundle> &bundle,
-                                const string &path)
+                                const string &path,
+                                hash_map<struct aiNode *, spatial *> &node_map)
 {
     auto create_model = [](size_t i,
                            struct aiNode *aiNode,
@@ -112,13 +114,98 @@ static pointer<node> parse_node(aiNode *aiNode,
     t.set_scale(vec3<real>(scale.x, scale.y, scale.z));
     current->set_local(t);
 
+    node_map.add(aiNode, current.get());
+
     if (parent)
         parent->attach_child(current);
 
     auto numChildren = aiNode->mNumChildren;
     for (size_t i = 0; i < numChildren; ++i)
-        parse_node(aiNode->mChildren[i], scene, current, bundle, path);
+        parse_node(
+            aiNode->mChildren[i], scene, current, bundle, path, node_map);
     return current;
+}
+
+static aiNode *find_lowest_common_ancestor(aiNode *n1, aiNode *n2)
+{
+    if (!n1 || !n2)
+        return nullptr;
+
+    auto get_depth = [](aiNode *n)
+    {
+        int d = 0;
+        while (n)
+        {
+            d++;
+            n = n->mParent;
+        }
+        return d;
+    };
+
+    int d1 = get_depth(n1);
+    int d2 = get_depth(n2);
+
+    while (d1 > d2)
+    {
+        n1 = n1->mParent;
+        d1--;
+    }
+    while (d2 > d1)
+    {
+        n2 = n2->mParent;
+        d2--;
+    }
+
+    while (n1 != n2 && n1 && n2)
+    {
+        n1 = n1->mParent;
+        n2 = n2->mParent;
+    }
+    return n1;
+}
+
+static void bind_models_skeleton(const vector<model *> &models,
+                                 const aiScene *scene,
+                                 spatial *default_root,
+                                 const hash_map<aiNode *, spatial *> &node_map)
+{
+    for (auto *m : models)
+    {
+        shared_ptr<mesh> mesh_ptr = m->get_mesh();
+        spatial *skeleton_root    = default_root;
+
+        if (mesh_ptr)
+        {
+            const auto &bones = mesh_ptr->get_bones();
+            if (!bones.empty())
+            {
+                aiNode *common_ancestor = nullptr;
+                for (const auto &bone : bones)
+                {
+                    aiNode *bone_node =
+                        scene->mRootNode->FindNode(bone.name.c_str());
+                    if (bone_node)
+                    {
+                        if (!common_ancestor)
+                            common_ancestor = bone_node;
+                        else
+                            common_ancestor = find_lowest_common_ancestor(
+                                common_ancestor, bone_node);
+                    }
+                }
+
+                if (common_ancestor)
+                {
+                    spatial *out_val = nullptr;
+                    if (node_map.try_get_value(common_ancestor, out_val))
+                    {
+                        skeleton_root = out_val;
+                    }
+                }
+            }
+        }
+        m->bind_skeleton(skeleton_root);
+    }
 }
 
 result<shared_ptr<resource>>
@@ -337,6 +424,28 @@ assimp_importer::import(class resource_manager &manager,
             auto &t     = tracks[c_idx];
             t.bone_name = ac->mNodeName.C_Str();
 
+            if (settings)
+            {
+                string opt_name = string("map_bone_") + t.bone_name.c_str();
+                for (const tinyxml2::XMLElement *p =
+                         settings->FirstChildElement("param");
+                     p;
+                     p = p->NextSiblingElement("param"))
+                {
+                    const char *n = p->Attribute("name");
+                    if (n && opt_name == string(n))
+                    {
+                        const char *v = p->Attribute("value");
+                        if (v && strlen(v) > 0)
+                            t.bone_name = v;
+                        break;
+                    }
+                }
+            }
+
+            t.pre_state  = (anim_behaviour)ac->mPreState;
+            t.post_state = (anim_behaviour)ac->mPostState;
+
             auto numPositionKeys = ac->mNumPositionKeys;
             t.positions.resize(numPositionKeys);
             for (size_t k_idx = 0; k_idx < numPositionKeys; ++k_idx)
@@ -387,12 +496,32 @@ assimp_importer::import(class resource_manager &manager,
     pointer<node> root_node = nullptr;
     if (scene->mRootNode)
     {
-        root_node = parse_node(scene->mRootNode, scene, nullptr, bundle, path);
+        hash_map<aiNode *, spatial *> node_map;
+        root_node = parse_node(
+            scene->mRootNode, scene, nullptr, bundle, path, node_map);
         auto root_name = scene->mRootNode->mName.length > 0
                              ? scene->mRootNode->mName.C_Str()
                              : fs::filename(path);
 
         root_node->set_name(root_name);
+
+        // Bind skeletons for all models in the hierarchy
+        vector<model *> models;
+        auto find_models =
+            [](spatial *s, vector<model *> &out_models, auto &self) -> void
+        {
+            if (auto *m = c_dynamic_cast<model>(s))
+                out_models.push_back(m);
+            if (auto *n = c_dynamic_cast<node>(s))
+            {
+                for (size_t i = 0; i < n->quantity(); ++i)
+                    self(n->child_at(i).get(), out_models, self);
+            }
+        };
+        find_models(root_node.get(), models, find_models);
+
+        bind_models_skeleton(models, scene, root_node.get(), node_map);
+
         auto res = make_shared<object_resource>();
         res->set_object(root_node.get());
         bundle->add_resource(root_name, res);
@@ -402,7 +531,9 @@ assimp_importer::import(class resource_manager &manager,
 }
 
 vector<importer_option>
-assimp_importer::get_options(const tinyxml2::XMLElement *settings) const
+assimp_importer::get_options(class resource_manager &manager,
+                             const string &path,
+                             const tinyxml2::XMLElement *settings) const
 {
     vector<importer_option> opts;
 
@@ -430,18 +561,115 @@ assimp_importer::get_options(const tinyxml2::XMLElement *settings) const
     {
         importer_option opt;
         opt.name          = "generate_normals";
+        opt.display_name  = "Generate Normals";
         opt.description   = "Generate smooth normals if missing.";
         opt.type_default  = value(true);
         opt.current_value = value(gen_normals);
+        opt.group         = "General";
         opts.push_back(opt);
     }
     {
         importer_option opt;
         opt.name          = "flip_uvs";
+        opt.display_name  = "Flip UVs";
         opt.description   = "Flip UV coordinates on Y axis.";
         opt.type_default  = value(true);
         opt.current_value = value(flip_uvs);
+        opt.group         = "General";
         opts.push_back(opt);
+    }
+
+    if (!path.empty())
+    {
+        auto fs = manager.get_file_system();
+        if (fs && fs->exists(path))
+        {
+            vector<uint8_t> buf = fs->read_all_bytes(path);
+            if (!buf.empty())
+            {
+                ::Assimp::Importer file_importer;
+                unsigned int flags = aiProcess_JoinIdenticalVertices |
+                                     aiProcess_ValidateDataStructure;
+
+                file_importer.SetPropertyBool(
+                    AI_CONFIG_IMPORT_REMOVE_EMPTY_BONES, false);
+                file_importer.SetPropertyInteger(
+                    AI_CONFIG_PP_RVC_FLAGS,
+                    aiComponent_CAMERAS | aiComponent_LIGHTS |
+                        aiComponent_MATERIALS | aiComponent_TEXTURES);
+
+                auto dot         = path.rfind('.');
+                string extension = "";
+                if (dot != string::npos)
+                    extension = path.substr(dot);
+
+                const aiScene *scene = file_importer.ReadFileFromMemory(
+                    buf.data(),
+                    buf.size(),
+                    flags,
+                    extension.empty() ? nullptr : extension.c_str());
+
+                if (scene)
+                {
+                    vector<string> all_bones;
+
+                    for (unsigned int a = 0; a < scene->mNumAnimations; ++a)
+                    {
+                        aiAnimation *anim = scene->mAnimations[a];
+                        for (unsigned int c = 0; c < anim->mNumChannels; ++c)
+                        {
+                            string bName =
+                                anim->mChannels[c]->mNodeName.C_Str();
+                            bool found = false;
+                            for (const auto &b : all_bones)
+                            {
+                                if (b == bName)
+                                {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found)
+                                all_bones.push_back(bName);
+                        }
+                    }
+
+                    for (const auto &bone : all_bones)
+                    {
+                        string opt_name   = "map_bone_" + bone;
+                        value current_val = value("");
+
+                        if (settings)
+                        {
+                            for (const tinyxml2::XMLElement *p =
+                                     settings->FirstChildElement("param");
+                                 p;
+                                 p = p->NextSiblingElement("param"))
+                            {
+                                const char *n = p->Attribute("name");
+                                if (n && opt_name == string(n))
+                                {
+                                    const char *v = p->Attribute("value");
+                                    if (v)
+                                        current_val = value(v);
+                                    break;
+                                }
+                            }
+                        }
+
+                        importer_option opt;
+                        opt.name        = opt_name;
+                        opt.description = string("Map animation bone '") +
+                                          bone + "' to specific node name";
+                        opt.type_default  = value("");
+                        opt.current_value = current_val;
+                        opt.group         = "Bone Mappings";
+                        opt.display_name  = bone;
+                        opts.push_back(opt);
+                    }
+                }
+            }
+        }
     }
 
     return opts;

@@ -177,12 +177,15 @@ int main(int argc, char **argv)
 
     editor.set_world(world);
 
+    const uint32_t FPS        = 60;
+    const uint32_t frameDelay = 1000 / FPS;
     while (!window->should_close())
     {
         poll_events();
         lua_sys.tick(); // GC tick
 
         auto current_time = get_time();
+        auto diff_time    = current_time - last_time;
         real delta_time =
             (real)(current_time - last_time) * (real(1) / real(1000));
         last_time = current_time;
@@ -202,6 +205,9 @@ int main(int argc, char **argv)
         imgui::render_draw_data(ImGui::GetDrawData());
 
         window->swap_buffers();
+
+        if (diff_time < frameDelay)
+            zabato::sleep(frameDelay - diff_time);
     }
 
     editor.shutdown();

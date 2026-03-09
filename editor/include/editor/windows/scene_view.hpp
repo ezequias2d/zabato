@@ -73,6 +73,7 @@ private:
     ray3<real> m_latest_ray = {{0, 0, 0}, {0, 0, 1}};
     bool m_is_mouse_down    = false;
     bool m_is_gizmo_hovered = false;
+    bool m_show_bones       = false;
 
     // Persistent state for gizmo dragging
     vec3<real> m_gizmo_scale;

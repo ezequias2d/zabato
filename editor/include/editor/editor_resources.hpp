@@ -1,5 +1,6 @@
 #pragma once
 
+#include <editor/asset_database.hpp>
 #include <zabato/gpu.hpp>
 #include <zabato/hash_map.hpp>
 #include <zabato/resource.hpp>
@@ -55,7 +56,7 @@ public:
     void init(zabato::resource_manager *res_mgr, zabato::gpu *gpu);
     void shutdown();
 
-    editor_icon get_icon_id_for_file(const zabato::string &filename);
+    editor_icon get_icon_for_asset_type(asset_type type);
 
     static void install_custom_icons();
     const char *get_icon_str(editor_icon icon);

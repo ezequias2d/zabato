@@ -20,6 +20,7 @@ struct gizmo_context
     editor_app &app;
     zabato::color color = zabato::color::white();
     bool occluded       = false;
+    bool show_bones     = false;
 
     // Output
     pointer<spatial> hovered = nullptr;

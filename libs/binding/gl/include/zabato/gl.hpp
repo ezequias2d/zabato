@@ -126,6 +126,8 @@ public:
     void color(real r, real g, real b, real a) override;
     void normal(const vec3<real> &n) override;
     void normal(real x, real y, real z) override;
+    void tangent(const vec3<real> &t) override;
+    void tangent(real x, real y, real z) override;
     void tex_coord(const vec2<real> &uv) override;
     void tex_coord(real u, real v) override;
     void clear(const struct color &c, real depth) override;

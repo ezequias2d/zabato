@@ -140,6 +140,7 @@ real dist_ray_segment(const vec3<real> &r_origin,
 
     vec3<real> close_r = r_origin + u * sc;
     vec3<real> close_s = p1 + v * tc;
+
     return length(close_r - close_s);
 }
 
@@ -1124,9 +1125,152 @@ void draw_wire_mesh(gpu &gpu, const wire_mesh_options &options)
     gpu.color(options.color);
 
     // Render mesh
-    options.m.render(gpu, {}, &options.color);
+    options.m.render(gpu, options.bone_matrices, &options.color);
 
     gpu.set_polygon_offset(false, 0, 0); // Cleanup offset specifically
+    gpu.pop_state();
+}
+
+void draw_skeleton(gpu &gpu, const draw_skeleton_options &options)
+{
+    const auto &bones = options.m.get_bones();
+    if (bones.empty())
+        return;
+
+    gpu.push_state();
+    gpu.enable_lighting(false);
+    gpu.enable_texture(false);
+
+    if (options.x_ray)
+        gpu.enable_depth_test(false);
+    else
+    {
+        gpu.enable_depth_test(true);
+        gpu.set_depth_func(depth_func::less_equal);
+    }
+
+    vector<spatial *> visited;
+
+    for (const auto &bone : bones)
+    {
+        if (!bone)
+            continue;
+
+        spatial *current = bone.get();
+
+        // Traverse up drawing lines and joints
+        while (current && current != options.m.get_skeleton_root().get() &&
+               current != options.m.parent())
+        {
+            bool already_drawn = false;
+            for (auto *v : visited)
+            {
+                if (v == current)
+                {
+                    already_drawn = true;
+                    break;
+                }
+            }
+            if (already_drawn)
+                break;
+
+            visited.push_back(current);
+
+            vec3<real> pos1 = current->get_world_transform().translate();
+
+            spatial *p = current->parent();
+            if (p && p != options.m.get_skeleton_root().get() &&
+                p != options.m.parent())
+            {
+                vec3<real> pos2 = p->get_world_transform().translate();
+                bone_gizmo_options bone_opts = {.start = pos2,
+                                                .end   = pos1,
+                                                .radius =
+                                                    options.joint_radius * 2.0f,
+                                                .color = options.bone_color};
+                draw_bone(gpu, bone_opts);
+            }
+
+            gpu.color(options.joint_color);
+            wire_sphere_options sphere_opts = {.center = pos1,
+                                               .radius = options.joint_radius,
+                                               .color  = options.joint_color};
+            draw_wire_sphere(gpu, sphere_opts);
+
+            if (!p)
+                break;
+
+            current = p;
+        }
+    }
+
+    gpu.pop_state();
+}
+
+void draw_bone(gpu &gpu, const bone_gizmo_options &options)
+{
+    vec3<real> dir = options.end - options.start;
+    real len       = length(dir);
+    if (len < 1e-4f)
+        return;
+
+    dir = dir / len;
+
+    // Find orthogonal vectors
+    vec3<real> up =
+        abs(dir.y) < 0.99f ? vec3<real>(0, 1, 0) : vec3<real>(1, 0, 0);
+    vec3<real> right = normalize(cross(dir, up));
+    up               = normalize(cross(right, dir));
+
+    // Calculate the bone's cross section at ~10% of its length
+    real base_offset       = len * 0.1f;
+    vec3<real> base_center = options.start + dir * base_offset;
+
+    // Scale horizontal radius based on length to avoid overly fat short bones
+    real final_radius = min(options.radius, len * 0.15f);
+
+    vec3<real> p1 = base_center + right * final_radius;
+    vec3<real> p2 = base_center + up * final_radius;
+    vec3<real> p3 = base_center - right * final_radius;
+    vec3<real> p4 = base_center - up * final_radius;
+
+    gpu.push_state();
+    gpu.enable_lighting(false);
+    gpu.enable_texture(false);
+    gpu.color(options.color);
+    gpu.begin(primitive_type::lines);
+
+    // Draw pyramid from start to base
+    gpu.vertex(options.start);
+    gpu.vertex(p1);
+    gpu.vertex(options.start);
+    gpu.vertex(p2);
+    gpu.vertex(options.start);
+    gpu.vertex(p3);
+    gpu.vertex(options.start);
+    gpu.vertex(p4);
+
+    // Draw base square
+    gpu.vertex(p1);
+    gpu.vertex(p2);
+    gpu.vertex(p2);
+    gpu.vertex(p3);
+    gpu.vertex(p3);
+    gpu.vertex(p4);
+    gpu.vertex(p4);
+    gpu.vertex(p1);
+
+    // Draw pyramid from base to end
+    gpu.vertex(options.end);
+    gpu.vertex(p1);
+    gpu.vertex(options.end);
+    gpu.vertex(p2);
+    gpu.vertex(options.end);
+    gpu.vertex(p3);
+    gpu.vertex(options.end);
+    gpu.vertex(p4);
+
+    gpu.end();
     gpu.pop_state();
 }
 

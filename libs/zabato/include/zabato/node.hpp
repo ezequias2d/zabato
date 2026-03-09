@@ -32,6 +32,8 @@ public:
 
     virtual void on_transform_changed() override;
 
+    virtual object *get_object_by_name(const symbol_ref &name) const override;
+
     int quantity() const { return m_children.size(); }
     int attach_child(spatial *child);
     int detach_child(spatial *child);

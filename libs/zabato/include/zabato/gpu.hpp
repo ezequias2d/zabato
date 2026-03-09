@@ -344,6 +344,8 @@ public:
     virtual void color(real r, real g, real b, real a = real(1)) = 0;
     virtual void normal(const vec3<real> &n)                     = 0;
     virtual void normal(real x, real y, real z)                  = 0;
+    virtual void tangent(const vec3<real> &t)                    = 0;
+    virtual void tangent(real x, real y, real z)                 = 0;
     virtual void tex_coord(const vec2<real> &uv)                 = 0;
     virtual void tex_coord(real u, real v)                       = 0;
     virtual void clear(const struct color &c, real depth)        = 0;

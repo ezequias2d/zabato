@@ -44,6 +44,73 @@ struct BuiltLayouts
 {
     BuiltLayouts()
     {
+        // Bone Gizmo (Pose Mode)
+        gizmo_registry::register_drawer(
+            spatial::TYPE,
+            [](const spatial *s, gizmo_context &ctx)
+            {
+                if (s->has_tag("bone"))
+                {
+                    transformation t_world =
+                        const_cast<spatial *>(s)->get_world_transform();
+                    vec3<real> pos1  = t_world.translate();
+                    vec3<real> scale = t_world.scale();
+
+                    real max_scale = max(scale.x, max(scale.y, scale.z));
+                    real radius    = real(0.05) * max_scale;
+
+                    spatial *p = const_cast<spatial *>(s)->parent();
+                    vec3<real> pos2 =
+                        p ? p->get_world_transform().translate() : pos1;
+
+                    real t = -1.0;
+                    if (ctx.mouse_ray)
+                    {
+                        // Check segment to ray distance
+                        real dist = dist_ray_segment(ctx.mouse_ray->origin,
+                                                     ctx.mouse_ray->direction,
+                                                     pos2,
+                                                     pos1);
+
+                        if (dist <= radius * 2.0f) // * 2.0f because bone radius
+                                                   // is larger than joint
+                        {
+                            // Calculate approximate t along ray
+                            vec3<real> center = (pos1 + pos2) * 0.5f;
+                            t = dot(center - ctx.mouse_ray->origin,
+                                    ctx.mouse_ray->direction);
+
+                            if (t > 0 && (ctx.hit_dist < 0 || t < ctx.hit_dist))
+                            {
+                                ctx.hovered  = const_cast<spatial *>(s);
+                                ctx.hit_dist = t;
+                            }
+                        }
+                    }
+
+                    if (ctx.selected || ctx.show_bones)
+                    {
+                        if (p)
+                        {
+                            bone_gizmo_options bone_opts = {
+                                .start  = pos2,
+                                .end    = pos1,
+                                .radius = radius * 2.0f,
+                                .color  = ctx.selected ? color::yellow()
+                                                       : color::green()};
+                            draw_bone(ctx.gpu, bone_opts);
+                        }
+
+                        wire_sphere_options sphere_opts = {
+                            .center = pos1,
+                            .radius = radius * 0.5f,
+                            .color  = ctx.selected ? color::yellow()
+                                                   : color::green()};
+                        draw_wire_sphere(ctx.gpu, sphere_opts);
+                    }
+                }
+            });
+
         // Camera Gizmo
         gizmo_registry::register_drawer(
             camera::TYPE,

@@ -40,9 +40,10 @@ static void AssetBrowserSettings_WriteAll(void *user_data, ImGuiTextBuffer *buf)
     buf->appendf("\n");
 }
 
-void asset_browser_window::init(resource_manager *res_mgr)
+void asset_browser_window::init(resource_manager *res_mgr, asset_database *db)
 {
     m_res_mgr      = res_mgr;
+    m_db           = db;
     m_current_path = "assets";
     refresh();
 
@@ -532,22 +533,6 @@ void asset_browser_window::render_grid(editor_app &app)
     {
         ImGui::PushID(entry.name.c_str());
 
-        // Select Icon
-        editor_icon icon_id = editor_icon::file;
-        if (entry.is_dir)
-            icon_id = editor_icon::folder;
-        else
-            icon_id = resources->get_icon_id_for_file(entry.name);
-
-        const char *icon_str = resources->get_icon_str(icon_id);
-
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1)); // No tint
-        ImGui::SetWindowFontScale(3.0f);
-        ImGui::Button(icon_str, ImVec2(thumbnail_s, thumbnail_s));
-        ImGui::SetWindowFontScale(1.0f);
-        ImGui::PopStyleColor(); // Text
-
         // Construct full path
         string full_path = m_current_path;
         if (full_path == ".")
@@ -558,6 +543,23 @@ void asset_browser_window::render_grid(editor_app &app)
                 full_path += "/";
             full_path += entry.name;
         }
+
+        // Select Icon
+        editor_icon icon_id = editor_icon::file;
+        if (entry.is_dir)
+            icon_id = editor_icon::folder;
+        else
+            icon_id = resources->get_icon_for_asset_type(
+                m_db->get_asset_type(full_path));
+
+        const char *icon_str = resources->get_icon_str(icon_id);
+
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1, 1, 1, 1)); // No tint
+        ImGui::SetWindowFontScale(3.0f);
+        ImGui::Button(icon_str, ImVec2(thumbnail_s, thumbnail_s));
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::PopStyleColor(); // Text
 
         if (ImGui::BeginDragDropSource())
         {
@@ -762,7 +764,8 @@ void asset_browser_window::render_list(editor_app &app, const string &path)
         else
         {
             // File Rendering
-            editor_icon icon_id  = resources->get_icon_id_for_file(entry.name);
+            editor_icon icon_id = resources->get_icon_for_asset_type(
+                m_db->get_asset_type(full_path));
             const char *icon_str = resources->get_icon_str(icon_id);
 
             // Use TreeNodeEx with Leaf flag

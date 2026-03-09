@@ -54,6 +54,12 @@ public:
      */
     void bind_node(const char *bone_name, spatial *node);
 
+    void bind_skeleton(pointer<spatial> root);
+    pointer<spatial> get_skeleton_root() const { return m_skeleton_root; }
+
+    size_t get_bone_count() const;
+    const char *get_bone_name(size_t index) const;
+
     /**
      * @brief Binds an animation track to a property on a target controller.
      * @param track_name The name of the track in the animation.
@@ -70,6 +76,20 @@ public:
     {
         return m_current_animation_ref;
     }
+
+    const resource_ref &get_animation() const
+    {
+        return m_current_animation_ref;
+    }
+
+    void set_animation(const resource_ref &anim)
+    {
+        m_current_animation_ref = anim;
+    }
+
+    bool get_loop() const { return m_loop; }
+
+    void set_loop(bool loop) { m_loop = loop; }
 
 private:
     struct bound_node
@@ -98,6 +118,7 @@ private:
     real m_current_time                  = real(0);
     bool m_loop                          = false;
     animation_node m_root_node;
+    pointer<spatial> m_skeleton_root = nullptr;
 };
 
 #pragma pack(push, 1)

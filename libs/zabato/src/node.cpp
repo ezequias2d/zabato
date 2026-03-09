@@ -131,20 +131,13 @@ void node::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &el)
     tinyxml2::XMLElement *childEl = el.FirstChildElement();
     for (; childEl; childEl = childEl->NextSiblingElement())
     {
-        string name = childEl->Name();
-        if (name == "transform" || name == "controllers" || name == "ref")
+        pointer<object> child = serializer.read_object(*childEl);
+        if (!child)
             continue;
 
-        object *obj = object::factory(name);
-        if (obj)
-        {
-            obj->load_xml(serializer, *childEl);
-            spatial *childSpatial = c_dynamic_cast<spatial>(obj);
-            if (childSpatial)
-                attach_child(childSpatial);
-            else
-                delete obj;
-        }
+        spatial *childSpatial = c_dynamic_cast<spatial>(child.get());
+        if (childSpatial)
+            attach_child(childSpatial);
     }
 }
 
@@ -199,8 +192,8 @@ void node::link(xml_serializer &serializer, tinyxml2::XMLElement &el)
                 uuid uuid_val;
                 if (uuid::try_parse({id, strlen(id)}, uuid_val))
                 {
-                    object *obj           = serializer.get_object(uuid_val);
-                    spatial *childSpatial = c_dynamic_cast<spatial>(obj);
+                    pointer<object> obj   = serializer.get_object(uuid_val);
+                    spatial *childSpatial = c_dynamic_cast<spatial>(obj.get());
                     if (childSpatial)
                         attach_child(childSpatial);
                 }
@@ -229,6 +222,24 @@ void node::on_transform_changed()
         if (child)
             child->force_dirty();
     }
+}
+
+object *node::get_object_by_name(const symbol_ref &name) const
+{
+    object *obj = object::get_object_by_name(name);
+    if (obj)
+        return obj;
+
+    for (auto &child : m_children)
+    {
+        if (child)
+        {
+            object *obj = child->get_object_by_name(name);
+            if (obj)
+                return obj;
+        }
+    }
+    return nullptr;
 }
 
 } // namespace zabato

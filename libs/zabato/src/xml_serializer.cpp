@@ -223,9 +223,31 @@ void xml_serializer::write_object(tinyxml2::XMLElement &el, object *obj)
     }
 }
 
-object *xml_serializer::read_object(tinyxml2::XMLElement &el)
+pointer<object> xml_serializer::read_object(tinyxml2::XMLElement &el)
 {
-    return nullptr;
+    string type = el.Name();
+    if (type == "ref")
+    {
+        const char *id = el.Attribute("id");
+        assert(id);
+        if (!id)
+            return nullptr;
+
+        uuid uuid;
+        if (uuid::try_parse(id, uuid))
+            return get_object(uuid);
+
+        return nullptr;
+    }
+    else
+    {
+        pointer<object> obj = object::factory(type);
+        if (!obj)
+            return nullptr;
+
+        obj->load_xml(*this, el);
+        return obj;
+    }
 }
 
 void xml_serializer::write_resource_ref(tinyxml2::XMLElement &el,
@@ -247,9 +269,9 @@ void xml_serializer::read_resource_ref(tinyxml2::XMLElement &el,
         res.set_path("");
 }
 
-object *xml_serializer::get_object(uuid id)
+pointer<object> xml_serializer::get_object(uuid id)
 {
-    object *result = nullptr;
+    pointer<object> result = nullptr;
     if (m_links.try_get_value(id, result))
         return result;
 

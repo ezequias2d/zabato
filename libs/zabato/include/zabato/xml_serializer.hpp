@@ -34,7 +34,7 @@ public:
     static vec4<real> read_vec4(tinyxml2::XMLElement &el);
     static quat<real> read_quat(tinyxml2::XMLElement &el);
     void write_object(tinyxml2::XMLElement &el, object *obj);
-    object *read_object(tinyxml2::XMLElement &el);
+    pointer<object> read_object(tinyxml2::XMLElement &el);
 
     static void write_transform(tinyxml2::XMLElement &el,
                                 const transformation &t);
@@ -49,7 +49,7 @@ public:
                                   resource_ref &res,
                                   const char *attr = "src");
 
-    object *get_object(uuid id);
+    pointer<object> get_object(uuid id);
     void add_object(uuid id, object *obj);
 
     void set_manager(resource_manager *mgr) { m_manager = mgr; }
@@ -61,7 +61,7 @@ public:
 
 private:
     tinyxml2::XMLDocument m_doc;
-    hash_map<uuid, object *> m_links;
+    hash_map<uuid, pointer<object>> m_links;
     hash_map<uuid, uuid> m_id_map;
     resource_manager *m_manager = nullptr;
     bool m_remap_ids            = false;

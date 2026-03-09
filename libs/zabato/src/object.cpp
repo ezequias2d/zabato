@@ -130,6 +130,12 @@ void object::save(serializer &stream) const
     stream.write(quantity);
     for (auto &controller : m_controllers)
         stream.write((const object *)controller);
+
+    // tags
+    ice_int32_t tag_count = m_tags.size();
+    stream.write(tag_count);
+    for (const auto &t : m_tags)
+        stream.write(string(t.c_str()));
 }
 
 void object::load(serializer &stream, serializer_link *link)
@@ -152,6 +158,16 @@ void object::load(serializer &stream, serializer_link *link)
         object *pkController = nullptr;
         stream.read(pkController);
         link->add_child_id(pkController);
+    }
+
+    // tags
+    ice_int32_t tag_count = 0;
+    stream.read(tag_count);
+    for (int i = 0; i < tag_count; i++)
+    {
+        string t;
+        stream.read(t);
+        add_tag(t.c_str());
     }
 }
 
@@ -230,6 +246,25 @@ void object::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &el)
     else
         set_name("");
 
+    const char *tags = el.Attribute("tags");
+    if (tags)
+    {
+        string tags_str = tags;
+        size_t start    = 0;
+        while (start < tags_str.length())
+        {
+            size_t end = tags_str.find(',', start);
+            if (end == string::npos)
+                end = tags_str.length();
+
+            string token = tags_str.substr(start, end - start);
+            if (!token.empty())
+                add_tag(token.c_str());
+
+            start = end + 1;
+        }
+    }
+
     auto controllers = el.FirstChildElement("controllers");
     for (; controllers != nullptr;
          controllers = controllers->NextSiblingElement("controllers"))
@@ -257,6 +292,18 @@ void object::save_xml(xml_serializer &serializer,
 {
     el.SetAttribute("id", id().to_string().c_str());
     el.SetAttribute("name", name());
+
+    if (!m_tags.empty())
+    {
+        string tags_str;
+        for (size_t i = 0; i < m_tags.size(); ++i)
+        {
+            tags_str += m_tags[i].c_str();
+            if (i < m_tags.size() - 1)
+                tags_str += ",";
+        }
+        el.SetAttribute("tags", tags_str.c_str());
+    }
 
     if (!m_controllers.empty())
     {
@@ -388,9 +435,16 @@ void object::set_name(symbol *name) { m_name = name; }
 
 const char *object::name() const { return m_name.c_str(); }
 
-object *object::get_object_by_name(const char *name)
+string_view object::name_view() const { return m_name.c_str(); }
+
+object *object::get_object_by_name(const char *name) const
 {
-    if (!name || name[0] == '\0')
+    return get_object_by_name(string_view{name});
+}
+
+object *object::get_object_by_name(string_view name) const
+{
+    if (name.empty())
         return nullptr;
 
     symbol_ref s = name;
@@ -398,10 +452,10 @@ object *object::get_object_by_name(const char *name)
     return obj;
 }
 
-object *object::get_object_by_name(const symbol_ref &name)
+object *object::get_object_by_name(const symbol_ref &name) const
 {
     if (m_name == name)
-        return this;
+        return const_cast<object *>(this);
     return nullptr;
 }
 
@@ -420,6 +474,34 @@ void object::get_all_objects_by_name(const symbol_ref &name,
 {
     if (m_name == name)
         objects.push_back(this);
+}
+
+void object::add_tag(const symbol_ref &tag)
+{
+    if (!has_tag(tag))
+        m_tags.push_back(tag);
+}
+
+void object::remove_tag(const symbol_ref &tag)
+{
+    for (auto it = m_tags.begin(); it != m_tags.end(); ++it)
+    {
+        if (*it == tag)
+        {
+            m_tags.erase(it);
+            return;
+        }
+    }
+}
+
+bool object::has_tag(const symbol_ref &tag) const
+{
+    for (const auto &t : m_tags)
+    {
+        if (t == tag)
+            return true;
+    }
+    return false;
 }
 
 static void

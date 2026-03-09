@@ -395,28 +395,32 @@ void scene_view_window::on_scene_render(world &w,
         gpu.set_depth_func(depth_func::greater);
         gpu.set_depth_write(false);
 
-        delegate<void(spatial *)> draw_pass_occluded = [&](spatial *s)
+        delegate<void(spatial *, bool)> draw_pass_occluded =
+            [&](spatial *s, bool inherited_selection)
         {
             if (!s)
                 return;
+
+            bool is_selected_node = inherited_selection;
+            for (auto *sel : m_selection)
+                if (sel == s)
+                    is_selected_node = true;
+
             color tint = {real(0.4), real(0.4), real(0.4), real(0.3)};
             gizmo_context ctx{
-                .gpu       = gpu,
-                .cam       = cam,
-                .mouse_ray = &m_latest_ray,
-                .app       = app,
-                .color     = tint,
-                .occluded  = true,
+                .gpu        = gpu,
+                .cam        = cam,
+                .mouse_ray  = &m_latest_ray,
+                .app        = app,
+                .color      = tint,
+                .occluded   = true,
+                .show_bones = m_show_bones,
 
                 // output
                 .hovered  = m_hovered_icon,
                 .hit_dist = m_hovered_icon_dist,
-                .selected = false,
+                .selected = is_selected_node,
             };
-
-            for (auto *sel : m_selection)
-                if (sel == s)
-                    ctx.selected = true;
 
             gizmo_registry::draw(s, ctx);
 
@@ -425,21 +429,22 @@ void scene_view_window::on_scene_render(world &w,
             {
                 int q = n->quantity();
                 for (int i = 0; i < q; ++i)
-                    draw_pass_occluded(n->child_at(i));
+                    draw_pass_occluded(n->child_at(i).get(), is_selected_node);
             }
         };
-        draw_pass_occluded(root);
+        draw_pass_occluded(root.get(), false);
 
         // Visible
         gpu.set_depth_func(depth_func::less_equal);
         gpu.set_depth_write(true);
 
-        delegate<void(spatial *)> draw_pass_visible = [&](spatial *s)
+        delegate<void(spatial *, bool)> draw_pass_visible =
+            [&](spatial *s, bool inherited_selection)
         {
             if (!s)
                 return;
 
-            bool is_selected_node = false;
+            bool is_selected_node = inherited_selection;
             for (auto *sel : m_selection)
                 if (sel == s)
                 {
@@ -448,12 +453,13 @@ void scene_view_window::on_scene_render(world &w,
                 }
 
             gizmo_context ctx{
-                .gpu       = gpu,
-                .cam       = cam,
-                .mouse_ray = &m_latest_ray,
-                .app       = app,
-                .color     = color::white(),
-                .occluded  = false,
+                .gpu        = gpu,
+                .cam        = cam,
+                .mouse_ray  = &m_latest_ray,
+                .app        = app,
+                .color      = color::white(),
+                .occluded   = false,
+                .show_bones = m_show_bones,
 
                 // output
                 .hovered  = m_hovered_icon,
@@ -488,11 +494,14 @@ void scene_view_window::on_scene_render(world &w,
                         gpu.mult_matrix(model_mat);
                         gpu.scale(1.002, 1.002, 1.002);
 
+                        const auto &bones      = mod->get_bone_matrices();
                         wire_mesh_options opts = {
-                            .m     = *m,
-                            .color = color::rosa_felps(),
+                            .m             = *m,
+                            .bone_matrices = bones.empty() ? nullptr : &bones,
+                            .color         = color::rosa_felps(),
                         };
                         draw_wire_mesh(gpu, opts);
+
                         gpu.pop_matrix();
                     }
                 }
@@ -503,10 +512,10 @@ void scene_view_window::on_scene_render(world &w,
             {
                 int q = n->quantity();
                 for (int i = 0; i < q; ++i)
-                    draw_pass_visible(n->child_at(i));
+                    draw_pass_visible(n->child_at(i).get(), is_selected_node);
             }
         };
-        draw_pass_visible(root);
+        draw_pass_visible(root.get(), false);
 
         // Restore defaults
         gpu.set_depth_func(depth_func::less);
@@ -807,6 +816,17 @@ void scene_view_window::on_overlay_render(world &w,
     tool_button("Move", tool_mode::move, editor_icon::move);
     tool_button("Rotate", tool_mode::rotate, editor_icon::rotate);
     tool_button("Scale", tool_mode::scale, editor_icon::scale);
+
+    ImGui::SameLine(0, 20.0f);
+    if (ImGui::Button("View Options"))
+        ImGui::OpenPopup("scene_view_options");
+
+    if (ImGui::BeginPopup("scene_view_options"))
+    {
+        ImGui::Checkbox("Show Bones", &m_show_bones);
+        ImGui::EndPopup();
+    }
+
     ImGui::EndGroup();
     bool toolbar_hovered = ImGui::IsItemHovered();
 
@@ -845,8 +865,7 @@ void scene_view_window::on_overlay_render(world &w,
 
         pointer<object> picked_obj = nullptr;
 
-        // Compare with Icon Hit
-        if (m_hovered_icon && m_hovered_icon_dist < picked_dist)
+        if (m_hovered_icon)
         {
             picked_obj = c_dynamic_cast<object>(m_hovered_icon.get());
         }
