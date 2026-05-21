@@ -90,14 +90,15 @@ private:
     bool m_metadata_dirty = false;
 };
 
-bool draw_asset_selector(const char *label,
-                         string &current_path,
-                         asset_type type,
-                         const asset_database *db,
-                         delegate<void(const string &)> on_locate = nullptr);
+bool draw_asset_selector(
+    const char *label,
+    string &current_path,
+    asset_type type,
+    const asset_database *db,
+    const delegate<void(const string &)> &on_locate = nullptr);
 
 bool draw_object_selector(const char *label,
                           pointer<object> &current,
                           const asset_database *db,
-                          delegate<bool(object *)> filter);
+                          const delegate<bool(object *)> &filter);
 } // namespace zabato::editor

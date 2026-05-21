@@ -184,6 +184,12 @@ public:
     virtual void set_property(const char *name, bool val) override {}
     virtual void set_property(const char *name, const char *val) override {}
 
+    /** Set a named variable in this instance's environment (for binding contexts). */
+    virtual void set_env_var(const string_view &name, const value &v) = 0;
+
+    /** Get a named variable from this instance's environment. */
+    virtual value get_env_var(const string_view &name) const = 0;
+
 protected:
     shared_ptr<zabato::script> m_script;
 };
@@ -242,6 +248,11 @@ public:
 
     void set_user_data(void *data) { m_user_data = data; }
     void *get_user_data() const { return m_user_data; }
+
+    /** Compile a script expression for repeated evaluation.
+     *  Returns a FUNCTION value; on compile error, returns NIL and logs. */
+    virtual value compile_expression(const string_view &source,
+                                     const string_view &chunk_name = "expression") = 0;
 
     // ZShader Compiler Integration
     virtual bool compile_zshader(const string_view &source,

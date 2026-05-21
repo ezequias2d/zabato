@@ -4,6 +4,7 @@
 #include <zabato/controller.hpp>
 #include <zabato/gizmos.hpp>
 #include <zabato/light.hpp>
+#include <zabato/node.hpp>
 #include <zabato/rtti.hpp>
 #include <zabato/spatial.hpp>
 
@@ -51,58 +52,89 @@ struct BuiltLayouts
             {
                 if (s->has_tag("bone"))
                 {
-                    transformation t_world =
-                        const_cast<spatial *>(s)->get_world_transform();
-                    vec3<real> pos1  = t_world.translate();
-                    vec3<real> scale = t_world.scale();
+                    transformation t_world = s->get_world_transform();
+                    vec3<real> head        = t_world.translate();
+                    vec3<real> scale       = t_world.scale();
 
                     real max_scale = max(scale.x, max(scale.y, scale.z));
                     real radius    = real(0.05) * max_scale;
 
-                    spatial *p = const_cast<spatial *>(s)->parent();
-                    vec3<real> pos2 =
-                        p ? p->get_world_transform().translate() : pos1;
+                    vector<spatial *> bone_children;
+                    if (auto *n =
+                            c_dynamic_cast<node>(const_cast<spatial *>(s)))
+                    {
+                        for (int i = 0; i < n->quantity(); ++i)
+                        {
+                            spatial *c = n->child_at(i).get();
+                            if (c && c->has_tag("bone"))
+                                bone_children.push_back(c);
+                        }
+                    }
 
-                    real t = -1.0;
+                    vector<vec3<real>> tails;
+                    if (bone_children.empty())
+                    {
+                        spatial *p = s->parent();
+                        real tip_len =
+                            p ? length(head -
+                                       p->get_world_transform().translate()) *
+                                    real(0.5)
+                              : real(0.1) * max_scale;
+                        if (tip_len < real(1e-4))
+                            tip_len = real(0.1) * max_scale;
+                        vec3<real> local_y =
+                            t_world.rotate() * vec3<real>(0, 1, 0);
+                        tails.push_back(head + local_y * tip_len);
+                    }
+                    else
+                    {
+                        for (auto *c : bone_children)
+                            tails.push_back(
+                                c->get_world_transform().translate());
+                    }
+
                     if (ctx.mouse_ray)
                     {
-                        // Check segment to ray distance
-                        real dist = dist_ray_segment(ctx.mouse_ray->origin,
-                                                     ctx.mouse_ray->direction,
-                                                     pos2,
-                                                     pos1);
-
-                        if (dist <= radius * 2.0f) // * 2.0f because bone radius
-                                                   // is larger than joint
+                        for (const auto &tail : tails)
                         {
-                            // Calculate approximate t along ray
-                            vec3<real> center = (pos1 + pos2) * 0.5f;
-                            t = dot(center - ctx.mouse_ray->origin,
-                                    ctx.mouse_ray->direction);
+                            real dist =
+                                dist_ray_segment(ctx.mouse_ray->origin,
+                                                 ctx.mouse_ray->direction,
+                                                 head,
+                                                 tail);
 
-                            if (t > 0 && (ctx.hit_dist < 0 || t < ctx.hit_dist))
+                            if (dist <= radius)
                             {
-                                ctx.hovered  = const_cast<spatial *>(s);
-                                ctx.hit_dist = t;
+                                vec3<real> center = (head + tail) * 0.5f;
+                                real t = dot(center - ctx.mouse_ray->origin,
+                                             ctx.mouse_ray->direction);
+
+                                if (t > 0 &&
+                                    (ctx.hit_dist < 0 || t < ctx.hit_dist))
+                                {
+                                    ctx.hovered  = const_cast<spatial *>(s);
+                                    ctx.hit_dist = t;
+                                }
                             }
                         }
                     }
 
                     if (ctx.selected || ctx.show_bones)
                     {
-                        if (p)
+                        for (const auto &tail : tails)
                         {
                             bone_gizmo_options bone_opts = {
-                                .start  = pos2,
-                                .end    = pos1,
-                                .radius = radius * 2.0f,
-                                .color  = ctx.selected ? color::yellow()
-                                                       : color::green()};
+                                .start       = head,
+                                .end         = tail,
+                                .radius      = radius * 3.0f,
+                                .color       = ctx.selected ? color::yellow()
+                                                            : color::green(),
+                                .orientation = t_world.rotate()};
                             draw_bone(ctx.gpu, bone_opts);
                         }
 
                         wire_sphere_options sphere_opts = {
-                            .center = pos1,
+                            .center = head,
                             .radius = radius * 0.5f,
                             .color  = ctx.selected ? color::yellow()
                                                    : color::green()};

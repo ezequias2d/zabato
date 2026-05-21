@@ -1216,11 +1216,45 @@ void draw_bone(gpu &gpu, const bone_gizmo_options &options)
 
     dir = dir / len;
 
-    // Find orthogonal vectors
-    vec3<real> up =
-        abs(dir.y) < 0.99f ? vec3<real>(0, 1, 0) : vec3<real>(1, 0, 0);
-    vec3<real> right = normalize(cross(dir, up));
-    up               = normalize(cross(right, dir));
+    const quat<real> &q = options.orientation;
+    bool has_orientation =
+        !(q.x == real(0) && q.y == real(0) && q.z == real(0) && q.w == real(1));
+
+    vec3<real> right;
+    vec3<real> up;
+
+    if (has_orientation)
+    {
+        // Bone's local X rotated by its world orientation, projected onto
+        // the plane orthogonal to the head-tail direction.
+        vec3<real> local_x = q * vec3<real>(1, 0, 0);
+        right              = local_x - dir * dot(local_x, dir);
+        real rl            = length(right);
+        if (rl < real(1e-4))
+        {
+            vec3<real> local_z = q * vec3<real>(0, 0, 1);
+            right              = local_z - dir * dot(local_z, dir);
+            rl                 = length(right);
+        }
+        if (rl < real(1e-4))
+        {
+            vec3<real> fallback = abs(dir.y) < real(0.99) ? vec3<real>(0, 1, 0)
+                                                          : vec3<real>(1, 0, 0);
+            right               = normalize(cross(dir, fallback));
+        }
+        else
+        {
+            right = right / rl;
+        }
+        up = normalize(cross(right, dir));
+    }
+    else
+    {
+        vec3<real> fallback =
+            abs(dir.y) < real(0.99) ? vec3<real>(0, 1, 0) : vec3<real>(1, 0, 0);
+        right = normalize(cross(dir, fallback));
+        up    = normalize(cross(right, dir));
+    }
 
     // Calculate the bone's cross section at ~10% of its length
     real base_offset       = len * 0.1f;

@@ -5,6 +5,8 @@
 #include <zabato/object.hpp>
 
 #include <zabato/animator.hpp>
+#include <zabato/animator_graph.hpp>
+#include <zabato/animator_state.hpp>
 #include <zabato/camera.hpp>
 #include <zabato/controller.hpp>
 #include <zabato/fs.hpp>
@@ -178,6 +180,8 @@ editor_app::editor_app(zabato::console &console)
     object::register_type<model>();
     object::register_type<light>();
     object::register_type<animator>();
+    object::register_type<animator_clip_state>();
+    object::register_type<animator_graph>();
 
     object::register_type<physics::jolt::jolt_rigid_body_controller>();
     object::register_type<physics::jolt::jolt_character_controller>();
@@ -512,6 +516,8 @@ void editor_app::draw_main_menu()
 
         if (ImGui::BeginMenu("Window"))
         {
+            if (ImGui::MenuItem("Animator Graph"))
+                m_animator_graph_win.open_empty(*this);
             ImGui::EndMenu();
         }
 
@@ -546,6 +552,7 @@ void editor_app::render(renderer &renderer, gpu &gpu, real dtime)
     m_inspector_win.render(*this, dtime);
     m_asset_browser.render(*this);
     m_console_win.render(*this);
+    m_animator_graph_win.render(*this, dtime);
 
     pointer<camera> game_cam = m_world->find_camera();
     m_game_view.render(*m_world, renderer, game_cam, gpu);
@@ -859,6 +866,7 @@ void editor_app::dispatch_to_windows(const game_message &msg)
     m_inspector_win.on_message(msg);
     m_hierarchy_win.on_message(msg, *this);
     m_asset_browser.on_message(msg);
+    m_animator_graph_win.on_message(msg, *this);
 }
 
 void editor_app::check_unsaved_changes(const game_message &pending_msg)

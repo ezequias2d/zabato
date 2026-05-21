@@ -13,6 +13,7 @@
 #include <editor/asset_database.hpp>
 #include <editor/editor_resources.hpp>
 #include <editor/notification_manager.hpp>
+#include <editor/windows/animator_graph_window.hpp>
 #include <editor/windows/asset_browser.hpp>
 #include <editor/windows/console.hpp>
 #include <editor/windows/hierarchy.hpp>
@@ -48,6 +49,7 @@ public:
     void draw_main_menu();
 
     void send_message(const game_message &msg);
+    void dispatch_to_windows(const game_message &msg);
 
     resource_manager *get_resource_manager() const { return m_res_mgr; }
     editor_resources *get_resources() { return &m_resources; }
@@ -73,7 +75,6 @@ private:
     void setup_dockspace();
     void process_messages();
     void draw_toolbar();
-    void dispatch_to_windows(const game_message &msg);
     void add_to_world(spatial *spatial, uuid to);
 
     void check_unsaved_changes(const game_message &pending_msg);
@@ -97,6 +98,7 @@ private:
     scene_view_window m_scene_win;
     asset_browser_window m_asset_browser;
     console_window m_console_win;
+    animator_graph_window m_animator_graph_win;
 
     // State
     editor_state m_state = editor_state::edit;

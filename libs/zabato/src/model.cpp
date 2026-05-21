@@ -251,8 +251,19 @@ void model::bind_skeleton(pointer<spatial> root)
     }
 }
 
+void model::resolve_pending_skeleton_bind()
+{
+    if (m_skeleton_pending_bind && m_skeleton_root)
+    {
+        m_skeleton_pending_bind = false;
+        bind_skeleton(m_skeleton_root);
+    }
+}
+
 const vector<mat4<real>> &model::get_bone_matrices()
 {
+    resolve_pending_skeleton_bind();
+
     if (!m_bone_matrices_dirty)
         return m_bone_matrices;
 
@@ -337,6 +348,8 @@ void model::update_model_bound()
 
 bounding_volume *model::get_world_bound()
 {
+    resolve_pending_skeleton_bind();
+
     bool needs_update = false;
     if (!m_model_bound && !m_mesh.path().empty())
         needs_update = true;
@@ -417,7 +430,10 @@ void model::link(xml_serializer &serializer, tinyxml2::XMLElement &element)
     if (m_skeleton_root)
     {
         m_skeleton_root->link(serializer, element);
-        bind_skeleton(m_skeleton_root);
+        // Defer bind_skeleton: at link time the skeleton's child hierarchy
+        // may not be fully attached yet, so get_object_by_name lookups for
+        // bones can return null. Resolve lazily on first matrix request.
+        m_skeleton_pending_bind = true;
     }
 }
 
@@ -444,9 +460,9 @@ void model::link(serializer &serializer, serializer_link *link)
     object *old_skeleton = link->get_next_child_id();
     if (old_skeleton)
     {
-        auto skeleton   = serializer.get_from_map(old_skeleton);
-        m_skeleton_root = c_dynamic_cast<spatial>(skeleton);
-        bind_skeleton(m_skeleton_root);
+        auto skeleton           = serializer.get_from_map(old_skeleton);
+        m_skeleton_root         = c_dynamic_cast<spatial>(skeleton);
+        m_skeleton_pending_bind = true;
     }
 }
 

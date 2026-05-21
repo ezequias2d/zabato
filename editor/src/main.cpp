@@ -59,6 +59,7 @@ int main(int argc, char **argv)
     editor::register_mesh_inspector();
     editor::register_texture_inspector();
     editor::register_object_inspector();
+    editor::register_animator_inspectors();
 
     console console;
     pointer<world> world = new class world();
@@ -213,6 +214,20 @@ int main(int argc, char **argv)
     editor.shutdown();
     zabato::imgui::shutdown();
     zabato::platform::shutdown();
+
+    lua_sys.shutdown();
+
+    world->clean();
+    delete phys_world;
+
+    res_mgr->unload_all();
+    delete res_mgr;
+
+    object::terminate_factory();
+
+    shutdown_symbols();
+
+    terminate_window_system();
 
     return 0;
 }

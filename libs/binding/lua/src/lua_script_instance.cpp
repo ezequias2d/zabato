@@ -157,6 +157,46 @@ void lua_script_instance::set_property(const char *name, real val)
     lua_pop(m_L, 1);
 }
 
+void lua_script_instance::set_env_var(const string_view &name, const value &v)
+{
+    if (m_env_ref == LUA_NOREF || !m_L)
+        return;
+
+    lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_env_ref);
+    push_value_to_lua(m_L, v);
+    string name_str(name.data(), name.size());
+    lua_setfield(m_L, -2, name_str.c_str());
+    lua_pop(m_L, 1);
+}
+
+value lua_script_instance::get_env_var(const string_view &name) const
+{
+    if (m_env_ref == LUA_NOREF || !m_L)
+        return value();
+
+    lua_rawgeti(m_L, LUA_REGISTRYINDEX, m_env_ref);
+    string name_str(name.data(), name.size());
+    lua_getfield(m_L, -1, name_str.c_str());
+
+    if (lua_isnil(m_L, -1))
+    {
+        lua_pop(m_L, 2);
+        return value();
+    }
+
+    lua_script_system *sys = nullptr;
+    lua_getfield(m_L, LUA_REGISTRYINDEX, SYS_REG_KEY);
+    sys = static_cast<lua_script_system *>(lua_touserdata(m_L, -1));
+    lua_pop(m_L, 1);
+
+    value result;
+    if (sys)
+        result = sys->to_value(-1);
+
+    lua_pop(m_L, 2);
+    return result;
+}
+
 void lua_script_instance::on_draw_gizmos(gpu &g, bool selected)
 {
     if (m_env_ref == LUA_NOREF)

@@ -11,6 +11,7 @@
 #include <zabato/shared_ptr.hpp>
 #include <zabato/transformation.hpp>
 
+#include <math.h>
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
@@ -109,9 +110,15 @@ static pointer<node> parse_node(aiNode *aiNode,
     aiNode->mTransformation.Decompose(scale, rot, pos);
 
     transformation t;
-    t.set_translate(vec3<real>(pos.x, pos.y, pos.z));
-    t.set_rotate(quat<real>(rot.x, rot.y, rot.z, rot.w));
-    t.set_scale(vec3<real>(scale.x, scale.y, scale.z));
+    if (!isnan(pos.x) && !isnan(pos.y) && !isnan(pos.z) && !isinf(pos.x) &&
+        !isinf(pos.y) && !isinf(pos.z))
+        t.set_translate(vec3<real>(pos.x, pos.y, pos.z));
+    if (!isnan(rot.x) && !isnan(rot.y) && !isnan(rot.z) && !isnan(rot.w) &&
+        !isinf(rot.x) && !isinf(rot.y) && !isinf(rot.z) && !isinf(rot.w))
+        t.set_rotate(quat<real>(rot.x, rot.y, rot.z, rot.w));
+    if (!isnan(scale.x) && !isnan(scale.y) && !isnan(scale.z) &&
+        !isinf(scale.x) && !isinf(scale.y) && !isinf(scale.z))
+        t.set_scale(vec3<real>(scale.x, scale.y, scale.z));
     current->set_local(t);
 
     node_map.add(aiNode, current.get());

@@ -74,7 +74,7 @@ protected:
     transformation world_transform;
     bool is_world_dirty;
 
-    spatial() : m_parent(nullptr), is_world_dirty(false) {}
+    spatial() : m_parent(nullptr), is_world_dirty(true) {}
     spatial *m_parent;
 
     void set_parent(spatial *parent)

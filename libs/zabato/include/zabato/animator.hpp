@@ -1,28 +1,40 @@
 #pragma once
 
 #include <zabato/animation.hpp>
+#include <zabato/animator_graph.hpp>
 #include <zabato/controller.hpp>
 #include <zabato/error.hpp>
 #include <zabato/ice.hpp>
 #include <zabato/math.hpp>
-#include <zabato/mesh.hpp>
 #include <zabato/node.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/resource.hpp>
 #include <zabato/spatial.hpp>
+#include <zabato/symbol.hpp>
 #include <zabato/transformation.hpp>
 
 namespace zabato
 {
 class animation;
-class mesh;
 class spatial;
 class transformation;
+class animator_graph;
+class animator_state;
+class animator_transition;
+class animator_clip_state;
+struct pose_sample;
+
+/** A bone bound by the animator into the scene graph by name. */
+struct animator_bound_bone
+{
+    symbol_ref name;
+    pointer<spatial> node;
+};
 
 /**
  * @class animator
- * @brief A state machine that applies an animation to a model's skeleton over
- * time.
+ * @brief Graph-based state machine that applies skeletal animation and drives
+ * non-spatial controller properties from animation curves.
  */
 class animator : public controller
 {
@@ -31,94 +43,86 @@ public:
     const rtti &type() const override { return TYPE; }
     static void reflect(reflection &r);
 
-    /** @brief Constructs a new animator instance. */
     animator() : controller() {}
-
-    /** @brief Destroys the animator. */
     virtual ~animator() {}
 
     void start() override {}
 
     /**
-     * @brief Starts playing an animation clip on a scene graph hierarchy.
-     * @param anim The animation clip to play.
-     * @param root The root node of the scene graph to animate.
-     * @param loop If true, the animation will loop when it reaches the end.
-     */
-    void play_animation(const resource_ref &anim, spatial *root, bool loop);
-
-    /**
-     * @brief Manually binds a specific bone name to a scene graph node.
-     * @param bone_name The name of the bone in the animation.
-     * @param node The scene graph node to control.
-     */
-    void bind_node(const char *bone_name, spatial *node);
-
-    void bind_skeleton(pointer<spatial> root);
-    pointer<spatial> get_skeleton_root() const { return m_skeleton_root; }
-
-    size_t get_bone_count() const;
-    const char *get_bone_name(size_t index) const;
-
-    /**
-     * @brief Binds an animation track to a property on a target controller.
-     * @param track_name The name of the track in the animation.
-     * @param target The target controller to modify.
-     * @param prop_name The property name on the target controller.
+     * @brief Bind an animation track by name to a property on a target
+     * controller.
+     *
+     * Resolved lazily each frame against the active graph clip state.
+     * Works for real, int, bool, and string value tracks (sampled continuously)
+     * and event tracks (fired via on_message when the timestamp is crossed).
      */
     void bind_property(const char *track_name,
                        controller *target,
                        const char *prop_name);
 
     void update(real delta_time) override;
+    void on_message(const game_message &msg) override;
 
-    const resource_ref &animation_ref() const
+    /** @brief Load and begin playing an animator_graph from a resource. */
+    void play_graph(const resource_ref &graph_ref, spatial *root);
+
+    /** @brief Bind an in-memory graph directly (programmatic setup / editor
+     *  preview; bypasses resource loading). */
+    void set_graph_direct(pointer<animator_graph> g, spatial *root);
+
+    /** @brief Set the graph resource reference without forcing an immediate
+     *  reload (reload happens on next update). */
+    void set_graph(const resource_ref &graph_ref)
     {
-        return m_current_animation_ref;
+        m_graph_ref   = graph_ref;
+        m_graph_dirty = true;
     }
 
-    const resource_ref &get_animation() const
+    const resource_ref &get_graph() const { return m_graph_ref; }
+    size_t current_state_index() const { return m_current_state; }
+    const vector<animator_bound_bone> &bound_bones() const
     {
-        return m_current_animation_ref;
+        return m_bound_bones;
     }
-
-    void set_animation(const resource_ref &anim)
-    {
-        m_current_animation_ref = anim;
-    }
-
-    bool get_loop() const { return m_loop; }
-
-    void set_loop(bool loop) { m_loop = loop; }
+    animator_graph *graph() const { return m_graph; }
 
 private:
-    struct bound_node
-    {
-        uint16_t channel_index;
-        pointer<spatial> node;
-    };
-
     struct bound_property
     {
-        uint16_t track_index;
+        symbol_ref track_name;
         pointer<controller> target;
         fixed_string<32> property_name;
     };
 
-    vector<bound_node> m_bound_nodes = {};
+    vector<bound_property> m_bound_properties = {};
 
-    vector<bound_property> m_bound_reals   = {};
-    vector<bound_property> m_bound_ints    = {};
-    vector<bound_property> m_bound_bools   = {};
-    vector<bound_property> m_bound_strings = {};
-    vector<bound_property> m_bound_events  = {};
+    resource_ref m_graph_ref        = {};
+    pointer<animator_graph> m_graph = nullptr;
+    bool m_graph_dirty              = false;
 
-    resource_ref m_current_animation_ref = {};
-    animation *m_current_animation       = nullptr;
-    real m_current_time                  = real(0);
-    bool m_loop                          = false;
-    animation_node m_root_node;
-    pointer<spatial> m_skeleton_root = nullptr;
+    vector<animator_bound_bone> m_bound_bones = {};
+    vector<symbol_ref> m_pending_messages     = {};
+
+    size_t m_current_state = (size_t)-1;
+    real m_state_time      = real(0);
+    real m_prev_state_time = real(0);
+
+    bool m_transitioning  = false;
+    size_t m_next_state   = (size_t)-1;
+    real m_blend_time     = real(0);
+    real m_blend_duration = real(0);
+
+    void ensure_graph_loaded();
+    void apply_pose(const vector<pose_sample> &pose);
+    void blend_apply_pose(const vector<pose_sample> &a,
+                          const vector<pose_sample> &b,
+                          real t);
+    void rebind_skeleton_bones(spatial *root);
+    void apply_bound_properties(const animator_clip_state &cs,
+                                real prev_st,
+                                real cur_st);
+    bool eval_transition(animator_state *state, const animator_transition &tr);
+    void begin_transition(size_t next_idx, real duration);
 };
 
 #pragma pack(push, 1)
@@ -157,7 +161,7 @@ static inline void calculate_nodes_recursive(const animation_node &node,
     size_t name_len = node.name.size() + 1;
     bytes += name_len += sizeof(ICE_NODE_HEADER);
     for (const auto &c : node.children)
-        calculate_nodes_recursive(node, count, bytes);
+        calculate_nodes_recursive(c, count, bytes);
 }
 
 static inline result<void> write_nodes_recursive(ice_writer &writer,
@@ -314,7 +318,7 @@ static inline void import_nodes_recursive(ice_reader &reader,
 
     parent_node.bone      = nullptr;
     parent_node.transform = mat4_translation<real>(header.position) *
-                            mat4_translation<real>(header.rotation) *
+                            mat4_from_quat<real>(header.rotation) *
                             mat4_scaling<real>(header.scale);
     parent_node.children.resize(header.children_count);
     for (size_t i = 0; i < header.children_count; i++)

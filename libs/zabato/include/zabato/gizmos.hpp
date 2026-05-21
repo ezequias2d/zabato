@@ -365,6 +365,13 @@ struct bone_gizmo_options
     real radius;
     /** @brief The color of the bone. */
     zabato::color color;
+    /**
+     * @brief World-space orientation of the bone. Used to rotate the
+     * octahedron's cross-section around its head-tail axis so the gizmo
+     * visibly rolls with the bone (matches Blender/Unity). Defaults to
+     * identity, in which case a world-axis fallback is used.
+     */
+    quat<real> orientation = quat<real>();
 };
 
 /**

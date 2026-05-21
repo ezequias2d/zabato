@@ -362,12 +362,33 @@ public:
     const vector<symbol_ref> &get_tags() const { return m_tags; }
 #pragma endregion Tags
 
+#pragma region Property Changed
+    using property_changed_handler = delegate<void(object *, const symbol_ref &)>;
+
+    /** Subscribe to property changes. Returns a token for unsubscribe. */
+    uint32_t add_property_changed_handler(const property_changed_handler &h);
+
+    /** Unsubscribe from property changes. */
+    void remove_property_changed_handler(uint32_t token);
+
+    /** Fire the notification. Call from reflected property setters. */
+    void notify_property_changed(const symbol_ref &property);
+#pragma endregion Property Changed
+
 private:
     symbol_ref m_name;
     uuid m_uiID;
 
     vector<pointer<controller>> m_controllers;
     vector<symbol_ref> m_tags;
+
+    struct property_handler_entry
+    {
+        uint32_t token;
+        property_changed_handler handler;
+    };
+    vector<property_handler_entry> m_property_handlers;
+    uint32_t m_next_property_handler_token = 1;
 };
 
 /**

@@ -109,4 +109,13 @@ const char *get_symbol_name(const symbol *s) { return s ? s->chars : ""; }
 
 uint32_t get_symbol_hash(const symbol *s) { return s ? s->hash : 0; }
 
+void shutdown_symbols()
+{
+    for (auto it = g_symbol_table.begin(); it != g_symbol_table.end(); ++it)
+    {
+        free(*it);
+    }
+    g_symbol_table.clear();
+}
+
 } // namespace zabato

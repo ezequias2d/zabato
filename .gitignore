@@ -9,3 +9,15 @@ build/
 
 node_modules/
 out/
+
+# Debug/Profiling artifacts
+valgrind_output*.txt
+valgrind_output*.txt.core.*
+callgrind.out.*
+vgcore.*
+
+# Editor state
+imgui.ini
+
+# IDE files
+*.blend

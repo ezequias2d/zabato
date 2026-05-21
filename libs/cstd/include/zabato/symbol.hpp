@@ -56,6 +56,12 @@ const char *get_symbol_name(const symbol *s);
 uint32_t get_symbol_hash(const symbol *s);
 
 /**
+ * @brief Shuts down the symbol table and frees all interned symbols.
+ * Call this once at application exit to clean up static resources.
+ */
+void shutdown_symbols();
+
+/**
  * @struct symbol_ref
  * @brief A wrapper for symbol pointers that handles reference counting.
  */

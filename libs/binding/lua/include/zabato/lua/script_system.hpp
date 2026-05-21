@@ -23,6 +23,9 @@ public:
     void shutdown() override;
     void tick() override;
 
+    value compile_expression(const string_view &source,
+                             const string_view &chunk_name = "expression") override;
+
     // ZShader Compiler Integration
     bool compile_zshader(const string_view &source,
                          const string_view &chunk_name,

@@ -572,4 +572,30 @@ void object::reflect(reflection &r)
     r.add_method("get_object_by_name", object_get_object_by_name);
 }
 
+uint32_t
+object::add_property_changed_handler(const property_changed_handler &h)
+{
+    uint32_t token = m_next_property_handler_token++;
+    m_property_handlers.push_back({token, h});
+    return token;
+}
+
+void object::remove_property_changed_handler(uint32_t token)
+{
+    for (size_t i = 0; i < m_property_handlers.size(); ++i)
+    {
+        if (m_property_handlers[i].token == token)
+        {
+            m_property_handlers.remove_at(i);
+            return;
+        }
+    }
+}
+
+void object::notify_property_changed(const symbol_ref &property)
+{
+    for (const auto &entry : m_property_handlers)
+        entry.handler(this, property);
+}
+
 } // namespace zabato

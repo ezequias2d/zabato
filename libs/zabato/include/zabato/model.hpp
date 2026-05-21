@@ -116,7 +116,8 @@ private:
 
     vector<mat4<real>> m_bone_matrices;
     vector<event<>::scoped_connection> m_bone_connections;
-    bool m_bone_matrices_dirty = true;
+    bool m_bone_matrices_dirty   = true;
+    bool m_skeleton_pending_bind = false;
 
     void on_bone_dirty()
     {
@@ -125,6 +126,7 @@ private:
     }
 
     void update_model_bound();
+    void resolve_pending_skeleton_bind();
 };
 
 } // namespace zabato

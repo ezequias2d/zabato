@@ -326,7 +326,7 @@ bool draw_asset_selector(const char *label,
                          string &current_path,
                          asset_type type,
                          const asset_database *db,
-                         delegate<void(const string &)> on_locate)
+                         const delegate<void(const string &)> &on_locate)
 {
     if (!db)
         return false;
@@ -373,7 +373,7 @@ bool draw_asset_selector(const char *label,
 bool draw_object_selector(const char *label,
                           pointer<object> &current,
                           const asset_database *db,
-                          delegate<bool(object *)> filter)
+                          const delegate<bool(object *)> &filter)
 {
     ImGui::PushID(label);
 
@@ -392,7 +392,7 @@ bool draw_object_selector(const char *label,
                 if (!s)
                     return;
                 world_objects.push_back(s);
-                for (auto ctrl : s->get_controllers())
+                for (const auto &ctrl : s->get_controllers())
                     if (ctrl)
                         world_objects.push_back(ctrl.get());
                 if (s->is_derived(node::TYPE))
@@ -403,7 +403,7 @@ bool draw_object_selector(const char *label,
                 }
             };
             world_objects.push_back(w);
-            for (auto ctrl : w->get_controllers())
+            for (const auto &ctrl : w->get_controllers())
                 if (ctrl)
                     world_objects.push_back(ctrl.get());
             collect(w->get_scene_root().get(), collect);
@@ -519,6 +519,7 @@ void asset_database::load_metadata()
         cached_bundle cb;
         cb.hash = std::stoull(bundle_hash_str);
 
+        bool had_stale_entry = false;
         for (tinyxml2::XMLElement *asset_el =
                  bundle_el->FirstChildElement("Asset");
              asset_el;
@@ -536,9 +537,25 @@ void asset_database::load_metadata()
 
                 info.type = string_to_asset_type(a_type);
 
+                // Reject stale script classifications for bundle sub-
+                // resources (path contains '@') — older classifier runs
+                // tagged object_resource-wrapped scene roots as scripts,
+                // which poisons the Add Controller selector. Drop the
+                // entry and invalidate the bundle's hash so the bundle
+                // re-imports cleanly.
+                if (info.type == asset_type::script &&
+                    info.path.find('@') != string::npos)
+                {
+                    had_stale_entry = true;
+                    continue;
+                }
+
                 cb.sub_assets.push_back(info);
             }
         }
+
+        if (had_stale_entry)
+            cb.hash = 0; // force re-import on scan
 
         m_bundle_cache.add_or_set(bundle_path, cb);
     }
