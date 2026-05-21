@@ -11,6 +11,7 @@ target("zabato")
         if is_plat("windows") then
             add_cxxflags("/GR-")
         else
+            add_cxflags("-fPIC")
             add_cxxflags("-fno-rtti")
         end
     end

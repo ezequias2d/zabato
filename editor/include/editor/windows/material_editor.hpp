@@ -39,7 +39,7 @@ private:
     class forward_renderer *m_preview_renderer = nullptr;
     framebuffer *m_preview_fbo                 = nullptr;
     model *m_preview_model                     = nullptr;
-    class camera *m_preview_cam                = nullptr;
+    pointer<camera> m_preview_cam              = nullptr;
 
     symbol_ref cmd_inspect_asset = "cmd_inspect_asset";
 

@@ -4,6 +4,7 @@
 #include <zabato/controller.hpp>
 #include <zabato/gizmos.hpp>
 #include <zabato/light.hpp>
+#include <zabato/node.hpp>
 #include <zabato/rtti.hpp>
 #include <zabato/spatial.hpp>
 
@@ -18,7 +19,7 @@ void gizmo_registry::register_drawer(const rtti &type,
     s_drawers.add_or_set(&type, callback);
 }
 
-void gizmo_registry::draw(const spatial *node, gizmo_context &ctx)
+void gizmo_registry::draw(pointer<spatial> node, gizmo_context &ctx)
 {
     if (!node)
         return;
@@ -44,6 +45,104 @@ struct BuiltLayouts
 {
     BuiltLayouts()
     {
+        // Bone Gizmo (Pose Mode)
+        gizmo_registry::register_drawer(
+            spatial::TYPE,
+            [](const spatial *s, gizmo_context &ctx)
+            {
+                if (s->has_tag("bone"))
+                {
+                    transformation t_world = s->get_world_transform();
+                    vec3<real> head        = t_world.translate();
+                    vec3<real> scale       = t_world.scale();
+
+                    real max_scale = max(scale.x, max(scale.y, scale.z));
+                    real radius    = real(0.05) * max_scale;
+
+                    vector<spatial *> bone_children;
+                    if (auto *n =
+                            c_dynamic_cast<node>(const_cast<spatial *>(s)))
+                    {
+                        for (int i = 0; i < n->quantity(); ++i)
+                        {
+                            spatial *c = n->child_at(i).get();
+                            if (c && c->has_tag("bone"))
+                                bone_children.push_back(c);
+                        }
+                    }
+
+                    vector<vec3<real>> tails;
+                    if (bone_children.empty())
+                    {
+                        spatial *p = s->parent();
+                        real tip_len =
+                            p ? length(head -
+                                       p->get_world_transform().translate()) *
+                                    real(0.5)
+                              : real(0.1) * max_scale;
+                        if (tip_len < real(1e-4))
+                            tip_len = real(0.1) * max_scale;
+                        vec3<real> local_y =
+                            t_world.rotate() * vec3<real>(0, 1, 0);
+                        tails.push_back(head + local_y * tip_len);
+                    }
+                    else
+                    {
+                        for (auto *c : bone_children)
+                            tails.push_back(
+                                c->get_world_transform().translate());
+                    }
+
+                    if (ctx.mouse_ray)
+                    {
+                        for (const auto &tail : tails)
+                        {
+                            real dist =
+                                dist_ray_segment(ctx.mouse_ray->origin,
+                                                 ctx.mouse_ray->direction,
+                                                 head,
+                                                 tail);
+
+                            if (dist <= radius)
+                            {
+                                vec3<real> center = (head + tail) * 0.5f;
+                                real t = dot(center - ctx.mouse_ray->origin,
+                                             ctx.mouse_ray->direction);
+
+                                if (t > 0 &&
+                                    (ctx.hit_dist < 0 || t < ctx.hit_dist))
+                                {
+                                    ctx.hovered  = const_cast<spatial *>(s);
+                                    ctx.hit_dist = t;
+                                }
+                            }
+                        }
+                    }
+
+                    if (ctx.selected || ctx.show_bones)
+                    {
+                        for (const auto &tail : tails)
+                        {
+                            bone_gizmo_options bone_opts = {
+                                .start       = head,
+                                .end         = tail,
+                                .radius      = radius * 3.0f,
+                                .color       = ctx.selected ? color::yellow()
+                                                            : color::green(),
+                                .orientation = t_world.rotate()};
+                            draw_bone(ctx.gpu, bone_opts);
+                        }
+
+                        wire_sphere_options sphere_opts = {
+                            .center = head,
+                            .radius = radius * 0.5f,
+                            .color  = ctx.selected ? color::yellow()
+                                                   : color::green()};
+                        draw_wire_sphere(ctx.gpu, sphere_opts);
+                    }
+                }
+            });
+
         // Camera Gizmo
         gizmo_registry::register_drawer(
             camera::TYPE,

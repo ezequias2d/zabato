@@ -34,4 +34,5 @@ void register_material_inspector();
 void register_mesh_inspector();
 void register_texture_inspector();
 void register_object_inspector();
+void register_animator_inspectors();
 } // namespace zabato::editor

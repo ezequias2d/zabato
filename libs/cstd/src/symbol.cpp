@@ -48,17 +48,17 @@ struct symbol_key_equal
 
 static hash_set<symbol *, symbol_hasher, symbol_key_equal> g_symbol_table;
 
-symbol *get_symbol(const char *name)
+symbol *get_symbol(string_view name)
 {
-    if (name == nullptr)
+    if (name.empty())
         name = "";
 
-    size_t length = strlen(name);
+    size_t length = name.length();
 
     hash<const char *> hasher;
-    uint32_t hash = hasher(name, length);
+    uint32_t hash = hasher(name.data(), length);
 
-    symbol_lookup_key lookup{name, hash};
+    symbol_lookup_key lookup{name.data(), hash};
     symbol *existing_symbol = nullptr;
 
     if (g_symbol_table.try_get(lookup, existing_symbol))
@@ -75,11 +75,13 @@ symbol *get_symbol(const char *name)
     new_sym->hash      = hash;
     new_sym->length    = length;
     new_sym->ref_count = 1;
-    memcpy(new_sym->chars, name, length + 1);
+    memcpy(new_sym->chars, name.data(), length + 1);
 
     g_symbol_table.add(new_sym);
     return new_sym;
 }
+
+symbol *get_symbol(const char *name) { return get_symbol(string_view(name)); }
 
 symbol *ref_symbol(symbol *s)
 {
@@ -106,5 +108,14 @@ void release_symbol(symbol *s)
 const char *get_symbol_name(const symbol *s) { return s ? s->chars : ""; }
 
 uint32_t get_symbol_hash(const symbol *s) { return s ? s->hash : 0; }
+
+void shutdown_symbols()
+{
+    for (auto it = g_symbol_table.begin(); it != g_symbol_table.end(); ++it)
+    {
+        free(*it);
+    }
+    g_symbol_table.clear();
+}
 
 } // namespace zabato

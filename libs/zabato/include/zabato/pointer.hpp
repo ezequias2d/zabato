@@ -1,7 +1,5 @@
 #pragma once
 
-#include <zabato/base_object.hpp>
-
 namespace zabato
 {
 

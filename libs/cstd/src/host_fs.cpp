@@ -191,13 +191,19 @@ vector<file_info> host_fs::ls(string_view path)
         std::error_code ec;
         if (entry.is_directory())
         {
-            fi.is_dir = true;
-            fi.size   = 0;
+            fi.is_dir             = true;
+            fi.size               = 0;
+            fi.last_modified_time = 0;
         }
         else
         {
             fi.is_dir = false;
             fi.size   = entry.file_size(ec);
+
+            auto ftime            = entry.last_write_time(ec);
+            auto stime            = std::chrono::file_clock::to_sys(ftime);
+            auto tt               = std::chrono::system_clock::to_time_t(stime);
+            fi.last_modified_time = ec ? 0 : tt;
         }
 
         auto perms = entry.status().permissions();
@@ -225,6 +231,8 @@ file_info host_fs::get_info(string_view path)
 #endif
 
     std::error_code ec;
+    fi.last_modified_time = 0;
+
     if (std_fs::is_directory(target))
     {
         fi.is_dir = true;
@@ -253,6 +261,11 @@ file_info host_fs::get_info(string_view path)
     {
         fi.is_dir = false;
         fi.size   = std_fs::file_size(target, ec);
+
+        auto ftime            = std_fs::last_write_time(target, ec);
+        auto stime            = std::chrono::file_clock::to_sys(ftime);
+        auto tt               = std::chrono::system_clock::to_time_t(stime);
+        fi.last_modified_time = ec ? 0 : tt;
     }
 
     auto perms = std_fs::status(target).permissions();

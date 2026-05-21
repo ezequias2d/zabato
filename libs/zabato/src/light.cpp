@@ -2,6 +2,7 @@
 #include <zabato/light.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/script.hpp>
+#include <zabato/serializer.hpp>
 #include <zabato/xml_serializer.hpp>
 
 namespace zabato
@@ -432,6 +433,33 @@ void light::save_xml(xml_serializer &serializer,
     element.SetAttribute("kQ", (double)m_data.quadratic_attenuation);
 }
 
+void light::save(serializer &serializer) const
+{
+    spatial::save(serializer);
+
+    ice_uint8_t type = (int)m_data.type;
+
+    ice_uint16_t ambient  = m_data.ambient.value;
+    ice_uint16_t diffuse  = m_data.diffuse.value;
+    ice_uint16_t specular = m_data.specular.value;
+
+    ice_real cutoff   = m_data.spot_cutoff;
+    ice_real exponent = m_data.spot_exponent;
+    ice_real kC       = m_data.constant_attenuation;
+    ice_real kL       = m_data.linear_attenuation;
+    ice_real kQ       = m_data.quadratic_attenuation;
+
+    serializer.write(type);
+    serializer.write(ambient);
+    serializer.write(diffuse);
+    serializer.write(specular);
+    serializer.write(cutoff);
+    serializer.write(exponent);
+    serializer.write(kC);
+    serializer.write(kL);
+    serializer.write(kQ);
+}
+
 void light::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &element)
 {
     spatial::load_xml(serializer, element);
@@ -465,6 +493,44 @@ void light::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &element)
         m_data.linear_attenuation = val;
     if (element.QueryFloatAttribute("kQ", &val) == tinyxml2::XML_SUCCESS)
         m_data.quadratic_attenuation = val;
+
+    update_light_transform();
+}
+
+void light::load(serializer &serializer, serializer_link *link)
+{
+    spatial::load(serializer, link);
+
+    ice_uint8_t type;
+    serializer.read(type);
+    m_data.type = (light_type)(int)type;
+
+    ice_uint16_t ambient;
+    ice_uint16_t diffuse;
+    ice_uint16_t specular;
+    serializer.read(ambient);
+    serializer.read(diffuse);
+    serializer.read(specular);
+
+    m_data.ambient.value  = ambient;
+    m_data.diffuse.value  = diffuse;
+    m_data.specular.value = specular;
+
+    ice_real cutoff;
+    ice_real exponent;
+    ice_real kC;
+    ice_real kL;
+    ice_real kQ;
+    serializer.read(cutoff);
+    serializer.read(exponent);
+    serializer.read(kC);
+    serializer.read(kL);
+    serializer.read(kQ);
+    m_data.spot_cutoff           = cutoff;
+    m_data.spot_exponent         = exponent;
+    m_data.constant_attenuation  = kC;
+    m_data.linear_attenuation    = kL;
+    m_data.quadratic_attenuation = kQ;
 
     update_light_transform();
 }

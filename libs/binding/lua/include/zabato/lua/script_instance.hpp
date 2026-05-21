@@ -30,6 +30,9 @@ public:
     void set_property(const char *name, real val) override;
     void on_draw_gizmos(gpu &g, bool selected) override;
 
+    void set_env_var(const string_view &name, const value &v) override;
+    value get_env_var(const string_view &name) const override;
+
     // Object serialization (Resource & Type)
     void save(serializer &stream) const override;
     void load(serializer &stream, serializer_link *link) override;
@@ -39,6 +42,8 @@ public:
                   tinyxml2::XMLElement &el) const override;
     void load_xml(xml_serializer &serializer,
                   tinyxml2::XMLElement &el) override;
+
+    int env_ref() const { return m_env_ref; }
 
     lua_script_instance();
 

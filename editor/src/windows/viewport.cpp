@@ -19,7 +19,7 @@ void viewport_window::init() {}
 
 void viewport_window::render(world &world,
                              renderer &renderer,
-                             camera *cam,
+                             pointer<camera> cam,
                              gpu &gpu)
 {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
@@ -52,11 +52,10 @@ void viewport_window::render(world &world,
         m_height = height;
 
         // Update camera aspect
-        if (cam)
-            cam->set_perspective(to_rad(real(45)),
-                                 real(width) / real(height),
-                                 real(0.1),
-                                 real(100.0));
+        cam->set_perspective(to_rad(real(45)),
+                             real(width) / real(height),
+                             real(0.1),
+                             real(100.0));
     }
 
     // Render to FBO
@@ -73,8 +72,8 @@ void viewport_window::render(world &world,
         if (cam)
         {
             cam->update_view_from_transform();
-            renderer.begin(*cam);
-            world.render(renderer, *cam);
+            renderer.begin(cam);
+            world.render(renderer, cam);
 
             renderer.end();
 

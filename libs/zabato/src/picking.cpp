@@ -1,4 +1,5 @@
 #include <zabato/camera.hpp>
+#include <zabato/mesh.hpp>
 #include <zabato/model.hpp>
 #include <zabato/picking.hpp>
 #include <zabato/shape.hpp>
@@ -33,7 +34,10 @@ ray3<real> get_screen_ray(camera &cam,
     return {cam.get_world_transform().translate(), direction};
 }
 
-static bool intersect_ray_mesh(const ray3<real> &r, const mesh &m, real &out_t)
+static bool intersect_ray_mesh(const ray3<real> &r,
+                               const mesh &m,
+                               const vector<mat4<real>> &bone_matrices,
+                               real &out_t)
 {
     real closest_t = real::max_val();
     bool hit       = false;
@@ -47,9 +51,9 @@ static bool intersect_ray_mesh(const ray3<real> &r, const mesh &m, real &out_t)
             m.get_primitive(i, tri);
 
             triangle3<real> triangle;
-            m.get_position(tri.v0, triangle.v0);
-            m.get_position(tri.v1, triangle.v1);
-            m.get_position(tri.v2, triangle.v2);
+            m.get_skinned_position(tri.v0, bone_matrices, triangle.v0);
+            m.get_skinned_position(tri.v1, bone_matrices, triangle.v1);
+            m.get_skinned_position(tri.v2, bone_matrices, triangle.v2);
 
             real t = 0;
 
@@ -70,10 +74,10 @@ static bool intersect_ray_mesh(const ray3<real> &r, const mesh &m, real &out_t)
             m.get_primitive(i, quad_prim);
 
             quad3<real> quad;
-            m.get_position(quad_prim.v0, quad.v0);
-            m.get_position(quad_prim.v1, quad.v1);
-            m.get_position(quad_prim.v2, quad.v2);
-            m.get_position(quad_prim.v3, quad.v3);
+            m.get_skinned_position(quad_prim.v0, bone_matrices, quad.v0);
+            m.get_skinned_position(quad_prim.v1, bone_matrices, quad.v1);
+            m.get_skinned_position(quad_prim.v2, bone_matrices, quad.v2);
+            m.get_skinned_position(quad_prim.v3, bone_matrices, quad.v3);
 
             real t = 0;
             if (r.intersects_with(quad, t))
@@ -133,7 +137,8 @@ tuple<model *, real> pick_object(const world &world, const ray3<real> &r)
             ray3<real> local_ray = {local_origin, local_direction};
 
             real local_t = 0;
-            if (intersect_ray_mesh(local_ray, *mesh, local_t))
+            if (intersect_ray_mesh(
+                    local_ray, *mesh, mod->get_bone_matrices(), local_t))
             {
                 vec3<real> hit_point_local =
                     local_origin + local_direction * local_t;

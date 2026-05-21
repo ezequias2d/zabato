@@ -10,7 +10,6 @@ struct game_message;
 class gpu;
 class console;
 class resource_manager;
-class object;
 
 /**
  * @class controller

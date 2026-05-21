@@ -5,6 +5,8 @@
 #include <zabato/gpu.hpp>
 #include <zabato/hash_map.hpp>
 #include <zabato/imgui.hpp>
+#include <zabato/importer.hpp>
+#include <zabato/mesh.hpp>
 #include <zabato/shape.hpp>
 #include <zabato/stb/image_utils.hpp>
 #include <zabato/vector.hpp>
@@ -114,6 +116,13 @@ void editor_resources::install_custom_icons()
             continue;
 
         FILE *file = fopen(def.file, "rb");
+        if (!file)
+        {
+            report(report_type::error,
+                   "Failed to load icon for atlas (fopen): %s",
+                   def.file);
+            continue;
+        }
         fseek(file, 0, SEEK_END);
         size_t size = ftell(file);
         fseek(file, 0, SEEK_SET);
@@ -234,35 +243,27 @@ void editor_resources::init(resource_manager *res_mgr, gpu *gpu)
 
 void editor_resources::shutdown() {}
 
-editor_icon editor_resources::get_icon_id_for_file(const string &filename)
+editor_icon editor_resources::get_icon_for_asset_type(asset_type type)
 {
-    if (filename.empty())
-        return editor_icon::file;
-
-    size_t dot_pos = filename.find('.');
-    if (dot_pos == string::npos)
-        return editor_icon::file;
-
-    string ext = filename.substr(dot_pos);
-
-    if (ext == ".lua")
+    switch (type)
+    {
+    case asset_type::script:
         return editor_icon::lua_script;
-    if (ext == ".fbx" || ext == ".obj" || ext == ".gltf" || ext == ".glb")
+    case asset_type::mesh:
         return editor_icon::mesh;
-    if (ext == ".ttf" || ext == ".otf")
-        return editor_icon::font;
-    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".bmp")
+    case asset_type::texture:
         return editor_icon::texture;
-    if (ext == ".wav" || ext == ".mp3" || ext == ".ogg")
+    case asset_type::audio:
         return editor_icon::audio;
-    if (ext == ".zfile")
+    case asset_type::scene:
         return editor_icon::zfile;
-    if (ext == ".vert.lua" || ext == ".frag.lua")
+    case asset_type::shader:
         return editor_icon::shader;
-    if (ext == ".zmaterial")
+    case asset_type::material:
         return editor_icon::material;
-
-    return editor_icon::file;
+    default:
+        return editor_icon::file;
+    }
 }
 
 } // namespace zabato::editor

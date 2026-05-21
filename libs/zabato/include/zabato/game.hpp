@@ -23,9 +23,9 @@ public:
         s_start_objects = object::s_in_use.size();
         if (s_start_objects > 0)
         {
-            assert(s_start_objects == 0);
             object::print_in_use("app_log.txt",
                                  "Objects in use at game initialization");
+            assert(s_start_objects == 0);
         }
 
         bool failed = false;
@@ -33,16 +33,15 @@ public:
         if (m_initializers)
             for (auto initializer : *m_initializers)
             {
-                failed = !initializer();
-                assert(failed);
+                if (!initializer())
+                    failed = true;
             }
 
         delete m_initializers;
         m_initializers  = nullptr;
         s_start_objects = object::s_in_use.size();
 
-        if (failed)
-            assert(false);
+        assert(!failed);
     }
 
     typedef bool (*terminator_t)(void);
@@ -59,15 +58,13 @@ public:
         if (m_terminators)
             for (auto terminator : *m_terminators)
             {
-                failed = !terminator();
-                assert(failed);
+                if (!terminator())
+                    failed = true;
             }
-
         delete m_terminators;
         m_terminators = nullptr;
 
-        if (failed)
-            assert(false);
+        assert(!failed);
     }
 
 private:

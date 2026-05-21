@@ -6,6 +6,7 @@
 #include <zabato/object.hpp>
 #include <zabato/resource.hpp>
 #include <zabato/stream.hpp>
+#include <zabato/transformation.hpp>
 
 namespace zabato
 {
@@ -73,7 +74,7 @@ private:
 class serializer
 {
 public:
-    serializer(resource_manager &manager);
+    serializer(resource_manager *manager);
     ~serializer();
 
     /**
@@ -135,6 +136,41 @@ public:
 
     size_t write(const char *str) { return write(string_view(str)); }
 
+    size_t write(const transformation &transform)
+    {
+        size_t res = 0;
+
+        ICE_VEC3<ice_real, ice_real, ice_real> pos = transform.translate();
+        ICE_VEC4<ice_real, ice_real, ice_real, ice_real> rot =
+            transform.rotate().as_vec4;
+        ICE_VEC3<ice_real, ice_real, ice_real> sca = transform.scale();
+
+        res += write(pos);
+        res += write(rot);
+        res += write(sca);
+
+        return res;
+    }
+
+    size_t read(transformation &transform)
+    {
+        size_t res = 0;
+
+        ICE_VEC3<ice_real, ice_real, ice_real> pos;
+        ICE_VEC4<ice_real, ice_real, ice_real, ice_real> rot;
+        ICE_VEC3<ice_real, ice_real, ice_real> sca;
+
+        res += read(pos);
+        res += read(rot);
+        res += read(sca);
+
+        transform.set_translate(pos);
+        transform.set_rotate(vec4<real>(rot));
+        transform.set_scale(sca);
+
+        return res;
+    }
+
     /**
      * @brief Read an object pointer.
      * Handles resolving existing objects or marking for load.
@@ -150,6 +186,8 @@ public:
      * @return bytes written.
      */
     size_t write(const object *obj);
+
+    size_t write(object *obj) { return write((const object *)obj); }
 
     /**
      * @brief Read a string.

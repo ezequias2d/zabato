@@ -2,7 +2,7 @@
 
 #include <zabato/importer.hpp>
 
-namespace zabato::editor
+namespace zabato
 {
 
 class object_importer : public importer
@@ -30,4 +30,4 @@ private:
 
 void register_object_importer(resource_manager *manager);
 
-} // namespace zabato::editor
+} // namespace zabato

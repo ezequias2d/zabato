@@ -1,6 +1,6 @@
-#include <editor/object_resource.hpp>
+#include <zabato/object_resource.hpp>
 
-namespace zabato::editor
+namespace zabato
 {
 const rtti object_resource::TYPE =
     rtti("zabato.object_resource", &resource::TYPE);

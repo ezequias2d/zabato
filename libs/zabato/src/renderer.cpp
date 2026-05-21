@@ -2,22 +2,23 @@
 #include <zabato/gpu.hpp>
 #include <zabato/light.hpp>
 #include <zabato/material.hpp>
+#include <zabato/mesh.hpp>
 #include <zabato/model.hpp>
 #include <zabato/node.hpp>
 #include <zabato/renderer.hpp>
 
 namespace zabato
 {
-void simple_renderer::begin(camera &cam)
+void simple_renderer::begin(pointer<camera> cam)
 {
-    m_cam = &cam;
+    m_cam = cam;
 
     m_gpu.set_matrix_mode(matrix_mode::projection);
-    mat4<real> proj = cam.get_projection();
+    mat4<real> proj = cam->get_projection();
     m_gpu.load_matrix(proj);
 
     m_gpu.set_matrix_mode(matrix_mode::modelview);
-    mat4<real> view = cam.get_view();
+    mat4<real> view = cam->get_view();
     m_gpu.load_matrix(view);
 
     m_gpu.set_matrix_mode(matrix_mode::texture);
@@ -35,7 +36,7 @@ void simple_renderer::end()
     }
 }
 
-void simple_renderer::submit(model *model)
+void simple_renderer::submit(pointer<model> model)
 {
     if (!model)
         return;
@@ -44,7 +45,7 @@ void simple_renderer::submit(model *model)
     if (!mesh)
         return;
 
-    const auto &bones = model->get_bones();
+    const auto &bone_matrices = model->get_bone_matrices();
 
     // Apply Model Transform
     m_gpu.set_matrix_mode(matrix_mode::modelview);
@@ -65,10 +66,10 @@ void simple_renderer::submit(model *model)
 
     m_gpu.color(1, 1, 1, 1);
 
-    mesh->render(m_gpu, bones);
+    mesh->render(m_gpu, bone_matrices.empty() ? nullptr : &bone_matrices);
 }
 
-void simple_renderer::submit(light *light)
+void simple_renderer::submit(pointer<class light> light)
 {
     if (!light)
         return;
@@ -80,16 +81,16 @@ void simple_renderer::submit(light *light)
 }
 
 // Forward Renderer
-void forward_renderer::begin(camera &cam)
+void forward_renderer::begin(pointer<class camera> cam)
 {
-    m_cam = &cam;
+    m_cam = cam;
 
     m_gpu.set_matrix_mode(matrix_mode::projection);
-    mat4<real> proj = cam.get_projection();
+    mat4<real> proj = cam->get_projection();
     m_gpu.load_matrix(proj);
 
     m_gpu.set_matrix_mode(matrix_mode::modelview);
-    mat4<real> view = cam.get_view();
+    mat4<real> view = cam->get_view();
     m_gpu.load_matrix(view);
 
     m_gpu.set_matrix_mode(matrix_mode::texture);
@@ -115,7 +116,7 @@ void forward_renderer::end()
     m_gpu.enable_lighting(false);
 }
 
-void forward_renderer::submit(model *model)
+void forward_renderer::submit(pointer<model> model)
 {
     if (!model)
         return;
@@ -124,8 +125,8 @@ void forward_renderer::submit(model *model)
     if (!mesh)
         return;
 
-    auto material     = model->get_material();
-    const auto &bones = model->get_bones();
+    auto material             = model->get_material();
+    const auto &bone_matrices = model->get_bone_matrices();
 
     // Calculate ModelView
     m_gpu.set_matrix_mode(matrix_mode::modelview);
@@ -143,7 +144,7 @@ void forward_renderer::submit(model *model)
         material->apply(m_gpu);
 
         // Draw
-        mesh->render(m_gpu, bones);
+        mesh->render(m_gpu, bone_matrices.empty() ? nullptr : &bone_matrices);
     }
     else
     {
@@ -151,11 +152,11 @@ void forward_renderer::submit(model *model)
         m_gpu.bind_texture(nullptr);
 
         m_gpu.color(1, 1, 1, 1);
-        mesh->render(m_gpu, bones);
+        mesh->render(m_gpu, bone_matrices.empty() ? nullptr : &bone_matrices);
     }
 }
 
-void forward_renderer::submit(light *light)
+void forward_renderer::submit(pointer<class light> light)
 {
     if (!light)
         return;

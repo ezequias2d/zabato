@@ -55,9 +55,6 @@ bool lua_script_system::initialize()
         info.factory = object::factory_delegate::
             from_method<lua_script_system, &lua_script_system::create_instance>(
                 this);
-        info.factory_xml = object::factory_delegate_xml::from_method<
-            lua_script_system,
-            &lua_script_system::create_instance_xml>(this);
         info.type = &lua_script_instance::TYPE;
 
         object::s_factory->add_or_set(lua_script_instance::TYPE.name(), info);
@@ -66,17 +63,9 @@ bool lua_script_system::initialize()
     return true;
 }
 
-object *lua_script_system::create_instance(serializer &s)
+object *lua_script_system::create_instance()
 {
     return new lua_script_instance(m_L);
-}
-
-object *lua_script_system::create_instance_xml(xml_serializer &s,
-                                               tinyxml2::XMLElement &el)
-{
-    auto *inst = new lua_script_instance(m_L);
-    inst->load_xml(s, el);
-    return inst;
 }
 
 void lua_script_system::shutdown()
@@ -462,6 +451,83 @@ bool lua_script_system::compile_zshader(const string_view &source,
 
     lua_settop(m_L, top);
     return true;
+}
+
+struct compiled_expression
+{
+    lua_State *L;
+    int ref;
+
+    ~compiled_expression()
+    {
+        if (L && ref != LUA_NOREF)
+            luaL_unref(L, LUA_REGISTRYINDEX, ref);
+    }
+};
+
+value lua_script_system::compile_expression(const string_view &source,
+                                            const string_view &chunk_name)
+{
+    if (!m_L)
+        return value();
+
+    string wrapped;
+    wrapped.reserve(source.size() + 16);
+    wrapped += "return ";
+    wrapped += source;
+
+    string chunk_name_str(chunk_name.data(), chunk_name.size());
+
+    if (luaL_loadbufferx(
+            m_L, wrapped.c_str(), wrapped.size(), chunk_name_str.c_str(), "t") !=
+        LUA_OK)
+    {
+        report(report_type::error,
+               "Expression compile error [%s]: %s",
+               chunk_name_str.c_str(),
+               lua_tostring(m_L, -1));
+        lua_pop(m_L, 1);
+        return value();
+    }
+
+    compiled_expression holder{m_L, luaL_ref(m_L, LUA_REGISTRYINDEX)};
+
+    script_delegate callable = [holder](script_system *sys, script_instance *inst,
+                                        script_args *args) {
+        auto *lua_sys = static_cast<lua_script_system *>(sys);
+        lua_State *L  = lua_sys->m_L;
+        int env_ref   = LUA_NOREF;
+
+        if (inst)
+        {
+            auto *lua_inst = static_cast<lua_script_instance *>(inst);
+            env_ref        = lua_inst->env_ref();
+        }
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, holder.ref);
+
+        if (env_ref != LUA_NOREF)
+        {
+            lua_rawgeti(L, LUA_REGISTRYINDEX, env_ref);
+            lua_setupvalue(L, -2, 1);
+        }
+
+        if (lua_pcall(L, 0, 1, 0) != LUA_OK)
+        {
+            report(report_type::error,
+                   "Expression eval error: %s",
+                   lua_tostring(L, -1));
+            lua_pop(L, 1);
+            args->push_return(value());
+        }
+        else
+        {
+            args->push_return(lua_sys->to_value(-1));
+            lua_pop(L, 1);
+        }
+    };
+
+    return value(callable);
 }
 
 } // namespace zabato

@@ -23,6 +23,9 @@ public:
     void shutdown() override;
     void tick() override;
 
+    value compile_expression(const string_view &source,
+                             const string_view &chunk_name = "expression") override;
+
     // ZShader Compiler Integration
     bool compile_zshader(const string_view &source,
                          const string_view &chunk_name,
@@ -34,9 +37,7 @@ public:
 
     script_instance *load_script(const char *filepath, uuid owner_id) override;
 
-    object *create_instance(serializer &s) override;
-    object *create_instance_xml(xml_serializer &s,
-                                tinyxml2::XMLElement &el) override;
+    object *create_instance() override;
 
     void register_global_function(const string_view &name, value cb) override;
     void register_class(const script_class_def &def) override;

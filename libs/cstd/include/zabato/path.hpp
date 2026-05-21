@@ -141,7 +141,7 @@ inline static string normalize(string_view path)
     res.reserve(path.size());
 
     bool absolute = is_absolute(path);
-    size_t start  = 0;
+    size_t start = 0;
 
     // Handle Windows drive letter
     if (path.size() >= 2 && path[1] == ':')

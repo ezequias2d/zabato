@@ -107,10 +107,11 @@ struct ICE_BERG_HEADER
 
 struct ICE_INDEX_ENTRY
 {
-    ice_uint64_t path_offset; //< Offset into string block
-    ice_uint64_t data_offset; //< Offset of file/dir data
-    ice_uint64_t size;        //< Size of data
-    ice_uint64_t flags;       //< Reserved, always 0
+    ice_uint64_t path_offset;        //< Offset into string block
+    ice_uint64_t data_offset;        //< Offset of file/dir data
+    ice_uint64_t size;               //< Size of data
+    ice_uint64_t last_modified_time; //< Last write time
+    ice_uint64_t flags;              //< Reserved, always 0
 };
 
 struct ICE_PACK

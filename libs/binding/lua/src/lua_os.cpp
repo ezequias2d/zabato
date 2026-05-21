@@ -1,7 +1,6 @@
 #include "lua_value.hpp"
 
 #include <ctime>
-#include <clocale>
 
 #include <zabato/console.hpp>
 #include <zabato/fs.hpp>

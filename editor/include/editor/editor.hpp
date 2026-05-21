@@ -13,6 +13,7 @@
 #include <editor/asset_database.hpp>
 #include <editor/editor_resources.hpp>
 #include <editor/notification_manager.hpp>
+#include <editor/windows/animator_graph_window.hpp>
 #include <editor/windows/asset_browser.hpp>
 #include <editor/windows/console.hpp>
 #include <editor/windows/hierarchy.hpp>
@@ -40,11 +41,15 @@ public:
     void init(window *win, resource_manager *res_mgr, gpu *gpu, renderer *rnd);
     void shutdown();
 
-    void update(real delta_time, world &world);
-    void render(world &world, renderer &renderer, gpu &gpu, real dtime);
-    void draw_main_menu(world &world);
+    pointer<world> get_world() const { return m_world; }
+    void set_world(pointer<world> w) { m_world = w; }
+
+    void update(real delta_time);
+    void render(renderer &renderer, gpu &gpu, real dtime);
+    void draw_main_menu();
 
     void send_message(const game_message &msg);
+    void dispatch_to_windows(const game_message &msg);
 
     resource_manager *get_resource_manager() const { return m_res_mgr; }
     editor_resources *get_resources() { return &m_resources; }
@@ -68,22 +73,22 @@ public:
 
 private:
     void setup_dockspace();
-    void process_messages(world &world);
-    void draw_toolbar(world &world);
-    void dispatch_to_windows(const game_message &msg);
-    void add_to_world(world &world, spatial *spatial, uuid to);
+    void process_messages();
+    void draw_toolbar();
+    void add_to_world(spatial *spatial, uuid to);
 
-    void check_unsaved_changes(world &world, const game_message &pending_msg);
-    void draw_unsaved_changes_popup(world &world);
+    void check_unsaved_changes(const game_message &pending_msg);
+    void draw_unsaved_changes_popup();
 
-    string get_scene_xml(world &world);
-    bool is_scene_dirty(world &world);
+    string get_scene_xml();
+    bool is_scene_dirty();
 
-    void on_play(world &world);
+    void on_play();
     void on_pause();
-    void on_stop(world &world);
+    void on_stop();
 
     window *m_window = nullptr;
+    pointer<world> m_world;
     console &m_console;
 
     // Windows
@@ -93,6 +98,7 @@ private:
     scene_view_window m_scene_win;
     asset_browser_window m_asset_browser;
     console_window m_console_win;
+    animator_graph_window m_animator_graph_win;
 
     // State
     editor_state m_state = editor_state::edit;
@@ -139,8 +145,8 @@ private:
     symbol_ref cmd_open_project_folder = "cmd_open_project_folder";
 
 public:
-    void load_scene(world &world, const string &path);
-    void save_scene(world &world, const string &path);
+    void load_scene(const string &path);
+    void save_scene(const string &path);
     void save_prefab(object *obj, const string &path);
     bool generate_and_save_thumbnail(const string &path);
     void register_prefab_instance(object *obj, const string &path);

@@ -21,12 +21,6 @@ public:
     {
         if (m_renderer)
             delete m_renderer;
-        if (m_model)
-            delete m_model;
-        if (m_cam)
-            delete m_cam;
-        if (m_light)
-            delete m_light;
     }
 
     void init(editor_app &app)
@@ -214,7 +208,7 @@ public:
         g->clear(m_clear_color, 1.0);
 
         m_cam->update_view_from_transform();
-        m_renderer->begin(*m_cam);
+        m_renderer->begin(m_cam);
 
         submit_callback(*m_renderer);
 
@@ -274,9 +268,9 @@ private:
 
     forward_renderer *m_renderer = nullptr;
     framebuffer *m_fbo           = nullptr;
-    model *m_model               = nullptr;
-    camera *m_cam                = nullptr;
-    light *m_light               = nullptr;
+    pointer<model> m_model       = nullptr;
+    pointer<camera> m_cam        = nullptr;
+    pointer<light> m_light       = nullptr;
 
     bool m_auto_rotate    = true;
     quat<real> m_rotation = {0, 0, 0, 1};

@@ -7,6 +7,7 @@
 #include <zabato/model.hpp>
 #include <zabato/physics/physics_world.hpp>
 #include <zabato/renderer.hpp>
+#include <zabato/serializer.hpp>
 #include <zabato/spatial.hpp>
 
 namespace zabato
@@ -33,13 +34,13 @@ public:
      * @brief Set the active camera for the world.
      * @param cam The camera to set as active.
      */
-    void set_active_camera(camera *cam);
+    void set_active_camera(pointer<camera> cam);
 
     /**
      * @brief Get the currently active camera.
      * @return Pointer to the active camera.
      */
-    camera *get_active_camera() const;
+    pointer<camera> get_active_camera() const;
 
     virtual world *get_world() const override final
     {
@@ -50,13 +51,13 @@ public:
      * @brief Set the root of the scene graph.
      * @param root Pointer to the root spatial node.
      */
-    void set_scene_root(spatial *root);
+    void set_scene_root(pointer<spatial> root);
 
     /**
      * @brief Get the scene root.
      * @return Pointer to root.
      */
-    spatial *get_scene_root() const { return m_root; }
+    pointer<spatial> get_scene_root() const { return m_root; }
 
     /**
      * @brief Register a model to the world.
@@ -111,7 +112,7 @@ public:
      */
     void update(real dt);
 
-    void render(renderer &rnd, camera &cam);
+    void render(renderer &rnd, pointer<camera> cam);
 
     /**
      * @brief Send a game message to be processed in the next update.
@@ -123,7 +124,20 @@ public:
      * @brief Finds the first camera in the scene graph.
      * @return Pointer to the camera or nullptr if not found.
      */
-    camera *find_camera();
+    pointer<class camera> find_camera();
+
+    virtual bool register_object(serializer &serializer) const override;
+
+    virtual void save(serializer &serializer) const override;
+    virtual void load(serializer &serializer, serializer_link *link) override;
+    virtual void link(serializer &serializer, serializer_link *link) override;
+
+    virtual void save_xml(xml_serializer &serializer,
+                          tinyxml2::XMLElement &element) const override;
+    virtual void load_xml(xml_serializer &serializer,
+                          tinyxml2::XMLElement &element) override;
+    virtual void link(xml_serializer &serializer,
+                      tinyxml2::XMLElement &element) override;
 
 private:
     void update_node(spatial *node, real dt);

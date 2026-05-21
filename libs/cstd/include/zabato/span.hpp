@@ -212,7 +212,7 @@ template <typename T> const_buffer as_bytes(span<T> s) noexcept
 }
 
 /**
-* @brief Creates a read-only byte view of a single object
+ * @brief Creates a read-only byte view of a single object
  * (struct/primitive). Enables usage like:
  * file->write(as_bytes(my_struct).data(), sizeof(my_struct));
  */

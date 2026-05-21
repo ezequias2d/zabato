@@ -133,7 +133,7 @@ void jolt_character_controller::initialize_with_world(jolt_physics_world *w)
             // Prefer current object transform if available
             if (m_object)
             {
-                spatial *s = c_dynamic_cast<spatial>(m_object);
+                pointer<spatial> s = c_dynamic_cast<spatial>(m_object);
                 if (s)
                 {
                     transformation t = s->get_world_transform();

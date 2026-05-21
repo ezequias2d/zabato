@@ -32,6 +32,11 @@ struct grid_options
  */
 void draw_grid(gpu &gpu, const grid_options &options);
 
+real dist_ray_segment(const vec3<real> &r_origin,
+                      const vec3<real> &r_dir,
+                      const vec3<real> &p1,
+                      const vec3<real> &p2);
+
 struct orientation_gizmo_options
 {
     /** @brief The camera used for rendering. */
@@ -310,6 +315,8 @@ struct wire_mesh_options
 {
     /** @brief The mesh to draw. */
     mesh &m;
+    /** @brief The bone matrices for skinning, if applicable. */
+    const vector<mat4<real>> *bone_matrices = nullptr;
     /** @brief The color of the wireframe. */
     zabato::color color;
 };
@@ -320,6 +327,59 @@ struct wire_mesh_options
  * @param options The wireframe mesh options.
  */
 void draw_wire_mesh(gpu &gpu, const wire_mesh_options &options);
+
+/**
+ * @brief Options for drawing a model's skeleton.
+ */
+struct draw_skeleton_options
+{
+    /** @brief The model to extract bones from. */
+    model &m;
+    /** @brief The color for the joint connections (bones). */
+    color bone_color = color::green();
+    /** @brief The color for the joints. */
+    color joint_color = color::yellow();
+    /** @brief Radius of the joints. */
+    real joint_radius = 0.05f;
+    /** @brief If true, the skeleton renders on top of everything. */
+    bool x_ray = true;
+};
+
+/**
+ * @brief Draws a skeleton over a model (useful for X-Ray debugging).
+ * @param gpu The GPU interface.
+ * @param options The skeleton drawing options.
+ */
+void draw_skeleton(gpu &gpu, const draw_skeleton_options &options);
+
+/**
+ * @brief Options for drawing a bone gizmo.
+ */
+struct bone_gizmo_options
+{
+    /** @brief The start point of the bone (parent joint). */
+    vec3<real> start;
+    /** @brief The end point of the bone (child joint). */
+    vec3<real> end;
+    /** @brief The radius/thickness of the bone. */
+    real radius;
+    /** @brief The color of the bone. */
+    zabato::color color;
+    /**
+     * @brief World-space orientation of the bone. Used to rotate the
+     * octahedron's cross-section around its head-tail axis so the gizmo
+     * visibly rolls with the bone (matches Blender/Unity). Defaults to
+     * identity, in which case a world-axis fallback is used.
+     */
+    quat<real> orientation = quat<real>();
+};
+
+/**
+ * @brief Draws a bone (octahedron-like shape) from start to end.
+ * @param gpu The GPU interface.
+ * @param options The bone options.
+ */
+void draw_bone(gpu &gpu, const bone_gizmo_options &options);
 
 /**
  * @brief Options for drawing a wireframe box.

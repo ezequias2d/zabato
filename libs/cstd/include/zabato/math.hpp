@@ -1865,8 +1865,14 @@ template <typename T> constexpr T length(const quat<T> &q)
  */
 template <typename T> constexpr quat<T> normalize(const quat<T> &q)
 {
-    T inv_len = T(1) / length(q);
-    return quat<T>(q.x * inv_len, q.y * inv_len, q.z * inv_len, q.w * inv_len);
+    T len = length(q);
+    if (len > T(0))
+    {
+        T inv_len = T(1) / len;
+        return quat<T>(
+            q.x * inv_len, q.y * inv_len, q.z * inv_len, q.w * inv_len);
+    }
+    return quat<T>();
 }
 
 /**
@@ -2033,35 +2039,63 @@ quat_from_mat3(T m00, T m01, T m02, T m10, T m11, T m12, T m20, T m21, T m22)
     quat<T> q;
     if (trace > T(0))
     {
-        T s = sqrt(trace + T(1)) * T(2);
-        q.w = T(0.25) * s;
-        q.x = (m21 - m12) / s;
-        q.y = (m02 - m20) / s;
-        q.z = (m10 - m01) / s;
+        T s = sqrt(max(T(0), trace + T(1))) * T(2);
+        if (s > T(0))
+        {
+            q.w = T(0.25) * s;
+            q.x = (m21 - m12) / s;
+            q.y = (m02 - m20) / s;
+            q.z = (m10 - m01) / s;
+        }
+        else
+        {
+            return quat<T>();
+        }
     }
     else if (m00 > m11 && m00 > m22)
     {
-        T s = sqrt(T(1) + m00 - m11 - m22) * T(2);
-        q.w = (m21 - m12) / s;
-        q.x = T(0.25) * s;
-        q.y = (m01 + m10) / s;
-        q.z = (m02 + m20) / s;
+        T s = sqrt(max(T(0), T(1) + m00 - m11 - m22)) * T(2);
+        if (s > T(0))
+        {
+            q.w = (m21 - m12) / s;
+            q.x = T(0.25) * s;
+            q.y = (m01 + m10) / s;
+            q.z = (m02 + m20) / s;
+        }
+        else
+        {
+            return quat<T>();
+        }
     }
     else if (m11 > m22)
     {
-        T s = sqrt(T(1) + m11 - m00 - m22) * T(2);
-        q.w = (m02 - m20) / s;
-        q.x = (m01 + m10) / s;
-        q.y = T(0.25) * s;
-        q.z = (m12 + m21) / s;
+        T s = sqrt(max(T(0), T(1) + m11 - m00 - m22)) * T(2);
+        if (s > T(0))
+        {
+            q.w = (m02 - m20) / s;
+            q.x = (m01 + m10) / s;
+            q.y = T(0.25) * s;
+            q.z = (m12 + m21) / s;
+        }
+        else
+        {
+            return quat<T>();
+        }
     }
     else
     {
-        T s = sqrt(T(1) + m22 - m00 - m11) * T(2);
-        q.w = (m10 - m01) / s;
-        q.x = (m02 + m20) / s;
-        q.y = (m12 + m21) / s;
-        q.z = T(0.25) * s;
+        T s = sqrt(max(T(0), T(1) + m22 - m00 - m11)) * T(2);
+        if (s > T(0))
+        {
+            q.w = (m10 - m01) / s;
+            q.x = (m02 + m20) / s;
+            q.y = (m12 + m21) / s;
+            q.z = T(0.25) * s;
+        }
+        else
+        {
+            return quat<T>();
+        }
     }
     return q;
 }

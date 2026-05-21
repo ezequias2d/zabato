@@ -33,7 +33,7 @@ public:
     bool is_hovered() const { return m_viewport.is_hovered(); }
     bool is_capturing_input() const { return m_is_dragging; }
 
-    camera &get_camera() { return m_camera; }
+    camera &get_camera() { return *m_camera; }
 
 private:
     void on_scene_render(world &w, camera &cam, gpu &g, editor_app &app);
@@ -43,12 +43,12 @@ private:
     viewport_window m_viewport;
 
 #pragma region Camera
-    camera m_camera;
+    pointer<camera> m_camera;
     vec3<real> m_camera_position = {0, 0, 5};
     vec2<real> m_camera_rotation = {0, 0}; // Pitch, Yaw
 
     real m_speed       = 5.0f;
-    real m_sensitivity = 0.1f;
+    real m_sensitivity = 1.0f;
     bool m_is_dragging = false;
     vec2<real> m_last_mouse_pos;
 
@@ -73,13 +73,14 @@ private:
     ray3<real> m_latest_ray = {{0, 0, 0}, {0, 0, 1}};
     bool m_is_mouse_down    = false;
     bool m_is_gizmo_hovered = false;
+    bool m_show_bones       = false;
 
     // Persistent state for gizmo dragging
-    zabato::vec3<zabato::real> m_gizmo_scale;
-    zabato::quat<zabato::real> m_gizmo_rotation;
+    vec3<real> m_gizmo_scale;
+    quat<real> m_gizmo_rotation;
 
-    spatial *m_hovered_icon  = nullptr;
-    real m_hovered_icon_dist = real::max_val();
+    pointer<spatial> m_hovered_icon = nullptr;
+    real m_hovered_icon_dist        = real::max_val();
 
     symbol_ref cmd_instantiate_prefab = "cmd_instantiate_prefab";
     symbol_ref cmd_select             = "cmd_select";

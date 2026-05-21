@@ -332,7 +332,7 @@ vector<file_info> ice_fs::ls(string_view path)
 
             if (results.empty() || results.back().name != subdir_name)
             {
-                results.push_back({subdir_name, 0, true, true});
+                results.push_back({subdir_name, 0, 0, true, true});
             }
         }
         else
@@ -340,6 +340,7 @@ vector<file_info> ice_fs::ls(string_view path)
             // Immediate file
             results.push_back({string(relative),
                                m_entries[i].size,
+                               m_entries[i].last_modified_time,
                                (bool)(m_entries[i].flags & 1),
                                true});
         }
@@ -375,9 +376,10 @@ file_info ice_fs::get_info(string_view path)
         else
             fi.name = string(full_name);
 
-        fi.size         = entry.size;
-        fi.is_dir       = false; // Entries in index are files
-        fi.is_read_only = true;
+        fi.size               = entry.size;
+        fi.last_modified_time = entry.last_modified_time;
+        fi.is_dir             = false; // Entries in index are files
+        fi.is_read_only       = true;
     }
     else
     {
@@ -417,7 +419,8 @@ file_info ice_fs::get_info(string_view path)
                     right = mid;
             }
 
-            fi.size = 0;
+            fi.size               = 0;
+            fi.last_modified_time = 0;
             if (left < (int64_t)m_entries.size())
             {
                 for (size_t i = left; i < m_entries.size(); ++i)

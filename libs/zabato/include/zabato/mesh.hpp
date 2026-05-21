@@ -336,6 +336,37 @@ public:
         memcpy(&pos, vertex_ptr, sizeof(position_t));
     }
 
+    void get_skinned_position(uint16_t index,
+                              const vector<mat4<real>> &bone_matrices,
+                              vec3<real> &out_pos) const
+    {
+        vec3<real> pos;
+        get_position(index, pos);
+
+        if (bone_matrices.empty() ||
+            (m_flags & mesh_flags::bone) == mesh_flags::none)
+        {
+            out_pos = pos;
+            return;
+        }
+
+        boneweight_t bw;
+        get_boneweight(index, bw);
+
+        vec3<real> final_pos(0);
+        for (int j = 0; j < 4; ++j)
+        {
+            if (bw[j].bone_id >= 0 && bw[j].bone_id < bone_matrices.size() &&
+                bw[j].weight > real(0))
+            {
+                vec4<real> p4(pos, 1);
+                vec4<real> tp = bone_matrices[bw[j].bone_id] * p4;
+                final_pos += tp.xyz() * bw[j].weight;
+            }
+        }
+        out_pos = final_pos;
+    }
+
     void set_normal(uint16_t index, const vec3<real> &norm)
     {
         assert((m_flags & mesh_flags::normal) != mesh_flags::none);
@@ -413,8 +444,8 @@ public:
      *              If provided, it must match the mesh's bone count and order.
      */
     void render(gpu &gpu,
-                const vector<spatial *> &bones = {},
-                const color *override_color    = nullptr) const;
+                const vector<mat4<real>> *bone_matrices = nullptr,
+                const color *override_color             = nullptr) const;
 
     /**
      * @brief Calculates tangent vectors for the mesh based on positions and
@@ -579,13 +610,6 @@ private:
                        const vector<mat4<real>> *final_bone_matrices,
                        const color *override_color = nullptr) const
     {
-        if (has_normal)
-        {
-            vec3<real> normal = {};
-            get_normal(index, normal);
-            gpu.normal(normal);
-        }
-
         if (override_color)
             gpu.color(*override_color);
         else if (has_color)
@@ -605,30 +629,66 @@ private:
         vec3<real> pos = {};
         get_position(index, pos);
 
+        vec3<real> normal = {};
+        if (has_normal)
+            get_normal(index, normal);
+
+        vec3<real> tangent = {};
+        bool has_tangent = (m_flags & mesh_flags::tangent) != mesh_flags::none;
+        if (has_tangent)
+            get_tangent(index, tangent);
+
         if (has_bone && final_bone_matrices)
         {
             boneweight_t bone_weights;
             get_boneweight(index, bone_weights);
 
-            size_t bone_count = 0;
+            size_t bone_count = final_bone_matrices->size();
 
             vec3<real> final_position = {0};
+            vec3<real> final_normal   = {0};
+            vec3<real> final_tangent  = {0};
+
             for (auto j = 0; j < 4; ++j)
             {
                 const auto &bw = bone_weights[j];
                 if (bw.bone_id >= 0 && bw.bone_id < bone_count &&
                     bw.weight > real(0))
                 {
-                    vec4<real> pos4(pos, 1);
-                    vec4<real> transformed_pos =
-                        final_bone_matrices->operator[](bw.bone_id) * pos4;
+                    const mat4<real> &bone_mat =
+                        final_bone_matrices->operator[](bw.bone_id);
 
-                    final_position += transformed_pos.xyz() * bw.weight;
+                    vec4<real> pos4(pos, 1);
+                    final_position += (bone_mat * pos4).xyz() * bw.weight;
+
+                    mat3<real> bone_mat3(bone_mat[0].xyz(),
+                                         bone_mat[1].xyz(),
+                                         bone_mat[2].xyz());
+
+                    if (has_normal)
+                        final_normal += (bone_mat3 * normal) * bw.weight;
+
+                    if (has_tangent)
+                        final_tangent += (bone_mat3 * tangent) * bw.weight;
                 }
             }
+
+            if (has_normal && length_sq(final_normal) > real(1e-6))
+                gpu.normal(normalize(final_normal));
+
+            if (has_tangent && length_sq(final_tangent) > real(1e-6))
+                gpu.tangent(normalize(final_tangent));
+
+            gpu.vertex(final_position);
         }
         else
+        {
+            if (has_normal)
+                gpu.normal(normal);
+            if (has_tangent)
+                gpu.tangent(tangent);
             gpu.vertex(pos);
+        }
     }
 
     template <typename T>

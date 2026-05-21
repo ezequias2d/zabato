@@ -32,6 +32,10 @@ public:
     virtual void link(xml_serializer &serializer,
                       tinyxml2::XMLElement &element) override;
 
+    virtual void save(serializer &serializer) const override;
+    virtual void load(serializer &serializer, serializer_link *link) override;
+    virtual void link(serializer &serializer, serializer_link *link) override;
+
     virtual world *get_world() const override
     {
         auto p = parent();
@@ -70,7 +74,7 @@ protected:
     transformation world_transform;
     bool is_world_dirty;
 
-    spatial() : m_parent(nullptr), is_world_dirty(false) {}
+    spatial() : m_parent(nullptr), is_world_dirty(true) {}
     spatial *m_parent;
 
     void set_parent(spatial *parent)

@@ -2,6 +2,7 @@
 #include <tinyxml2.h>
 #include <zabato/controller.hpp>
 #include <zabato/hash_map.hpp>
+#include <zabato/ice.hpp>
 #include <zabato/object.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/script.hpp>
@@ -50,16 +51,14 @@ void object::terminate_factory()
 
 bool object::register_factory_type(const string &name,
                                    const rtti *type,
-                                   factory_delegate f,
-                                   factory_delegate_xml f_xml)
+                                   factory_delegate f)
 {
     if (!s_factory)
         initialize_factory();
 
     factory_info info;
-    info.type        = type;
-    info.factory     = f;
-    info.factory_xml = f_xml;
+    info.type    = type;
+    info.factory = f;
     s_factory->add_or_set(name, info);
     return true;
 }
@@ -86,52 +85,36 @@ object *object::create_default(const string &type_name, resource_manager &mgr)
         if (!info.factory)
             return nullptr;
 
-        vector<uint8_t> buffer;
-        memory_stream stream(buffer);
-        serializer ser(mgr);
-
-        return info.factory(ser);
+        return info.factory();
     }
     return nullptr;
 }
 
-object *object::factory(serializer &stream)
+object *object::factory(string_view type_name)
 {
     if (!s_factory)
         return nullptr;
 
-    string name;
-    stream.read(name);
-
     factory_info info;
 
-    if (s_factory->try_get_value(name, info) && info.factory)
-        return info.factory(stream);
+    if (s_factory->try_get_value(type_name, info) && info.factory)
+        return info.factory();
 
     return nullptr;
 }
 
-object *object::factory(xml_serializer &serializer, tinyxml2::XMLElement &el)
-{
-    if (!s_factory)
-        return nullptr;
-
-    string name = el.Name();
-    factory_info info;
-    if (s_factory->try_get_value(name, info) && info.factory_xml)
-        return info.factory_xml(serializer, el);
-    return nullptr;
-}
-
-bool object::register_object(serializer &stream) const
+bool object::register_object(serializer &serializer) const
 {
     object *pkThis = (object *)this;
-    if (stream.insert_in_map(pkThis, nullptr))
+    if (serializer.insert_in_map(pkThis, nullptr))
     {
-        stream.insert_in_ordered(pkThis);
-        return true;
+        serializer.insert_in_ordered(pkThis);
+        for (auto &controller : m_controllers)
+            if (controller && !controller->register_object(serializer))
+                return false;
     }
-    return false;
+
+    return true;
 }
 
 void object::save(serializer &stream) const
@@ -142,9 +125,17 @@ void object::save(serializer &stream) const
     string n = name();
     stream.write(n);
 
-    // link data
-    int quantity = 0;
+    // controllers
+    ice_int32_t quantity = m_controllers.size();
     stream.write(quantity);
+    for (auto &controller : m_controllers)
+        stream.write((const object *)controller);
+
+    // tags
+    ice_int32_t tag_count = m_tags.size();
+    stream.write(tag_count);
+    for (const auto &t : m_tags)
+        stream.write(string(t.c_str()));
 }
 
 void object::load(serializer &stream, serializer_link *link)
@@ -158,19 +149,29 @@ void object::load(serializer &stream, serializer_link *link)
     stream.read(n);
     set_name(n.c_str());
 
-    // link data
-    int quantity = 0;
+    // controllers
+    ice_int32_t quantity = 0;
     stream.read(quantity);
 
     for (int i = 0; i < quantity; i++)
     {
-        object *pkChild = nullptr;
-        stream.read(pkChild);
-        link->add_child_id(pkChild);
+        object *pkController = nullptr;
+        stream.read(pkController);
+        link->add_child_id(pkController);
+    }
+
+    // tags
+    ice_int32_t tag_count = 0;
+    stream.read(tag_count);
+    for (int i = 0; i < tag_count; i++)
+    {
+        string t;
+        stream.read(t);
+        add_tag(t.c_str());
     }
 }
 
-void object::link(serializer &stream, serializer_link *link)
+void object::link(serializer &serializer, serializer_link *link)
 {
     // Base class has no children or references to link.
     //
@@ -180,6 +181,23 @@ void object::link(serializer &stream, serializer_link *link)
     // should retrieve these IDs using link->get_next_child_id() in the same
     // order and resolve them to actual object pointers using
     // stream.get_from_map().
+
+    // controllers
+    ice_int32_t quantity = 0;
+    serializer.read(quantity);
+    assert(quantity >= 0);
+    m_controllers.resize(quantity);
+
+    for (int i = 0; i < quantity; i++)
+    {
+        object *pkObj = link->get_next_child_id();
+        if (pkObj)
+        {
+            auto c = c_dynamic_cast<controller>(serializer.get_from_map(pkObj));
+            assert(c);
+            m_controllers[i] = c;
+        }
+    }
 }
 
 void object::print_in_use(const char *file, const char *acMessage)
@@ -228,6 +246,25 @@ void object::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &el)
     else
         set_name("");
 
+    const char *tags = el.Attribute("tags");
+    if (tags)
+    {
+        string tags_str = tags;
+        size_t start    = 0;
+        while (start < tags_str.length())
+        {
+            size_t end = tags_str.find(',', start);
+            if (end == string::npos)
+                end = tags_str.length();
+
+            string token = tags_str.substr(start, end - start);
+            if (!token.empty())
+                add_tag(token.c_str());
+
+            start = end + 1;
+        }
+    }
+
     auto controllers = el.FirstChildElement("controllers");
     for (; controllers != nullptr;
          controllers = controllers->NextSiblingElement("controllers"))
@@ -236,9 +273,11 @@ void object::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &el)
         for (; controller != nullptr;
              controller = controller->NextSiblingElement())
         {
-            object *cObj = object::factory(serializer, *controller);
+            object *cObj = object::factory(controller->Name());
             if (!cObj)
                 continue;
+
+            cObj->load_xml(serializer, *controller);
 
             pointer<zabato::controller> ctrl =
                 c_dynamic_cast<zabato::controller>(cObj);
@@ -253,6 +292,18 @@ void object::save_xml(xml_serializer &serializer,
 {
     el.SetAttribute("id", id().to_string().c_str());
     el.SetAttribute("name", name());
+
+    if (!m_tags.empty())
+    {
+        string tags_str;
+        for (size_t i = 0; i < m_tags.size(); ++i)
+        {
+            tags_str += m_tags[i].c_str();
+            if (i < m_tags.size() - 1)
+                tags_str += ",";
+        }
+        el.SetAttribute("tags", tags_str.c_str());
+    }
 
     if (!m_controllers.empty())
     {
@@ -304,14 +355,14 @@ object *object::clone(resource_manager &manager) const
     memory_stream stream(buffer);
 
     {
-        serializer serializer(manager);
+        serializer serializer(&manager);
         serializer.save(stream, this);
     }
 
     stream.rewind();
 
     {
-        serializer serializer(manager);
+        serializer serializer(&manager);
         serializer.load(stream);
         return serializer.get_from_map((void *)this);
     }
@@ -325,6 +376,8 @@ void object::save_strings(string_tree *tree)
 }
 
 void object::set_name(const char *name) { m_name = name; }
+
+void object::set_name(string_view name) { m_name = name; }
 
 void object::add_controller(pointer<controller> ctrl)
 {
@@ -382,9 +435,16 @@ void object::set_name(symbol *name) { m_name = name; }
 
 const char *object::name() const { return m_name.c_str(); }
 
-object *object::get_object_by_name(const char *name)
+string_view object::name_view() const { return m_name.c_str(); }
+
+object *object::get_object_by_name(const char *name) const
 {
-    if (!name || name[0] == '\0')
+    return get_object_by_name(string_view{name});
+}
+
+object *object::get_object_by_name(string_view name) const
+{
+    if (name.empty())
         return nullptr;
 
     symbol_ref s = name;
@@ -392,10 +452,10 @@ object *object::get_object_by_name(const char *name)
     return obj;
 }
 
-object *object::get_object_by_name(const symbol_ref &name)
+object *object::get_object_by_name(const symbol_ref &name) const
 {
     if (m_name == name)
-        return this;
+        return const_cast<object *>(this);
     return nullptr;
 }
 
@@ -414,6 +474,34 @@ void object::get_all_objects_by_name(const symbol_ref &name,
 {
     if (m_name == name)
         objects.push_back(this);
+}
+
+void object::add_tag(const symbol_ref &tag)
+{
+    if (!has_tag(tag))
+        m_tags.push_back(tag);
+}
+
+void object::remove_tag(const symbol_ref &tag)
+{
+    for (auto it = m_tags.begin(); it != m_tags.end(); ++it)
+    {
+        if (*it == tag)
+        {
+            m_tags.erase(it);
+            return;
+        }
+    }
+}
+
+bool object::has_tag(const symbol_ref &tag) const
+{
+    for (const auto &t : m_tags)
+    {
+        if (t == tag)
+            return true;
+    }
+    return false;
 }
 
 static void
@@ -482,6 +570,32 @@ void object::reflect(reflection &r)
     r.add_property("name", object_name_getter, object_name_setter);
     r.add_property("id", object_id_getter);
     r.add_method("get_object_by_name", object_get_object_by_name);
+}
+
+uint32_t
+object::add_property_changed_handler(const property_changed_handler &h)
+{
+    uint32_t token = m_next_property_handler_token++;
+    m_property_handlers.push_back({token, h});
+    return token;
+}
+
+void object::remove_property_changed_handler(uint32_t token)
+{
+    for (size_t i = 0; i < m_property_handlers.size(); ++i)
+    {
+        if (m_property_handlers[i].token == token)
+        {
+            m_property_handlers.remove_at(i);
+            return;
+        }
+    }
+}
+
+void object::notify_property_changed(const symbol_ref &property)
+{
+    for (const auto &entry : m_property_handlers)
+        entry.handler(this, property);
 }
 
 } // namespace zabato

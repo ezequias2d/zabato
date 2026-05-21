@@ -18,6 +18,8 @@
 #include <zabato/mesh.hpp>
 #include <zabato/model.hpp>
 #include <zabato/node.hpp>
+#include <zabato/object_importer.hpp>
+#include <zabato/object_resource.hpp>
 #include <zabato/primitives.hpp>
 #include <zabato/renderer.hpp>
 #include <zabato/resource.hpp>
@@ -27,7 +29,6 @@
 #include <editor/core/editor_registry.hpp>
 #include <editor/editor.hpp>
 #include <editor/editor_camera.hpp>
-#include <editor/object_importer.hpp>
 #include <editor/windows/hierarchy.hpp>
 #include <editor/windows/inspector.hpp>
 #include <editor/windows/viewport.hpp>
@@ -52,33 +53,20 @@ int main(int argc, char **argv)
     stb::register_importer();
     material_importer::register_importer();
     shader_importer::register_importer();
-    editor::register_object_importer(res_mgr);
+    register_object_importer(res_mgr);
 
     editor::register_material_inspector();
     editor::register_mesh_inspector();
     editor::register_texture_inspector();
     editor::register_object_inspector();
+    editor::register_animator_inspectors();
 
     console console;
-    world world;
+    pointer<world> world = new class world();
     physics::physics_world *phys_world =
         new physics::jolt::jolt_physics_world();
-    world.set_physics(phys_world);
+    world->set_physics(phys_world);
     phys_world->set_gravity({real(0), real(-9.81), real(0)});
-
-    node *root = new node();
-    root->set_name("Root");
-    world.set_scene_root(root);
-
-    // Create Camera
-    camera *cam = new camera();
-    cam->set_name("Main Camera");
-    cam->set_perspective(
-        to_rad(real(45)), real(800.0 / 600.0), real(0.1), real(100.0));
-    cam->look_at({real(0), real(0), real(5)},
-                 {real(0), real(0), real(0)},
-                 {real(0), real(1), real(0)});
-    root->attach_child(cam);
 
     // Register Built-in Meshes
     auto cube_mesh   = primitives::create_cube();
@@ -89,17 +77,33 @@ int main(int argc, char **argv)
     res_mgr->add_resource("builtin:sphere", sphere_mesh);
     res_mgr->add_resource("builtin:plane", plane_mesh);
 
-    // Initial Cube Model
-    model *cube = new model();
-    cube->set_name("Cube");
-    transformation t;
-    t.make_identity();
-    t.set_translate({0, 0, 0});
-    cube->set_local(t);
-    cube->set_resource_manager(res_mgr);
-    cube->set_mesh("builtin:cube");
-    root->attach_child(cube);
-    world.register_model(cube);
+    { // Create first scene
+        pointer<node> root = new node();
+        root->set_name("Root");
+        world->set_scene_root(root.get());
+
+        // Create Camera
+        pointer<camera> cam = new camera();
+        cam->set_name("Main Camera");
+        cam->set_perspective(
+            to_rad(real(45)), real(800.0 / 600.0), real(0.1), real(100.0));
+        cam->look_at({real(0), real(0), real(5)},
+                     {real(0), real(0), real(0)},
+                     {real(0), real(1), real(0)});
+        root->attach_child(cam);
+
+        // Initial Cube Model
+        model *cube = new model();
+        cube->set_name("Cube");
+        transformation t;
+        t.make_identity();
+        t.set_translate({0, 0, 0});
+        cube->set_local(t);
+        cube->set_resource_manager(res_mgr);
+        cube->set_mesh("builtin:cube");
+        root->attach_child(cube);
+        world->register_model(cube);
+    }
 
     zabato::platform::initialize();
 
@@ -165,19 +169,24 @@ int main(int argc, char **argv)
     ctx.logger    = &console;
     ctx.window    = window;
     ctx.scripts   = &lua_sys;
-    world.set_context(ctx);
+    world->set_context(ctx);
 
     editor::editor_app editor(console);
     forward_renderer rnd(*gpu, lua_sys);
     editor.init(window, res_mgr, gpu, &rnd);
     editor.set_script_system(&lua_sys);
 
+    editor.set_world(world);
+
+    const uint32_t FPS        = 60;
+    const uint32_t frameDelay = 1000 / FPS;
     while (!window->should_close())
     {
         poll_events();
         lua_sys.tick(); // GC tick
 
         auto current_time = get_time();
+        auto diff_time    = current_time - last_time;
         real delta_time =
             (real)(current_time - last_time) * (real(1) / real(1000));
         last_time = current_time;
@@ -185,10 +194,10 @@ int main(int argc, char **argv)
         imgui::new_frame();
 
         if (editor.should_simulate())
-            world.update(delta_time);
+            world->update(delta_time);
 
-        editor.update(delta_time, world);
-        editor.render(world, rnd, *gpu, delta_time);
+        editor.update(delta_time);
+        editor.render(rnd, *gpu, delta_time);
 
         gpu->new_frame();
         gpu->clear({0.243, 0.1, 0.15, 1.0}, 1.0);
@@ -197,11 +206,28 @@ int main(int argc, char **argv)
         imgui::render_draw_data(ImGui::GetDrawData());
 
         window->swap_buffers();
+
+        if (diff_time < frameDelay)
+            zabato::sleep(frameDelay - diff_time);
     }
 
     editor.shutdown();
     zabato::imgui::shutdown();
     zabato::platform::shutdown();
+
+    lua_sys.shutdown();
+
+    world->clean();
+    delete phys_world;
+
+    res_mgr->unload_all();
+    delete res_mgr;
+
+    object::terminate_factory();
+
+    shutdown_symbols();
+
+    terminate_window_system();
 
     return 0;
 }

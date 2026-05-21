@@ -34,12 +34,22 @@ struct animation_node
     const bone_info *bone;
 };
 
+enum class anim_behaviour : uint8_t
+{
+    default_pose = 0x0,
+    constant     = 0x1,
+    linear       = 0x2,
+    repeat       = 0x3
+};
+
 struct animation_track
 {
     vector<key_position> positions;
     vector<key_rotation> rotations;
     vector<key_scale> scales;
     fixed_string<32> bone_name;
+    anim_behaviour pre_state  = anim_behaviour::default_pose;
+    anim_behaviour post_state = anim_behaviour::default_pose;
 
     static real get_scale_factor(real last_timestamp,
                                  real next_timestamp,

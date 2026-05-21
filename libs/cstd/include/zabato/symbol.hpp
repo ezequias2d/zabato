@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <zabato/string.hpp>
 
 namespace zabato
 {
@@ -24,6 +25,7 @@ struct symbol;
  * @return A pointer to the unique symbol.
  */
 symbol *get_symbol(const char *name);
+symbol *get_symbol(string_view name);
 
 /**
  * @brief Increments the reference count of a symbol.
@@ -54,6 +56,12 @@ const char *get_symbol_name(const symbol *s);
 uint32_t get_symbol_hash(const symbol *s);
 
 /**
+ * @brief Shuts down the symbol table and frees all interned symbols.
+ * Call this once at application exit to clean up static resources.
+ */
+void shutdown_symbols();
+
+/**
  * @struct symbol_ref
  * @brief A wrapper for symbol pointers that handles reference counting.
  */
@@ -64,6 +72,8 @@ struct symbol_ref
     symbol_ref() = default;
 
     symbol_ref(const char *name) : s(get_symbol(name)) {}
+
+    symbol_ref(string_view name) : s(get_symbol(name)) {}
 
     symbol_ref(symbol *sym) : s(ref_symbol(sym)) {}
 

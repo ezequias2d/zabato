@@ -24,6 +24,8 @@ struct importer_option
     value current_value;
 
     vector<string> enum_values; //< Optional: for list/enum selection
+    string group;               //< Optional: grouping name for UI
+    string display_name;        //< Optional: pretty name for UI
 };
 
 /**
@@ -68,11 +70,14 @@ public:
 
     /**
      * @brief Retrieves the configurable options for this importer.
+     * @param path The absolute or relative path to the source file.
      * @param settings The current XML settings element (optional).
      * @return A vector of options with their current or default values.
      */
     virtual vector<importer_option>
-    get_options(const tinyxml2::XMLElement *settings) const
+    get_options(class resource_manager &manager,
+                const string &path,
+                const tinyxml2::XMLElement *settings) const
     {
         return {};
     }

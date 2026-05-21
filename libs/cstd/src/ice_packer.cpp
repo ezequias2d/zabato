@@ -21,6 +21,7 @@ struct Entry
     string ice_path;  // Relative path in archive (e.g. "subdir/file.txt")
     bool is_dir;
     uint64_t size;
+    uint64_t last_modified_time;
     uint64_t data_offset;
 };
 
@@ -55,12 +56,18 @@ result<void> ice_packer::pack(const string &source_path)
             const std::string full_str = entry.path().generic_string();
             const uint64_t file_size   = entry.file_size();
 
+            auto ftime = entry.last_write_time();
+            auto stime = std::chrono::file_clock::to_sys(ftime);
+            auto tt    = std::chrono::system_clock::to_time_t(stime);
+            uint64_t last_write_time = tt;
+
             entries.push_back({
-                .full_path   = string(full_str.c_str()),
-                .ice_path    = string(rel_str.c_str()),
-                .is_dir      = false,
-                .size        = file_size,
-                .data_offset = 0,
+                .full_path          = string(full_str.c_str()),
+                .ice_path           = string(rel_str.c_str()),
+                .is_dir             = false,
+                .size               = file_size,
+                .last_modified_time = last_write_time,
+                .data_offset        = 0,
             });
         }
     }
@@ -121,10 +128,11 @@ result<void> ice_packer::pack(const string &source_path)
     for (size_t i = 0; i < entries.size(); ++i)
     {
         ICE_INDEX_ENTRY ie = {
-            .path_offset = name_offsets[i],
-            .data_offset = entries[i].data_offset,
-            .size        = entries[i].size,
-            .flags       = 0,
+            .path_offset        = name_offsets[i],
+            .data_offset        = entries[i].data_offset,
+            .size               = entries[i].size,
+            .last_modified_time = entries[i].last_modified_time,
+            .flags              = 0,
         };
         m_writer.write(&ie, sizeof(ie));
     }

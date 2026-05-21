@@ -50,6 +50,12 @@ public:
     void set_name(const char *name);
 
     /**
+     * @brief Set the name of the object.
+     * @param name The new name.
+     */
+    void set_name(string_view name);
+
+    /**
      * @brief Set the name of the object using a symbol.
      * @param name The symbol to set.
      */
@@ -62,19 +68,27 @@ public:
     const char *name() const;
 
     /**
+     * @brief Get the name of the object as a string_view.
+     * @return The object's name as a string_view.
+     */
+    string_view name_view() const;
+
+    virtual object *get_object_by_name(string_view name) const;
+
+    /**
      * @brief search for an object with a specific name within this object's
      * hierarchy.
      * @param name The name to search for.
      * @return Pointer to the object if found, nullptr otherwise.
      */
-    virtual object *get_object_by_name(const char *name);
+    virtual object *get_object_by_name(const char *name) const;
 
     /**
      * @brief search for an object with a specific symbol name.
      * @param name The symbol to search for.
      * @return Pointer to the object if found, nullptr otherwise.
      */
-    virtual object *get_object_by_name(const symbol_ref &name);
+    virtual object *get_object_by_name(const symbol_ref &name) const;
 
     /**
      * @brief Collect all objects with a specific name.
@@ -130,9 +144,7 @@ public:
 #pragma endregion ID
 
 #pragma region Streaming
-    using factory_delegate = delegate<object *(serializer &)>;
-    using factory_delegate_xml =
-        delegate<object *(xml_serializer &, tinyxml2::XMLElement &)>;
+    using factory_delegate = delegate<object *()>;
 
     enum
     {
@@ -142,7 +154,6 @@ public:
     struct factory_info
     {
         factory_delegate factory;
-        factory_delegate_xml factory_xml;
         const rtti *type = nullptr;
     };
 
@@ -156,31 +167,15 @@ public:
     template <typename T> static bool register_type()
     {
         factory_delegate f;
-        factory_delegate_xml f_xml;
 
-        f = [](serializer &s) -> object *
-        {
-            T *obj = new T();
-            if (obj)
-                obj->load(s, nullptr);
-            return obj;
-        };
+        f = []() -> object * { return new T(); };
 
-        f_xml = [](xml_serializer &s, tinyxml2::XMLElement &e) -> object *
-        {
-            T *obj = new T();
-            if (obj)
-                obj->load_xml(s, e);
-            return obj;
-        };
-
-        return register_factory_type(T::TYPE.name(), &T::TYPE, f, f_xml);
+        return register_factory_type(T::TYPE.name(), &T::TYPE, f);
     }
 
     static bool register_factory_type(const string &name,
                                       const rtti *type,
-                                      factory_delegate f,
-                                      factory_delegate_xml f_xml);
+                                      factory_delegate f);
     static const rtti *get_factory_type(const string &name);
 
     /**
@@ -210,9 +205,7 @@ public:
      * @return A pointer to the created object, or nullptr if the factory is not
      * initialized or the type is unknown.
      */
-    static object *factory(serializer &stream);
-    static object *factory(xml_serializer &serializer,
-                           tinyxml2::XMLElement &element);
+    static object *factory(string_view name);
 
     /**
      * @brief Load object data from a stream.
@@ -342,11 +335,60 @@ public:
     }
 #pragma endregion Controllers
 
+#pragma region Tags
+    /**
+     * @brief Add a tag to this object.
+     * @param tag The tag to add.
+     */
+    void add_tag(const symbol_ref &tag);
+
+    /**
+     * @brief Remove a tag from this object.
+     * @param tag The tag to remove.
+     */
+    void remove_tag(const symbol_ref &tag);
+
+    /**
+     * @brief Check if this object has a specific tag.
+     * @param tag The tag to check.
+     * @return true if the object has the tag.
+     */
+    bool has_tag(const symbol_ref &tag) const;
+
+    /**
+     * @brief Get all tags attached to this object.
+     * @return The list of tags.
+     */
+    const vector<symbol_ref> &get_tags() const { return m_tags; }
+#pragma endregion Tags
+
+#pragma region Property Changed
+    using property_changed_handler = delegate<void(object *, const symbol_ref &)>;
+
+    /** Subscribe to property changes. Returns a token for unsubscribe. */
+    uint32_t add_property_changed_handler(const property_changed_handler &h);
+
+    /** Unsubscribe from property changes. */
+    void remove_property_changed_handler(uint32_t token);
+
+    /** Fire the notification. Call from reflected property setters. */
+    void notify_property_changed(const symbol_ref &property);
+#pragma endregion Property Changed
+
 private:
     symbol_ref m_name;
     uuid m_uiID;
 
     vector<pointer<controller>> m_controllers;
+    vector<symbol_ref> m_tags;
+
+    struct property_handler_entry
+    {
+        uint32_t token;
+        property_changed_handler handler;
+    };
+    vector<property_handler_entry> m_property_handlers;
+    uint32_t m_next_property_handler_token = 1;
 };
 
 /**

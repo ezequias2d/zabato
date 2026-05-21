@@ -526,6 +526,17 @@ void GlGpu::normal(real x, real y, real z)
 {
     glNormal3f(float(x), float(y), float(z));
 }
+
+void GlGpu::tangent(const vec3<real> &t)
+{
+    glVertexAttrib3f(3, float(t.x), float(t.y), float(t.z));
+}
+
+void GlGpu::tangent(real x, real y, real z)
+{
+    glVertexAttrib3f(3, float(x), float(y), float(z));
+}
+
 void GlGpu::tex_coord(const vec2<real> &uv)
 {
     glTexCoord2f(float(uv.x), float(uv.y));

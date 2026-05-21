@@ -1,3 +1,4 @@
+#include <math.h>
 #include <tinyxml2.h>
 #include <zabato/camera.hpp>
 #include <zabato/fs.hpp>
@@ -55,7 +56,9 @@ object *xml_serializer::load(fs::file_system &fs, const char *path)
     if (!rootEl)
         return nullptr;
 
-    object *obj = object::factory(*this, *rootEl);
+    object *obj = object::factory(rootEl->Name());
+    obj->load_xml(*this, *rootEl);
+
     if (!obj)
         return nullptr;
 
@@ -72,17 +75,33 @@ void xml_serializer::write_vec2(tinyxml2::XMLElement &el, const vec2<real> &v)
 
 void xml_serializer::write_vec3(tinyxml2::XMLElement &el, const vec3<real> &v)
 {
-    el.SetAttribute("x", (float)v.x);
-    el.SetAttribute("y", (float)v.y);
-    el.SetAttribute("z", (float)v.z);
+    float fx = (float)v.x, fy = (float)v.y, fz = (float)v.z;
+    if (isnan(fx) || isinf(fx))
+        fx = 0.0f;
+    if (isnan(fy) || isinf(fy))
+        fy = 0.0f;
+    if (isnan(fz) || isinf(fz))
+        fz = 0.0f;
+    el.SetAttribute("x", fx);
+    el.SetAttribute("y", fy);
+    el.SetAttribute("z", fz);
 }
 
 void xml_serializer::write_vec4(tinyxml2::XMLElement &el, const vec4<real> &v)
 {
-    el.SetAttribute("x", (float)v.x);
-    el.SetAttribute("y", (float)v.y);
-    el.SetAttribute("z", (float)v.z);
-    el.SetAttribute("w", (float)v.w);
+    float fx = (float)v.x, fy = (float)v.y, fz = (float)v.z, fw = (float)v.w;
+    if (isnan(fx) || isinf(fx))
+        fx = 0.0f;
+    if (isnan(fy) || isinf(fy))
+        fy = 0.0f;
+    if (isnan(fz) || isinf(fz))
+        fz = 0.0f;
+    if (isnan(fw) || isinf(fw))
+        fw = 1.0f;
+    el.SetAttribute("x", fx);
+    el.SetAttribute("y", fy);
+    el.SetAttribute("z", fz);
+    el.SetAttribute("w", fw);
 }
 
 void xml_serializer::write_quat(tinyxml2::XMLElement &el, const quat<real> &v)
@@ -221,9 +240,31 @@ void xml_serializer::write_object(tinyxml2::XMLElement &el, object *obj)
     }
 }
 
-object *xml_serializer::read_object(tinyxml2::XMLElement &el)
+pointer<object> xml_serializer::read_object(tinyxml2::XMLElement &el)
 {
-    return nullptr;
+    string type = el.Name();
+    if (type == "ref")
+    {
+        const char *id = el.Attribute("id");
+        assert(id);
+        if (!id)
+            return nullptr;
+
+        uuid uuid;
+        if (uuid::try_parse(id, uuid))
+            return get_object(uuid);
+
+        return nullptr;
+    }
+    else
+    {
+        pointer<object> obj = object::factory(type);
+        if (!obj)
+            return nullptr;
+
+        obj->load_xml(*this, el);
+        return obj;
+    }
 }
 
 void xml_serializer::write_resource_ref(tinyxml2::XMLElement &el,
@@ -245,9 +286,9 @@ void xml_serializer::read_resource_ref(tinyxml2::XMLElement &el,
         res.set_path("");
 }
 
-object *xml_serializer::get_object(uuid id)
+pointer<object> xml_serializer::get_object(uuid id)
 {
-    object *result = nullptr;
+    pointer<object> result = nullptr;
     if (m_links.try_get_value(id, result))
         return result;
 

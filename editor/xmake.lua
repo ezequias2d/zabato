@@ -4,9 +4,10 @@ target("editor")
     add_files("src/windows/*.cpp")
     add_files("src/core/*.cpp")
     add_files("src/windows/inspector/*.cpp")
+    add_files("src/widgets/*.cpp")
     add_includedirs("include", {public = true})
     set_languages("c++23")
-    
+    add_cxxflags("-fno-rtti")
     add_deps(
         "zabato_imgui",
         "zabato_sdl2",

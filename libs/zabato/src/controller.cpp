@@ -9,7 +9,7 @@ const rtti
 
 void controller::reflect(reflection &r) { object::reflect(r); }
 
-controller::controller() : m_object(nullptr), m_next(nullptr), m_prev(nullptr)
+controller::controller() : m_object(nullptr), m_prev(nullptr), m_next(nullptr)
 {
 }
 

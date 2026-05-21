@@ -4,12 +4,14 @@
 #include <zabato/fs.hpp>
 #include <zabato/object.hpp>
 
+#include <zabato/asset_bundle.hpp>
 #include <zabato/controller.hpp>
 #include <zabato/imgui.hpp>
 #include <zabato/math.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/rtti.hpp>
 #include <zabato/script.hpp>
+#include <zabato/shared_ptr.hpp>
 #include <zabato/spatial.hpp>
 #include <zabato/symbol.hpp>
 #include <zabato/transformation.hpp>
@@ -139,10 +141,45 @@ void inspector_window::asset_inspector(real dtime)
     if (m_selected_resource)
     {
         resource_ref ref{m_selected_asset_path, m_app.get_resource_manager()};
-        auto &resource_type   = m_selected_resource->type();
-        auto preview_callback = editor_registry::find_preview(resource_type);
-        if (preview_callback)
-            preview_callback(&ref, m_app, dtime);
+        auto &resource_type = m_selected_resource->type();
+
+        if (resource_type.is_derived(asset_bundle::TYPE))
+        {
+            auto bundle =
+                static_pointer_cast<asset_bundle>(m_selected_resource);
+
+            if (ImGui::TreeNodeEx("Bundle Contents",
+                                  ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                for (const auto &sub : bundle->get_resources())
+                {
+                    if (ImGui::TreeNode(sub.name.c_str()))
+                    {
+                        ImGui::Text("Type: %s", sub.res->type().name());
+
+                        string sub_path =
+                            m_selected_asset_path + "@" + sub.name;
+                        resource_ref sub_ref{sub_path,
+                                             m_app.get_resource_manager()};
+
+                        auto preview_callback =
+                            editor_registry::find_preview(sub.res->type());
+                        if (preview_callback)
+                            preview_callback(&sub_ref, m_app, dtime);
+
+                        ImGui::TreePop();
+                    }
+                }
+                ImGui::TreePop();
+            }
+        }
+        else
+        {
+            auto preview_callback =
+                editor_registry::find_preview(resource_type);
+            if (preview_callback)
+                preview_callback(&ref, m_app, dtime);
+        }
     }
 
     if (m_current_importer)
@@ -162,43 +199,83 @@ void inspector_window::render_importer_options(
     ImGui::Separator();
     ImGui::TextDisabled("Import Settings");
 
-    for (auto &opt : options)
+    // Gather groups
+    vector<string> groups;
+    for (const auto &opt : options)
     {
-        ImGui::PushID(opt.name.c_str());
-        if (opt.current_value.is_bool())
+        bool found = false;
+        for (const auto &g : groups)
         {
-            bool b = opt.current_value.as_bool();
-            if (ImGui::Checkbox(opt.name.c_str(), &b))
+            if (g == opt.group)
             {
-                opt.current_value = value(b);
+                found = true;
+                break;
             }
         }
-        else if (opt.current_value.is_number())
+        if (!found)
+            groups.push_back(opt.group);
+    }
+
+    for (const auto &g : groups)
+    {
+        bool show_group = true;
+
+        if (!g.empty())
         {
-            float f = (float)opt.current_value.as_number();
-            if (ImGui::DragFloat(opt.name.c_str(), &f))
-            {
-                opt.current_value = value((double)f);
-            }
-        }
-        else if (opt.current_value.is_string())
-        {
-            char buffer[256];
-            string_view s = opt.current_value.as_string();
-            strncpy(buffer, s.data(), sizeof(buffer) - 1);
-            buffer[sizeof(buffer) - 1] = 0;
-            if (ImGui::InputText(opt.name.c_str(), buffer, sizeof(buffer)))
-            {
-                opt.current_value = value(buffer);
-            }
+            show_group =
+                ImGui::TreeNodeEx(g.c_str(), ImGuiTreeNodeFlags_DefaultOpen);
         }
 
-        if (!opt.description.empty())
+        if (show_group)
         {
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("%s", opt.description.c_str());
+            for (auto &opt : options)
+            {
+                if (opt.group != g)
+                    continue;
+
+                ImGui::PushID(opt.name.c_str());
+                const char *label = opt.display_name.empty()
+                                        ? opt.name.c_str()
+                                        : opt.display_name.c_str();
+
+                if (opt.current_value.is_bool())
+                {
+                    bool b = opt.current_value.as_bool();
+                    if (ImGui::Checkbox(label, &b))
+                    {
+                        opt.current_value = value(b);
+                    }
+                }
+                else if (opt.current_value.is_number())
+                {
+                    float f = (float)opt.current_value.as_number();
+                    if (ImGui::DragFloat(label, &f))
+                    {
+                        opt.current_value = value((double)f);
+                    }
+                }
+                else if (opt.current_value.is_string())
+                {
+                    char buffer[256];
+                    string_view s = opt.current_value.as_string();
+                    strncpy(buffer, s.data(), sizeof(buffer) - 1);
+                    buffer[sizeof(buffer) - 1] = 0;
+                    if (ImGui::InputText(label, buffer, sizeof(buffer)))
+                    {
+                        opt.current_value = value(buffer);
+                    }
+                }
+
+                if (!opt.description.empty())
+                {
+                    if (ImGui::IsItemHovered())
+                        ImGui::SetTooltip("%s", opt.description.c_str());
+                }
+                ImGui::PopID();
+            }
+            if (!g.empty())
+                ImGui::TreePop();
         }
-        ImGui::PopID();
     }
 
     if (ImGui::Button("Apply"))
@@ -326,7 +403,7 @@ void inspector_window::load_importer_options(
     {
         // No XML file
         if (m_current_importer)
-            options = m_current_importer->get_options(nullptr);
+            options = m_current_importer->get_options(*rm, path, nullptr);
         return;
     }
 
@@ -337,7 +414,7 @@ void inspector_window::load_importer_options(
                "Failed to parse XML file: %s",
                xml_path.c_str());
         if (m_current_importer)
-            options = m_current_importer->get_options(nullptr);
+            options = m_current_importer->get_options(*rm, path, nullptr);
         return;
     }
 
@@ -347,7 +424,7 @@ void inspector_window::load_importer_options(
         settings_node = root->FirstChildElement("settings");
 
     if (m_current_importer)
-        options = m_current_importer->get_options(settings_node);
+        options = m_current_importer->get_options(*rm, path, settings_node);
 }
 
 void inspector_window::store_importer_options(

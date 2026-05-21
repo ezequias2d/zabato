@@ -106,7 +106,7 @@ void hierarchy_window::render(spatial *root, editor_app &app)
 
     if (root)
     {
-        node *root_node = c_dynamic_cast<node>(root);
+        pointer<node> root_node = c_dynamic_cast<node>(root);
         if (root_node)
         {
             for (int i = 0; i < root_node->quantity(); ++i)
@@ -194,8 +194,8 @@ void hierarchy_window::draw_node(spatial *s, editor_app &app)
                                ImGuiTreeNodeFlags_OpenOnArrow;
 
     // Check if node has children
-    node *n      = c_dynamic_cast<node>(s);
-    bool is_leaf = !n || (n->quantity() == 0);
+    pointer<node> n = c_dynamic_cast<node>(s);
+    bool is_leaf    = !n || (n->quantity() == 0);
 
     if (is_leaf)
         flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;

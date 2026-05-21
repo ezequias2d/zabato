@@ -1,7 +1,6 @@
-#include <stdio.h>
-#include <string>
-
 #include <filesystem>
+#include <stdio.h>
+
 #include <zabato/fs.hpp>
 #include <zabato/path.hpp>
 #include <zabato/string.hpp>
@@ -333,10 +332,11 @@ vector<file_info> virtual_fs::ls(string_view path)
                 continue;
 
             file_info info;
-            info.name         = name_sv;
-            info.size         = 0;
-            info.is_dir       = true;
-            info.is_read_only = true;
+            info.name               = name_sv;
+            info.size               = 0;
+            info.last_modified_time = 0;
+            info.is_dir             = true;
+            info.is_read_only       = true;
             files.push_back(info);
         }
     }
@@ -368,9 +368,10 @@ file_info virtual_fs::get_info(string_view path)
         else
             fi.name = p;
 
-        fi.is_dir       = true;
-        fi.size         = 0;
-        fi.is_read_only = true;
+        fi.is_dir             = true;
+        fi.size               = 0;
+        fi.last_modified_time = 0;
+        fi.is_read_only       = true;
         return fi;
     }
 

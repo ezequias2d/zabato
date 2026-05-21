@@ -1,11 +1,16 @@
 #include <zabato/controller.hpp>
+#include <zabato/error.hpp>
 #include <zabato/light.hpp>
 #include <zabato/model.hpp>
 #include <zabato/node.hpp>
+#include <zabato/object.hpp>
 #include <zabato/physics/physics_controller.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/script.hpp>
+#include <zabato/serializer.hpp>
+#include <zabato/string.hpp>
 #include <zabato/world.hpp>
+#include <zabato/xml_serializer.hpp>
 
 namespace zabato
 {
@@ -20,11 +25,11 @@ world::world()
 
 world::~world() { clean(); }
 
-void world::set_active_camera(camera *cam) { m_active_camera = cam; }
+void world::set_active_camera(pointer<camera> cam) { m_active_camera = cam; }
 
-camera *world::get_active_camera() const { return m_active_camera; }
+pointer<camera> world::get_active_camera() const { return m_active_camera; }
 
-void world::set_scene_root(spatial *root)
+void world::set_scene_root(pointer<spatial> root)
 {
     if (m_root)
     {
@@ -132,7 +137,7 @@ void world::register_controllers_recursive(spatial *s)
     // Recurse children if node
     if (s->is_derived(node::TYPE))
     {
-        node *n = static_cast<node *>(s);
+        pointer<node> n = static_cast<node *>(s);
         for (int i = 0; i < n->quantity(); ++i)
             register_controllers_recursive(n->child_at(i));
     }
@@ -156,7 +161,7 @@ void world::unregister_controllers_recursive(spatial *s)
     // Recurse children if node
     if (s->is_derived(node::TYPE))
     {
-        node *n = static_cast<node *>(s);
+        pointer<node> n = static_cast<node *>(s);
         for (int i = 0; i < n->quantity(); ++i)
             unregister_controllers_recursive(n->child_at(i));
     }
@@ -177,16 +182,6 @@ void world::update(real dt)
         controller *next = curr->m_next;
         curr->update(dt);
         curr = next;
-    }
-
-    // Update models animators
-    for (auto &mod : m_models)
-    {
-        auto animator = mod->get_animator();
-        if (animator)
-        {
-            animator->update(dt);
-        }
     }
 
     process_messages();
@@ -212,14 +207,14 @@ void world::process_messages()
     }
 }
 
-void world::render(renderer &rnd, camera &cam)
+void world::render(renderer &rnd, pointer<class camera> cam)
 {
     for (auto &l : m_lights)
     {
         rnd.submit(l);
     }
 
-    const frustum &f = cam.get_frustum();
+    const frustum &f = cam->get_frustum();
 
     for (auto &mod : m_models)
     {
@@ -243,20 +238,20 @@ void world::render(renderer &rnd, camera &cam)
     }
 }
 
-static camera *find_camera_recursive(spatial *s)
+static pointer<camera> find_camera_recursive(pointer<spatial> s)
 {
     if (!s)
         return nullptr;
 
     if (s->is_derived(camera::TYPE))
-        return static_cast<camera *>(s);
+        return static_cast<camera *>(s.get());
 
     if (s->is_derived(node::TYPE))
     {
-        node *n = static_cast<node *>(s);
+        pointer<node> n = static_cast<node *>(s.get());
         for (int i = 0; i < n->quantity(); ++i)
         {
-            camera *c = find_camera_recursive(n->child_at(i));
+            pointer<camera> c = find_camera_recursive(n->child_at(i));
             if (c)
                 return c;
         }
@@ -264,7 +259,7 @@ static camera *find_camera_recursive(spatial *s)
     return nullptr;
 }
 
-camera *world::find_camera()
+pointer<camera> world::find_camera()
 {
     if (m_active_camera)
         return m_active_camera;
@@ -280,7 +275,7 @@ static void world_active_camera_getter(script_system *,
     auto obj = args->get_value(0).as_object();
     world *w = c_dynamic_cast<world>(obj.get());
     if (w)
-        args->push_return(w->get_active_camera());
+        args->push_return(w->get_active_camera().get());
 }
 
 static void world_active_camera_setter(script_system *,
@@ -301,6 +296,177 @@ void world::reflect(reflection &r)
     r.add_property("active_camera",
                    world_active_camera_getter,
                    world_active_camera_setter);
+}
+
+bool world::register_object(serializer &serializer) const
+{
+    if (!object::register_object(serializer))
+        return false;
+    if (!m_root->register_object(serializer))
+        return false;
+    if (!m_active_camera->register_object(serializer))
+        return false;
+    return true;
+}
+
+void world::save(serializer &serializer) const
+{
+    spatial::save(serializer);
+
+    serializer.write((const object *)m_root);
+    serializer.write((const object *)m_active_camera);
+}
+
+void world::load(serializer &serializer, serializer_link *link)
+{
+    spatial::load(serializer, link);
+
+    object *pkRoot = nullptr;
+    serializer.read(pkRoot);
+    link->add_child_id(pkRoot);
+
+    object *pkCamera = nullptr;
+    serializer.read(pkCamera);
+    link->add_child_id(pkCamera);
+}
+
+void world::link(serializer &serializer, serializer_link *link)
+{
+    spatial::link(serializer, link);
+    object *pkRoot   = link->get_next_child_id();
+    object *pkCamera = link->get_next_child_id();
+    m_root           = c_dynamic_cast<node>(serializer.get_from_map(pkRoot));
+    m_active_camera = c_dynamic_cast<camera>(serializer.get_from_map(pkCamera));
+}
+
+void world::save_xml(xml_serializer &serializer,
+                     tinyxml2::XMLElement &element) const
+{
+    spatial::save_xml(serializer, element);
+
+    auto root_el = element.InsertNewChildElement("root");
+    serializer.write_object(*root_el, m_root.get());
+
+    auto active_camera_el = element.InsertNewChildElement("active_camera");
+    serializer.write_object(*active_camera_el, m_active_camera.get());
+}
+
+void world::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &element)
+{
+    spatial::load_xml(serializer, element);
+
+    m_active_camera = nullptr;
+    m_root          = nullptr;
+
+    for (auto child = element.FirstChildElement(); child;
+         child      = child->NextSiblingElement())
+    {
+        string name = child->Name();
+        if (name == "transform" || "controllers")
+            continue;
+
+        if (name == "active_camera")
+        {
+            auto camera_el = child->FirstChildElement();
+            if (!camera_el)
+                continue;
+
+            if (camera_el->Name() == string_view{"ref"})
+                continue;
+
+            object *obj = object::factory(name);
+            if (!obj)
+            {
+                report(report_type::error, "Failed to create camera");
+                continue;
+            }
+            obj->load_xml(serializer, *child);
+
+            m_active_camera = c_dynamic_cast<camera>(obj);
+            assert(m_active_camera);
+            if (!m_active_camera)
+            {
+                report(report_type::error, "Failed to cast camera");
+                continue;
+            }
+        }
+        else if (name == "root")
+        {
+            auto root_el = child->FirstChildElement();
+            if (!root_el)
+                continue;
+
+            string_view name = root_el->Name();
+            if (name == string_view{"ref"})
+                continue;
+
+            object *obj = object::factory(name);
+            if (!obj)
+            {
+                report(report_type::error, "Failed to create root");
+                continue;
+            }
+            obj->load_xml(serializer, *child);
+
+            m_root = c_dynamic_cast<node>(obj);
+            assert(m_root);
+            if (!m_root)
+            {
+                report(report_type::error, "Failed to cast root");
+                continue;
+            }
+        }
+    }
+}
+
+void world::link(xml_serializer &serializer, tinyxml2::XMLElement &element)
+{
+    spatial::link(serializer, element);
+
+    for (auto child = element.FirstChildElement(); child;
+         child      = child->NextSiblingElement())
+    {
+        string name = child->Name();
+        if (name != "active_camera" || name != "root")
+            continue;
+
+        const char *id = child->Attribute("id");
+        if (!id)
+            continue;
+
+        auto ref = child->FirstChildElement("ref");
+        if (!ref)
+            continue;
+
+        id = ref->Attribute("id");
+        if (!id)
+        {
+            report(report_type::error, "No ref id");
+            continue;
+        }
+
+        uuid uuid_val;
+        pointer<object> obj = nullptr;
+        if (uuid::try_parse(id, uuid_val))
+            obj = serializer.get_object(uuid_val);
+
+        if (!obj)
+        {
+            report(report_type::error, "Failed to find object with id %s", id);
+            continue;
+        }
+
+        if (name == "active_camera")
+        {
+            m_active_camera = c_dynamic_cast<camera>(obj.get());
+            assert(m_active_camera);
+        }
+        else if (name == "root")
+        {
+            m_root = c_dynamic_cast<node>(obj.get());
+            assert(m_root);
+        }
+    }
 }
 
 } // namespace zabato

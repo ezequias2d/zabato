@@ -3,6 +3,7 @@
 #include <zabato/math.hpp>
 #include <zabato/reflection.hpp>
 #include <zabato/script.hpp>
+#include <zabato/serializer.hpp>
 #include <zabato/xml_serializer.hpp>
 
 namespace zabato
@@ -254,6 +255,21 @@ void camera::save_xml(xml_serializer &serializer,
     element.SetAttribute("far", (double)m_far);
 }
 
+void camera::save(serializer &serializer) const
+{
+    spatial::save(serializer);
+
+    ice_real fov    = m_fov;
+    ice_real aspect = m_aspect;
+    ice_real near   = m_near;
+    ice_real far    = m_far;
+
+    serializer.write(fov);
+    serializer.write(aspect);
+    serializer.write(near);
+    serializer.write(far);
+}
+
 void camera::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &element)
 {
     spatial::load_xml(serializer, element);
@@ -269,6 +285,29 @@ void camera::load_xml(xml_serializer &serializer, tinyxml2::XMLElement &element)
         m_far = val;
 
     set_perspective(m_fov, m_aspect, m_near, m_far);
+    update_view_from_transform();
+}
+
+void camera::load(serializer &serializer, serializer_link *link)
+{
+    spatial::load(serializer, link);
+
+    ice_real fov;
+    ice_real aspect;
+    ice_real near;
+    ice_real far;
+
+    serializer.read(fov);
+    serializer.read(aspect);
+    serializer.read(near);
+    serializer.read(far);
+
+    m_fov    = fov;
+    m_aspect = aspect;
+    m_near   = near;
+    m_far    = far;
+
+    set_perspective(fov, aspect, near, far);
     update_view_from_transform();
 }
 

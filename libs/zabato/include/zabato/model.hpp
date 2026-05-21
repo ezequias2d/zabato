@@ -1,6 +1,5 @@
 #pragma once
 
-#include <zabato/animator.hpp>
 #include <zabato/bounding_volume.hpp>
 #include <zabato/resource.hpp>
 #include <zabato/spatial.hpp>
@@ -24,6 +23,12 @@ public:
                           tinyxml2::XMLElement &element) const override;
     virtual void load_xml(xml_serializer &serializer,
                           tinyxml2::XMLElement &element) override;
+    virtual void link(xml_serializer &serializer,
+                      tinyxml2::XMLElement &element) override;
+
+    virtual void save(serializer &serializer) const override;
+    virtual void load(serializer &serializer, serializer_link *link) override;
+    virtual void link(serializer &serializer, serializer_link *link) override;
 
     virtual void on_transform_changed() override;
 
@@ -69,19 +74,7 @@ public:
      */
     string_view get_material_path() const;
 
-    /**
-     * @brief Set the animator for this model.
-     * @param anim The animator to set.
-     */
-    void set_animator(animator *anim);
-
     void set_resource_manager(resource_manager *mgr);
-
-    /**
-     * @brief Get the animator.
-     * @return Pointer to the animator.
-     */
-    animator *get_animator() const;
 
     /**
      * @brief Get the world space bounding volume.
@@ -94,18 +87,22 @@ public:
      * @brief Get the list of spatial nodes acting as bones for this model.
      * @return Reference to the vector of bone nodes.
      */
-    const vector<spatial *> &get_bones() const { return m_bones; }
+    const vector<pointer<spatial>> &get_bones() const { return m_bones; }
+
+    /**
+     * @brief Get the evaluated bone matrices in model-local space.
+     * @return Reference to the vector of matrices.
+     */
+    const vector<mat4<real>> &get_bone_matrices();
 
     /**
      * @brief Binds the scene graph nodes to the mesh's skeleton.
      * Searches for nodes in this model's hierarchy that match the mesh's bone
      * names.
      */
-    void bind_skeleton();
+    void bind_skeleton(pointer<spatial> root);
 
-    // Serialization
-    virtual void save(serializer &stream) const override;
-    virtual void load(serializer &stream, serializer_link *link) override;
+    pointer<spatial> get_skeleton_root() const { return m_skeleton_root; }
 
 private:
     resource_ref m_mesh;
@@ -114,9 +111,22 @@ private:
     bounding_volume *m_model_bound;
     bounding_volume *m_world_bound;
     bool m_bound_dirty;
-    vector<spatial *> m_bones;
+    vector<pointer<spatial>> m_bones;
+    pointer<spatial> m_skeleton_root;
+
+    vector<mat4<real>> m_bone_matrices;
+    vector<event<>::scoped_connection> m_bone_connections;
+    bool m_bone_matrices_dirty   = true;
+    bool m_skeleton_pending_bind = false;
+
+    void on_bone_dirty()
+    {
+        m_bone_matrices_dirty = true;
+        m_bound_dirty         = true;
+    }
 
     void update_model_bound();
+    void resolve_pending_skeleton_bind();
 };
 
 } // namespace zabato
